@@ -1,0 +1,1236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VoiceFlow Console - Voice AI Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'anthropic': {
+                            50: '#fef5ee',
+                            100: '#fde9d7',
+                            200: '#facfae',
+                            300: '#f7ae7a',
+                            400: '#f38744',
+                            500: '#f06820',
+                            600: '#e14d16',
+                            700: '#bb3914',
+                            800: '#952f18',
+                            900: '#782916',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+
+        .gradient-bg {
+            background: linear-gradient(135deg, #f06820 0%, #e14d16 100%);
+        }
+
+        .card {
+            backdrop-filter: blur(10px);
+            transition: all 0.3s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+        }
+
+        .status-dot {
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% {
+                opacity: 1;
+            }
+            50% {
+                opacity: .5;
+            }
+        }
+
+        .tab-active {
+            border-bottom: 3px solid #f06820;
+            color: #f06820;
+        }
+
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #f9fafb;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #d1d5db;
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #f06820;
+        }
+
+        /* Toast Animations */
+        @keyframes slideInRight {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+
+        @keyframes slideOutRight {
+            from { transform: translateX(0); opacity: 1; }
+            to { transform: translateX(100%); opacity: 0; }
+        }
+
+        .toast-enter { animation: slideInRight 0.3s ease-out forwards; }
+        .toast-exit { animation: slideOutRight 0.3s ease-in forwards; }
+        .toast-card {
+            pointer-events: auto;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1), 0 2px 8px rgba(0, 0, 0, 0.06);
+        }
+        .toast-progress { transition: width linear; }
+        .toast-icon { flex-shrink: 0; }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-900">
+    <!-- Navigation -->
+    <nav class="bg-white border-b border-gray-200 sticky top-0 z-50 backdrop-blur-sm bg-opacity-80">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center h-16">
+                <!-- Logo -->
+                <div class="flex items-center space-x-3">
+                    <div class="w-10 h-10 bg-gradient-to-br from-anthropic-600 to-anthropic-700 rounded-lg flex items-center justify-center">
+                        <span class="text-xl">🎙️</span>
+                    </div>
+                    <div>
+                        <h1 class="text-lg font-bold text-gray-900">
+                            VoiceFlow
+                        </h1>
+                        <p class="text-xs text-gray-600">Voice AI Console</p>
+                    </div>
+                </div>
+
+                <!-- Navigation Links -->
+                <div class="hidden md:flex items-center space-x-8">
+                    <a href="#" class="text-gray-700 hover:text-gray-900 transition text-sm font-medium">Dashboard</a>
+                    <a href="#" class="text-gray-700 hover:text-gray-900 transition text-sm font-medium">Documentation</a>
+                    <a href="#" class="text-gray-700 hover:text-gray-900 transition text-sm font-medium">Support</a>
+                </div>
+
+                <!-- User Menu -->
+                <div class="flex items-center space-x-4">
+                    <button class="p-2 rounded-lg hover:bg-gray-100 transition">
+                        <svg class="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path>
+                        </svg>
+                    </button>
+                    <div class="flex items-center space-x-2 px-3 py-2 bg-gray-100 rounded-lg">
+                        <div class="w-8 h-8 bg-gradient-to-br from-anthropic-500 to-anthropic-600 rounded-full flex items-center justify-center text-sm font-bold text-white">
+                            D
+                        </div>
+                        <span class="text-sm font-medium hidden sm:block">Developer</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
+        <!-- Header -->
+        <div class="mb-8">
+            <h2 class="text-3xl font-bold mb-2">Dashboard</h2>
+            <p class="text-gray-600">Manage your TTS deployments and API keys</p>
+        </div>
+
+        <!-- Stats Grid -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mb-8">
+            <!-- Active Deployments -->
+            <div class="card bg-white rounded-xl p-8 border border-gray-200 shadow-sm hover:shadow-md">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="w-12 h-12 bg-anthropic-600 bg-opacity-20 rounded-lg flex items-center justify-center">
+                        <svg class="w-6 h-6 text-anthropic-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01"></path>
+                        </svg>
+                    </div>
+                    <span class="text-2xl font-bold text-green-400" data-stat="deployments">0</span>
+                </div>
+                <h3 class="text-sm font-medium text-gray-600">Active Deployments</h3>
+                <p class="text-xs text-gray-700 mt-1">Running instances</p>
+            </div>
+
+            <!-- API Requests -->
+            <div class="card bg-white rounded-xl p-8 border border-gray-200 shadow-sm hover:shadow-md">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="w-12 h-12 bg-blue-600 bg-opacity-20 rounded-lg flex items-center justify-center">
+                        <svg class="w-6 h-6 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path>
+                        </svg>
+                    </div>
+                    <span class="text-2xl font-bold text-gray-900" data-stat="requests">0</span>
+                </div>
+                <h3 class="text-sm font-medium text-gray-600">API Requests</h3>
+                <p class="text-xs text-gray-700 mt-1">This month</p>
+            </div>
+
+            <!-- Monthly Cost -->
+            <div class="card bg-white rounded-xl p-8 border border-gray-200 shadow-sm hover:shadow-md">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="w-12 h-12 bg-green-600 bg-opacity-20 rounded-lg flex items-center justify-center">
+                        <svg class="w-6 h-6 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                    </div>
+                    <span class="text-2xl font-bold text-green-400" data-stat="cost">$0</span>
+                </div>
+                <h3 class="text-sm font-medium text-gray-600">Monthly Cost</h3>
+                <p class="text-xs text-gray-700 mt-1">Est. $90-120/mo</p>
+            </div>
+
+            <!-- Uptime -->
+            <div class="card bg-white rounded-xl p-8 border border-gray-200 shadow-sm hover:shadow-md">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="w-12 h-12 bg-yellow-600 bg-opacity-20 rounded-lg flex items-center justify-center">
+                        <svg class="w-6 h-6 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                        </svg>
+                    </div>
+                    <span class="text-2xl font-bold text-green-400" data-stat="uptime">0%</span>
+                </div>
+                <h3 class="text-sm font-medium text-gray-600">Uptime</h3>
+                <p class="text-xs text-gray-700 mt-1">Last 30 days</p>
+            </div>
+        </div>
+
+        <!-- Tabs -->
+        <div class="border-b border-gray-200 mb-6">
+            <nav class="flex space-x-8">
+                <button onclick="switchTab('deployments')" id="tab-deployments" class="tab-active pb-4 px-1 text-sm font-medium transition">
+                    Deployments
+                </button>
+                <button onclick="switchTab('api-keys')" id="tab-api-keys" class="pb-4 px-1 text-sm font-medium text-gray-600 hover:text-gray-900 transition">
+                    API Keys
+                </button>
+                <button onclick="switchTab('deploy')" id="tab-deploy" class="pb-4 px-1 text-sm font-medium text-gray-600 hover:text-gray-900 transition">
+                    Deploy New
+                </button>
+                <button onclick="switchTab('settings')" id="tab-settings" class="pb-4 px-1 text-sm font-medium text-gray-600 hover:text-gray-900 transition">
+                    Settings
+                </button>
+            </nav>
+        </div>
+
+        <!-- Tab Content -->
+        <div id="content-deployments" class="tab-content">
+            <div id="deployments-list" class="space-y-4">
+                <!-- Deployment Card 1 -->
+                <div class="card bg-white rounded-xl p-8 border border-gray-200 shadow-sm hover:shadow-md">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="flex items-center space-x-4">
+                            <div class="flex items-center space-x-2">
+                                <div class="w-2 h-2 bg-green-500 rounded-full status-dot"></div>
+                                <span class="text-sm font-medium text-green-400">Running</span>
+                            </div>
+                            <h3 class="text-lg font-semibold">voiceflow-1767499852</h3>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <button class="px-4 py-2 bg-white border-2 border-gray-300 hover:bg-gray-50 text-gray-700 rounded-lg text-sm font-medium transition">
+                                View Logs
+                            </button>
+                            <button class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition">
+                                Stop
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                        <div>
+                            <p class="text-xs text-gray-700 mb-1">Endpoint</p>
+                            <p class="text-sm font-mono text-gray-800">containers.datacrunch.io/voiceflow-1767499852</p>
+                        </div>
+                        <div>
+                            <p class="text-xs text-gray-700 mb-1">GPU</p>
+                            <p class="text-sm text-gray-800">A100 40GB (Spot)</p>
+                        </div>
+                        <div>
+                            <p class="text-xs text-gray-700 mb-1">Cost</p>
+                            <p class="text-sm text-green-400">$0.238/hr</p>
+                        </div>
+                    </div>
+
+                    <div class="bg-gray-50 rounded-lg p-4 font-mono text-xs">
+                        <p class="text-gray-600 mb-2">API Usage:</p>
+                        <code class="text-gray-800">curl -X POST https://containers.datacrunch.io/voiceflow-1767499852/generate \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -F "text=Hello world" \
+  --output speech.wav</code>
+                    </div>
+                </div>
+
+                <!-- Deployment Card 2 -->
+                <div class="card bg-white rounded-xl p-8 border border-gray-200 shadow-sm hover:shadow-md">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="flex items-center space-x-4">
+                            <div class="flex items-center space-x-2">
+                                <div class="w-2 h-2 bg-yellow-500 rounded-full"></div>
+                                <span class="text-sm font-medium text-yellow-400">Unknown</span>
+                            </div>
+                            <h3 class="text-lg font-semibold">tts-server-spot</h3>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <button class="px-4 py-2 bg-white border-2 border-gray-300 hover:bg-gray-50 text-gray-700 rounded-lg text-sm font-medium transition">
+                                Check Status
+                            </button>
+                            <button class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition">
+                                Delete
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                        <div>
+                            <p class="text-xs text-gray-700 mb-1">Endpoint</p>
+                            <p class="text-sm font-mono text-gray-800">containers.datacrunch.io/tts-server-spot</p>
+                        </div>
+                        <div>
+                            <p class="text-xs text-gray-700 mb-1">Deployed</p>
+                            <p class="text-sm text-gray-800">2026-01-03 16:54</p>
+                        </div>
+                        <div>
+                            <p class="text-xs text-gray-700 mb-1">Status</p>
+                            <p class="text-sm text-yellow-400">Health check pending</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="content-api-keys" class="tab-content hidden">
+            <div class="card bg-white rounded-xl p-8 border border-gray-200 shadow-sm hover:shadow-md mb-6">
+                <div class="flex items-center justify-between mb-6">
+                    <div>
+                        <h3 class="text-lg font-semibold mb-1">API Keys</h3>
+                        <p class="text-sm text-gray-600">Manage your API authentication keys</p>
+                    </div>
+                    <button onclick="generateAPIKey()" class="px-4 py-2 bg-gradient-to-r from-anthropic-600 to-anthropic-700 hover:from-anthropic-700 hover:to-anthropic-800 rounded-lg text-sm font-medium text-white transition">
+                        + Generate New Key
+                    </button>
+                </div>
+
+                <!-- API Key List -->
+                <div id="api-keys-list" class="space-y-4">
+                    <p class="text-gray-600">Loading API keys...</p>
+                </div>
+            </div>
+        </div>
+
+        <div id="content-deploy" class="tab-content hidden">
+            <!-- Step 1: Select Application -->
+            <div id="deploy-step-1" class="space-y-6">
+                <div>
+                    <h3 class="text-2xl font-bold mb-2">Deploy New Service</h3>
+                    <p class="text-gray-600">Choose the AI service you want to deploy</p>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <!-- Text-to-Speech App -->
+                    <div onclick="selectApp('tts')" class="card cursor-pointer bg-white border-2 border-anthropic-600 rounded-xl p-8 shadow-sm hover:shadow-md hover:border-anthropic-500">
+                        <div class="flex items-center justify-between mb-4">
+                            <div class="w-12 h-12 bg-anthropic-600 bg-opacity-20 rounded-lg flex items-center justify-center">
+                                <span class="text-2xl">🎙️</span>
+                            </div>
+                            <span class="px-2 py-1 bg-green-600 bg-opacity-20 text-green-400 text-xs rounded-full">Popular</span>
+                        </div>
+                        <h4 class="text-lg font-semibold mb-2">Text-to-Speech</h4>
+                        <p class="text-sm text-gray-600 mb-4">Convert text to natural-sounding speech with voice cloning</p>
+                        <div class="flex items-center justify-between text-xs text-gray-700">
+                            <span>🔥 Most Popular</span>
+                            <span>From $0.076/hr</span>
+                        </div>
+                    </div>
+
+                    <!-- Coming Soon Apps -->
+                    <div class="card bg-white border-2 border-gray-300 rounded-xl p-8 shadow-sm opacity-50 cursor-not-allowed">
+                        <div class="flex items-center justify-between mb-4">
+                            <div class="w-12 h-12 bg-blue-600 bg-opacity-20 rounded-lg flex items-center justify-center">
+                                <span class="text-2xl">🎧</span>
+                            </div>
+                            <span class="px-2 py-1 bg-gray-600 bg-opacity-20 text-gray-400 text-xs rounded-full">Soon</span>
+                        </div>
+                        <h4 class="text-lg font-semibold mb-2">Speech-to-Text</h4>
+                        <p class="text-sm text-gray-600 mb-4">Transcribe audio to text with high accuracy</p>
+                        <div class="flex items-center justify-between text-xs text-gray-700">
+                            <span>Coming Soon</span>
+                        </div>
+                    </div>
+
+                    <div class="card bg-white border-2 border-gray-300 rounded-xl p-8 shadow-sm opacity-50 cursor-not-allowed">
+                        <div class="flex items-center justify-between mb-4">
+                            <div class="w-12 h-12 bg-yellow-600 bg-opacity-20 rounded-lg flex items-center justify-center">
+                                <span class="text-2xl">🗣️</span>
+                            </div>
+                            <span class="px-2 py-1 bg-gray-600 bg-opacity-20 text-gray-400 text-xs rounded-full">Soon</span>
+                        </div>
+                        <h4 class="text-lg font-semibold mb-2">Voice Cloning</h4>
+                        <p class="text-sm text-gray-600 mb-4">Clone any voice from a short audio sample</p>
+                        <div class="flex items-center justify-between text-xs text-gray-700">
+                            <span>Coming Soon</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 2: Configure Server -->
+            <div id="deploy-step-2" class="space-y-6 hidden">
+                <div class="flex items-center justify-between mb-4">
+                    <div>
+                        <button onclick="backToAppSelect()" class="text-anthropic-600 hover:text-anthropic-700 text-sm mb-2">← Back to app selection</button>
+                        <h3 class="text-2xl font-bold mb-2">Configure Text-to-Speech Server</h3>
+                        <p class="text-gray-600">Choose your GPU and deployment settings</p>
+                    </div>
+                </div>
+
+                <form onsubmit="deployServer(event)" class="space-y-6">
+                    <!-- Server Name -->
+                    <div class="card bg-white rounded-xl p-8 border border-gray-200 shadow-sm hover:shadow-md">
+                        <label class="block text-sm font-medium mb-2">Server Name</label>
+                        <input id="server-name" type="text" class="w-full bg-white border-2 border-gray-300 rounded-lg px-4 py-2 focus:border-anthropic-600 focus:ring-2 focus:ring-anthropic-600 focus:ring-opacity-50 outline-none transition" placeholder="my-tts-server">
+                        <p class="text-xs text-gray-700 mt-2">Choose a unique name for your deployment</p>
+                    </div>
+
+                    <!-- GPU Selection -->
+                    <div class="card bg-white rounded-xl p-8 border border-gray-200 shadow-sm hover:shadow-md">
+                        <div class="flex items-center justify-between mb-4">
+                            <div>
+                                <label class="block text-sm font-medium mb-1">Select GPU</label>
+                                <p class="text-xs text-gray-700">Choose based on your performance and budget needs</p>
+                            </div>
+                            <div class="flex items-center space-x-2">
+                                <input id="use-spot" type="checkbox" checked class="w-4 h-4 text-anthropic-600 bg-white border-gray-300 rounded focus:ring-anthropic-600">
+                                <label class="text-sm text-gray-800">Spot instances <span class="text-green-400">(60-75% off)</span></label>
+                            </div>
+                        </div>
+
+                        <div id="gpu-cards" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            <!-- GPU cards will be loaded here -->
+                            <p class="text-gray-600">Loading GPUs...</p>
+                        </div>
+                    </div>
+
+                    <!-- Deployment Type -->
+                    <div class="card bg-white rounded-xl p-8 border border-gray-200 shadow-sm hover:shadow-md">
+                        <label class="block text-sm font-medium mb-4">Deployment Type</label>
+                        <div class="grid grid-cols-2 gap-4">
+                            <label class="card cursor-pointer bg-gray-50 border-2 border-anthropic-600 rounded-lg p-4">
+                                <input type="radio" name="type" value="raw_compute" checked class="sr-only">
+                                <div class="text-center">
+                                    <p class="font-medium mb-1">Raw Compute</p>
+                                    <p class="text-xs text-gray-600">Full SSH access, maximum control</p>
+                                    <p class="text-xs text-green-400 mt-2">Cheapest option</p>
+                                </div>
+                            </label>
+                            <label class="card cursor-pointer bg-gray-50 border-2 border-gray-300 rounded-lg p-4 hover:border-gray-400">
+                                <input type="radio" name="type" value="serverless" class="sr-only">
+                                <div class="text-center">
+                                    <p class="font-medium mb-1">Serverless</p>
+                                    <p class="text-xs text-gray-600">Auto-scaling, managed infrastructure</p>
+                                    <p class="text-xs text-yellow-400 mt-2">Coming soon</p>
+                                </div>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Deploy Button -->
+                    <button type="submit" class="w-full bg-gradient-to-r from-anthropic-600 to-anthropic-700 hover:from-anthropic-700 hover:to-anthropic-800 text-white rounded-lg px-6 py-3 font-medium text-lg transition shadow-lg hover:shadow-xl">
+                        🚀 Deploy Server
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <div id="content-settings" class="tab-content hidden">
+            <div class="card bg-white rounded-xl p-8 border border-gray-200 shadow-sm hover:shadow-md">
+                <h3 class="text-lg font-semibold mb-6">Settings</h3>
+                <p class="text-gray-600">Account and deployment settings coming soon...</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // API Base URL
+        const API_BASE = '';
+
+        // ============================================================================
+        // TOAST NOTIFICATION SYSTEM
+        // ============================================================================
+        class ToastManager {
+            constructor() {
+                this.toasts = new Map();
+                this.container = document.getElementById('toast-container');
+                this.maxToasts = 5;
+
+                // Keyboard support
+                document.addEventListener('keydown', (e) => {
+                    if (e.key === 'Escape' && this.toasts.size > 0) {
+                        const toastIds = Array.from(this.toasts.keys());
+                        this.dismiss(toastIds[toastIds.length - 1]);
+                    }
+                });
+            }
+
+            show(options) {
+                const {
+                    type = 'info',
+                    title,
+                    description = '',
+                    duration = 5000,
+                    action = null,
+                    dismissible = true
+                } = options;
+
+                // Enforce max toasts limit
+                if (this.toasts.size >= this.maxToasts) {
+                    const oldestId = Array.from(this.toasts.keys())[0];
+                    this.dismiss(oldestId);
+                }
+
+                const toastId = this.generateId();
+                const toast = this.createToastElement(toastId, type, title, description, action, dismissible, duration);
+
+                this.container.appendChild(toast);
+                this.toasts.set(toastId, { element: toast, timer: null });
+
+                // Trigger animation
+                setTimeout(() => toast.classList.add('toast-enter'), 10);
+
+                // Auto-dismiss
+                if (duration > 0) {
+                    const timer = setTimeout(() => this.dismiss(toastId), duration);
+                    this.toasts.get(toastId).timer = timer;
+
+                    // Progress bar animation
+                    const progressBar = toast.querySelector('.toast-progress');
+                    if (progressBar) {
+                        progressBar.style.width = '0%';
+                        progressBar.style.transitionDuration = `${duration}ms`;
+                    }
+                }
+
+                return toastId;
+            }
+
+            createToastElement(id, type, title, description, action, dismissible, duration) {
+                const toast = document.createElement('div');
+                toast.id = `toast-${id}`;
+                toast.className = 'toast-card bg-white rounded-lg border-2 p-4 mb-3 relative overflow-hidden';
+                toast.setAttribute('role', 'alert');
+                toast.setAttribute('aria-live', 'assertive');
+                toast.setAttribute('aria-atomic', 'true');
+
+                const typeConfig = {
+                    success: {
+                        borderColor: 'border-green-500',
+                        icon: '✓',
+                        iconBg: 'bg-green-100',
+                        iconColor: 'text-green-600',
+                        progressColor: 'bg-green-500'
+                    },
+                    error: {
+                        borderColor: 'border-red-500',
+                        icon: '✕',
+                        iconBg: 'bg-red-100',
+                        iconColor: 'text-red-600',
+                        progressColor: 'bg-red-500'
+                    },
+                    warning: {
+                        borderColor: 'border-yellow-500',
+                        icon: '⚠',
+                        iconBg: 'bg-yellow-100',
+                        iconColor: 'text-yellow-600',
+                        progressColor: 'bg-yellow-500'
+                    },
+                    info: {
+                        borderColor: 'border-blue-500',
+                        icon: 'ℹ',
+                        iconBg: 'bg-blue-100',
+                        iconColor: 'text-blue-600',
+                        progressColor: 'bg-blue-500'
+                    }
+                };
+
+                const config = typeConfig[type];
+                toast.classList.add(config.borderColor);
+
+                const truncatedDesc = description.length > 150
+                    ? description.substring(0, 150) + '...'
+                    : description;
+
+                const content = `
+                    <div class="flex items-start space-x-3">
+                        <div class="toast-icon w-8 h-8 ${config.iconBg} ${config.iconColor} rounded-full flex items-center justify-center font-bold text-sm flex-shrink-0">
+                            ${config.icon}
+                        </div>
+
+                        <div class="flex-1 min-w-0">
+                            <h4 class="text-sm font-semibold text-gray-900 mb-1">${this.escapeHtml(title)}</h4>
+                            ${truncatedDesc ? `<p class="text-sm text-gray-600 leading-relaxed">${this.escapeHtml(truncatedDesc)}</p>` : ''}
+
+                            ${action ? `
+                                <button
+                                    onclick="toastManager.handleAction('${id}', ${action.onClick})"
+                                    class="mt-2 text-sm font-medium text-anthropic-600 hover:text-anthropic-700 transition"
+                                >
+                                    ${this.escapeHtml(action.label)}
+                                </button>
+                            ` : ''}
+                        </div>
+
+                        ${dismissible ? `
+                            <button
+                                onclick="toastManager.dismiss('${id}')"
+                                class="flex-shrink-0 text-gray-400 hover:text-gray-600 transition ml-2"
+                                aria-label="Dismiss notification"
+                            >
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                                </svg>
+                            </button>
+                        ` : ''}
+                    </div>
+
+                    ${duration > 0 ? `
+                        <div class="absolute bottom-0 left-0 right-0 h-1 bg-gray-100">
+                            <div class="toast-progress h-full ${config.progressColor}" style="width: 100%;"></div>
+                        </div>
+                    ` : ''}
+                `;
+
+                toast.innerHTML = content;
+                return toast;
+            }
+
+            dismiss(toastId) {
+                const toastData = this.toasts.get(toastId);
+                if (!toastData) return;
+
+                const { element, timer } = toastData;
+
+                if (timer) clearTimeout(timer);
+
+                element.classList.remove('toast-enter');
+                element.classList.add('toast-exit');
+
+                setTimeout(() => {
+                    element.remove();
+                    this.toasts.delete(toastId);
+                }, 300);
+            }
+
+            handleAction(toastId, actionFn) {
+                if (typeof actionFn === 'function') {
+                    actionFn();
+                }
+                this.dismiss(toastId);
+            }
+
+            dismissAll() {
+                this.toasts.forEach((_, id) => this.dismiss(id));
+            }
+
+            escapeHtml(text) {
+                const div = document.createElement('div');
+                div.textContent = text;
+                return div.innerHTML;
+            }
+
+            generateId() {
+                return Date.now().toString(36) + Math.random().toString(36).substr(2);
+            }
+
+            success(title, description = '', options = {}) {
+                return this.show({ type: 'success', title, description, ...options });
+            }
+
+            error(title, description = '', options = {}) {
+                return this.show({ type: 'error', title, description, ...options });
+            }
+
+            warning(title, description = '', options = {}) {
+                return this.show({ type: 'warning', title, description, ...options });
+            }
+
+            info(title, description = '', options = {}) {
+                return this.show({ type: 'info', title, description, ...options });
+            }
+        }
+
+        // Initialize global toast manager
+        const toastManager = new ToastManager();
+
+        // Logs modal functions
+        function showLogsModal(logs) {
+            document.getElementById('logs-content').textContent = logs;
+            document.getElementById('logs-modal').classList.remove('hidden');
+        }
+
+        function closeLogsModal() {
+            document.getElementById('logs-modal').classList.add('hidden');
+        }
+
+        function copyLogs() {
+            const logs = document.getElementById('logs-content').textContent;
+            navigator.clipboard.writeText(logs);
+            toastManager.success('Copied!', 'Logs copied to clipboard.', { duration: 2000 });
+        }
+
+        // ============================================================================
+        // TAB SWITCHING
+        // ============================================================================
+        function switchTab(tabName) {
+            // Hide all content
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.add('hidden');
+            });
+
+            // Remove active state from all tabs
+            document.querySelectorAll('nav button').forEach(tab => {
+                tab.classList.remove('tab-active');
+                tab.classList.add('text-gray-600');
+            });
+
+            // Show selected content
+            document.getElementById('content-' + tabName).classList.remove('hidden');
+
+            // Add active state to selected tab
+            const activeTab = document.getElementById('tab-' + tabName);
+            activeTab.classList.add('tab-active');
+            activeTab.classList.remove('text-gray-600');
+
+            // Load data for this tab
+            if (tabName === 'deployments') {
+                loadDeployments();
+            } else if (tabName === 'api-keys') {
+                loadAPIKeys();
+            } else if (tabName === 'deploy') {
+                loadGPUOptions();
+            }
+        }
+
+        // ============================================================================
+        // LOAD STATS
+        // ============================================================================
+        async function loadStats() {
+            try {
+                const response = await fetch(API_BASE + '/api/stats');
+                const data = await response.json();
+
+                // Update stats cards
+                document.querySelector('[data-stat="deployments"]').textContent = data.active_deployments;
+                document.querySelector('[data-stat="requests"]').textContent = formatNumber(data.api_requests);
+                document.querySelector('[data-stat="cost"]').textContent = '$' + data.monthly_cost;
+                document.querySelector('[data-stat="uptime"]').textContent = data.uptime + '%';
+            } catch (error) {
+                console.error('Error loading stats:', error);
+            }
+        }
+
+        // ============================================================================
+        // LOAD DEPLOYMENTS
+        // ============================================================================
+        async function loadDeployments() {
+            try {
+                const response = await fetch(API_BASE + '/api/deployments');
+                const data = await response.json();
+
+                const container = document.getElementById('deployments-list');
+                if (!data.deployments || data.deployments.length === 0) {
+                    container.innerHTML = '<p class="text-gray-600">No deployments yet. Deploy your first server!</p>';
+                    return;
+                }
+
+                container.innerHTML = data.deployments.map(d => createDeploymentCard(d)).join('');
+            } catch (error) {
+                console.error('Error loading deployments:', error);
+            }
+        }
+
+        function createDeploymentCard(deployment) {
+            const statusColors = {
+                'running': 'green',
+                'stopped': 'red',
+                'unknown': 'yellow'
+            };
+            const color = statusColors[deployment.status] || 'gray';
+
+            return `
+                <div class="card bg-white rounded-xl p-8 border border-gray-200 shadow-sm hover:shadow-md">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="flex items-center space-x-4">
+                            <div class="flex items-center space-x-2">
+                                <div class="w-2 h-2 bg-${color}-500 rounded-full ${deployment.status === 'running' ? 'status-dot' : ''}"></div>
+                                <span class="text-sm font-medium text-${color}-400">${deployment.status}</span>
+                            </div>
+                            <h3 class="text-lg font-semibold">${deployment.name}</h3>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <button onclick="viewLogs('${deployment.id}')" class="px-4 py-2 bg-white border-2 border-gray-300 hover:bg-gray-50 text-gray-700 rounded-lg text-sm font-medium transition">
+                                View Logs
+                            </button>
+                            <button onclick="stopDeployment('${deployment.id}')" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition">
+                                Stop
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                        <div>
+                            <p class="text-xs text-gray-700 mb-1">Endpoint</p>
+                            <p class="text-sm font-mono text-gray-800">${deployment.endpoint}</p>
+                        </div>
+                        <div>
+                            <p class="text-xs text-gray-700 mb-1">GPU</p>
+                            <p class="text-sm text-gray-800">${deployment.gpu}</p>
+                        </div>
+                        <div>
+                            <p class="text-xs text-gray-700 mb-1">Cost</p>
+                            <p class="text-sm text-green-400">${deployment.cost}</p>
+                        </div>
+                    </div>
+
+                    ${deployment.endpoint !== 'N/A' ? `
+                    <div class="bg-gray-50 rounded-lg p-4 font-mono text-xs">
+                        <p class="text-gray-600 mb-2">API Usage:</p>
+                        <code class="text-gray-800">curl -X POST https://${deployment.endpoint}/generate \\
+  -H "X-API-Key: YOUR_API_KEY" \\
+  -F "text=Hello world" \\
+  --output speech.wav</code>
+                    </div>
+                    ` : ''}
+                </div>
+            `;
+        }
+
+        async function stopDeployment(deploymentId) {
+            if (!confirm('Are you sure you want to stop this deployment?')) return;
+
+            try {
+                const response = await fetch(API_BASE + '/api/deployments/stop', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ deployment_id: deploymentId })
+                });
+
+                const data = await response.json();
+
+                // Check if request was successful
+                if (!response.ok) {
+                    throw new Error(data.detail || data.message || 'Failed to stop deployment');
+                }
+
+                toastManager.success('Deployment Stopped', data.message || 'The deployment has been stopped successfully.');
+                loadDeployments();
+                loadStats();
+            } catch (error) {
+                console.error('Error stopping deployment:', error);
+                toastManager.error('Stop Failed', 'Could not stop: ' + (error.message || 'Unknown error'));
+            }
+        }
+
+        async function viewLogs(deploymentId) {
+            try {
+                const response = await fetch(API_BASE + `/api/deployments/${deploymentId}/logs`);
+                const data = await response.json();
+                showLogsModal(data.logs);
+            } catch (error) {
+                console.error('Error fetching logs:', error);
+                toastManager.error('Logs Unavailable', 'Unable to fetch deployment logs.');
+            }
+        }
+
+        // ============================================================================
+        // LOAD API KEYS
+        // ============================================================================
+        async function loadAPIKeys() {
+            try {
+                const response = await fetch(API_BASE + '/api/keys');
+                const data = await response.json();
+
+                const container = document.getElementById('api-keys-list');
+                if (!data.keys || data.keys.length === 0) {
+                    container.innerHTML = '<p class="text-gray-600">No API keys yet. Generate your first key!</p>';
+                    return;
+                }
+
+                container.innerHTML = data.keys.map(key => createAPIKeyCard(key)).join('');
+            } catch (error) {
+                console.error('Error loading API keys:', error);
+            }
+        }
+
+        function createAPIKeyCard(key) {
+            return `
+                <div class="bg-gray-50 rounded-lg p-4">
+                    <div class="flex items-center justify-between mb-2">
+                        <div>
+                            <p class="text-sm font-medium text-gray-900">${key.name}</p>
+                            <p class="text-xs text-gray-700">Created ${new Date(key.created_at).toLocaleDateString()}</p>
+                        </div>
+                        <button onclick="revokeKey('${key.id}')" class="text-sm text-red-600 hover:text-red-700">Revoke</button>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <code class="flex-1 bg-white border-2 border-gray-300 px-3 py-2 rounded text-sm font-mono text-gray-800">${key.key}</code>
+                        <button onclick="copyToClipboard('${key.key}')" class="px-3 py-2 bg-white border-2 border-gray-300 hover:bg-gray-50 text-gray-700 rounded text-sm transition">Copy</button>
+                    </div>
+                </div>
+            `;
+        }
+
+        async function generateAPIKey() {
+            const name = prompt('Enter a name for this API key:');
+            if (!name) return;
+
+            try {
+                const response = await fetch(API_BASE + '/api/keys/generate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name: name })
+                });
+
+                const data = await response.json();
+                toastManager.success('API Key Created', 'Your new API key has been generated successfully.', {duration: 6000});
+                loadAPIKeys();
+            } catch (error) {
+                console.error('Error generating API key:', error);
+                toastManager.error('Generation Failed', 'Could not generate API key. Please try again.');
+            }
+        }
+
+        async function revokeKey(keyId) {
+            if (!confirm('Are you sure you want to revoke this API key?')) return;
+
+            try {
+                const response = await fetch(API_BASE + `/api/keys/${keyId}`, {
+                    method: 'DELETE'
+                });
+
+                const data = await response.json();
+                toastManager.success('Key Revoked', data.message);
+                loadAPIKeys();
+            } catch (error) {
+                console.error('Error revoking key:', error);
+                toastManager.error('Revocation Failed', 'Could not revoke the API key.');
+            }
+        }
+
+        // ============================================================================
+        // APP SELECTION & GPU OPTIONS
+        // ============================================================================
+        let selectedGPU = null;
+
+        function selectApp(appType) {
+            // Hide app selection, show config
+            document.getElementById('deploy-step-1').classList.add('hidden');
+            document.getElementById('deploy-step-2').classList.remove('hidden');
+
+            // Load GPUs
+            loadGPUCards();
+        }
+
+        function backToAppSelect() {
+            // Show app selection, hide config
+            document.getElementById('deploy-step-1').classList.remove('hidden');
+            document.getElementById('deploy-step-2').classList.add('hidden');
+            selectedGPU = null;
+        }
+
+        async function loadGPUCards() {
+            const container = document.getElementById('gpu-cards');
+
+            try {
+                const response = await fetch(API_BASE + '/api/gpus');
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+                const previousSelection = selectedGPU;
+
+                container.innerHTML = data.gpus.map(gpu => createGPUCard(gpu)).join('');
+
+                if (previousSelection) {
+                    selectedGPU = previousSelection;
+                    updateGPUSelectionUI();
+                }
+            } catch (error) {
+                console.error('Error loading GPU options:', error);
+                showGPULoadError(error);
+            }
+        }
+
+        function createGPUCard(gpu) {
+            const isSelected = selectedGPU === gpu.name;
+            const borderClass = isSelected ? 'border-anthropic-600' : 'border-gray-300 hover:border-anthropic-500';
+
+            // Determine tier badge
+            let tierBadge = '';
+            let tierColor = '';
+            if (gpu.spot_price < 0.15) {
+                tierBadge = 'Budget';
+                tierColor = 'bg-green-600';
+            } else if (gpu.spot_price < 0.30) {
+                tierBadge = 'Performance';
+                tierColor = 'bg-blue-600';
+            } else if (gpu.spot_price < 0.70) {
+                tierBadge = 'High-End';
+                tierColor = 'bg-anthropic-600';
+            } else {
+                tierBadge = 'Premium';
+                tierColor = 'bg-yellow-600';
+            }
+
+            return `
+                <div onclick="selectGPU('${gpu.name}')" class="card cursor-pointer bg-gray-50 border-2 ${borderClass} rounded-lg p-4 transition">
+                    <div class="flex items-center justify-between mb-3">
+                        <span class="px-2 py-1 ${tierColor} bg-opacity-20 text-xs rounded-full">${tierBadge}</span>
+                        ${isSelected ? '<span class="text-anthropic-600">✓</span>' : ''}
+                    </div>
+
+                    <h4 class="font-semibold mb-2">${gpu.display_name}</h4>
+
+                    <div class="space-y-2 mb-4">
+                        <div class="flex items-center justify-between text-xs">
+                            <span class="text-gray-700">Memory</span>
+                            <span class="text-gray-800">${gpu.memory}</span>
+                        </div>
+                        <div class="flex items-center justify-between text-xs">
+                            <span class="text-gray-700">Spot Price</span>
+                            <span class="text-green-400 font-medium">$${gpu.spot_price.toFixed(3)}/hr</span>
+                        </div>
+                        <div class="flex items-center justify-between text-xs">
+                            <span class="text-gray-700">Instance Price</span>
+                            <span class="text-gray-600">$${gpu.instance_price.toFixed(3)}/hr</span>
+                        </div>
+                    </div>
+
+                    <div class="pt-3 border-t border-gray-300">
+                        <p class="text-xs text-gray-700">~${Math.round(gpu.spot_price * 24 * 30)}/mo with spot</p>
+                    </div>
+                </div>
+            `;
+        }
+
+        function selectGPU(gpuName) {
+            selectedGPU = gpuName;
+            updateGPUSelectionUI();
+        }
+
+        function updateGPUSelectionUI() {
+            const allCards = document.querySelectorAll('#gpu-cards > div[onclick^="selectGPU"]');
+            allCards.forEach(card => {
+                const gpuName = card.getAttribute('onclick').match(/selectGPU\('([^']+)'\)/)?.[1];
+
+                if (gpuName === selectedGPU) {
+                    card.className = card.className.replace('border-gray-300', 'border-anthropic-600');
+
+                    if (!card.querySelector('.selected-checkmark')) {
+                        const checkmark = document.createElement('span');
+                        checkmark.className = 'text-anthropic-600 selected-checkmark font-bold text-xl';
+                        checkmark.textContent = '✓';
+                        const header = card.querySelector('.flex.items-center.justify-between.mb-3');
+                        if (header) header.appendChild(checkmark);
+                    }
+                } else {
+                    card.className = card.className.replace('border-anthropic-600', 'border-gray-300');
+                    const checkmark = card.querySelector('.selected-checkmark');
+                    if (checkmark) checkmark.remove();
+                }
+            });
+        }
+
+        function showGPULoadError(error) {
+            const container = document.getElementById('gpu-cards');
+
+            container.innerHTML = `
+                <div class="col-span-full bg-red-50 border-2 border-red-500 rounded-lg p-6 text-center">
+                    <p class="text-red-600 font-medium mb-2">⚠️ Unable to load GPU options</p>
+                    <p class="text-sm text-red-500 mb-4">${error.message || 'Please try again later'}</p>
+                    <button onclick="loadGPUCards()" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition">
+                        🔄 Retry
+                    </button>
+                </div>
+            `;
+
+            toastManager.error(
+                'Failed to load GPUs',
+                'Could not connect to GPU availability service. Please check your connection and try again.',
+                { duration: 10000 }
+            );
+        }
+
+        async function loadGPUOptions() {
+            // This is called when switching to deploy tab
+            // Check if we're on step 2, if so load GPU cards
+            if (!document.getElementById('deploy-step-2').classList.contains('hidden')) {
+                loadGPUCards();
+            }
+        }
+
+        // ============================================================================
+        // DEPLOY SERVER
+        // ============================================================================
+        async function deployServer(event) {
+            event.preventDefault();
+
+            const name = document.getElementById('server-name').value.trim();
+            const deploymentType = document.querySelector('input[name="type"]:checked').value;
+            const useSpot = document.getElementById('use-spot').checked;
+
+            if (!name) {
+                toastManager.warning('Name Required', 'Please enter a server name before deploying.');
+                document.getElementById('server-name').focus();
+                return;
+            }
+
+            if (name.length < 3) {
+                toastManager.warning('Invalid Name', 'Server name must be at least 3 characters long.');
+                document.getElementById('server-name').focus();
+                return;
+            }
+
+            if (!selectedGPU) {
+                toastManager.warning('GPU Required', 'Please select a GPU configuration.');
+                return;
+            }
+
+            const submitButton = event.target.querySelector('button[type="submit"]');
+            const originalText = submitButton.innerHTML;
+            submitButton.disabled = true;
+            submitButton.innerHTML = '⏳ Deploying...';
+
+            try {
+                const response = await fetch(API_BASE + '/api/deployments/deploy', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        name: name,
+                        gpu_type: selectedGPU,
+                        deployment_type: deploymentType,
+                        use_spot: useSpot
+                    })
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    const errorMessage = data.detail || data.message || `Server returned ${response.status}`;
+                    throw new Error(errorMessage);
+                }
+
+                toastManager.success(
+                    'Deployment Started',
+                    data.message || 'Your server is being deployed.',
+                    { duration: 7000 }
+                );
+
+                document.getElementById('server-name').value = '';
+                selectedGPU = null;
+                backToAppSelect();
+                switchTab('deployments');
+                loadStats();
+
+            } catch (error) {
+                console.error('Error deploying server:', error);
+
+                toastManager.error(
+                    'Deployment Failed',
+                    error.message || 'An unexpected error occurred. Please try again.',
+                    { duration: 10000 }
+                );
+
+            } finally {
+                submitButton.disabled = false;
+                submitButton.innerHTML = originalText;
+            }
+        }
+
+        // ============================================================================
+        // UTILITIES
+        // ============================================================================
+        function copyToClipboard(text) {
+            navigator.clipboard.writeText(text);
+            toastManager.success('Copied!', 'API key copied to clipboard.', {duration: 2000});
+        }
+
+        function formatNumber(num) {
+            if (num >= 1000) {
+                return (num / 1000).toFixed(1) + 'K';
+            }
+            return num.toString();
+        }
+
+        // ============================================================================
+        // INIT
+        // ============================================================================
+        document.addEventListener('DOMContentLoaded', () => {
+            loadStats();
+            loadDeployments();
+
+            // Refresh stats every 30 seconds
+            setInterval(loadStats, 30000);
+        });
+    </script>
+
+    <!-- Logs Modal -->
+    <div id="logs-modal" class="fixed inset-0 z-[9998] hidden">
+        <!-- Backdrop -->
+        <div class="absolute inset-0 bg-black bg-opacity-50 backdrop-blur-sm" onclick="closeLogsModal()"></div>
+
+        <!-- Modal -->
+        <div class="absolute inset-4 md:inset-20 bg-white rounded-xl shadow-2xl overflow-hidden flex flex-col">
+            <!-- Header -->
+            <div class="flex items-center justify-between p-6 border-b border-gray-200">
+                <h3 class="text-xl font-bold text-gray-900">Deployment Logs</h3>
+                <button onclick="closeLogsModal()" class="text-gray-400 hover:text-gray-600">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+
+            <!-- Logs Content -->
+            <div class="flex-1 overflow-auto p-6 bg-gray-50">
+                <pre id="logs-content" class="text-sm font-mono text-gray-800 whitespace-pre-wrap"></pre>
+            </div>
+
+            <!-- Footer -->
+            <div class="p-6 border-t border-gray-200 flex justify-end space-x-3">
+                <button onclick="copyLogs()" class="px-4 py-2 bg-white border-2 border-gray-300 hover:bg-gray-50 rounded-lg text-sm font-medium">
+                    Copy Logs
+                </button>
+                <button onclick="closeLogsModal()" class="px-4 py-2 bg-anthropic-600 hover:bg-anthropic-700 text-white rounded-lg text-sm font-medium">
+                    Close
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div id="toast-container" class="fixed top-4 right-4 left-4 md:left-auto md:max-w-md z-[9999] space-y-3 pointer-events-none">
+    </div>
+</body>
+</html>
