@@ -17,8 +17,13 @@ import os
 import sys
 from datetime import datetime
 
-# Import existing backend modules
-from verda_deploy import VerdaClient, VERDA_CLIENT_ID, VERDA_CLIENT_SECRET
+# Import existing backend modules - with demo mode fallback
+DEMO_MODE = False
+try:
+    from verda_deploy import VerdaClient, VERDA_CLIENT_ID, VERDA_CLIENT_SECRET
+except ImportError:
+    DEMO_MODE = True
+    VerdaClient = None
 
 # Initialize FastAPI
 app = FastAPI(title="VoiceFlow Console API", version="1.0.0")
@@ -32,8 +37,17 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Initialize clients
-verda_client = VerdaClient(VERDA_CLIENT_ID, VERDA_CLIENT_SECRET)
+# Initialize clients - demo mode if no credentials
+verda_client = None
+if not DEMO_MODE:
+    try:
+        verda_client = VerdaClient(VERDA_CLIENT_ID, VERDA_CLIENT_SECRET)
+    except Exception as e:
+        print(f"⚠️  Verda auth failed, running in DEMO MODE: {e}")
+        DEMO_MODE = True
+
+if DEMO_MODE:
+    print("🎮 Running in DEMO MODE - GPU deployments disabled")
 
 # Data models
 class DeploymentRequest(BaseModel):
@@ -78,8 +92,12 @@ async def get_stats():
     """Get dashboard statistics"""
     try:
         # Get deployments (both containers and instances)
-        containers = verda_client.list_deployments()
-        instances = verda_client.list_instances()
+        if DEMO_MODE or verda_client is None:
+            containers = []
+            instances = []
+        else:
+            containers = verda_client.list_deployments()
+            instances = verda_client.list_instances()
 
         total_deployments = len(containers) + len(instances)
         active_count = total_deployments  # Assume all listed are active
@@ -101,7 +119,8 @@ async def get_stats():
             "api_requests": monthly_requests,
             "monthly_cost": round(monthly_cost, 2),
             "uptime": 99.9,
-            "total_deployments": total_deployments
+            "total_deployments": total_deployments,
+            "demo_mode": DEMO_MODE
         }
     except Exception as e:
         print(f"Error getting stats: {e}")
@@ -110,7 +129,8 @@ async def get_stats():
             "api_requests": 0,
             "monthly_cost": 0,
             "uptime": 0,
-            "total_deployments": 0
+            "total_deployments": 0,
+            "demo_mode": DEMO_MODE
         }
 
 # ============================================================================
@@ -121,6 +141,9 @@ async def get_stats():
 async def get_deployments():
     """Get all deployments"""
     try:
+        if DEMO_MODE or verda_client is None:
+            return {"deployments": [], "demo_mode": True}
+
         containers = verda_client.list_deployments()
         instances = verda_client.list_instances()
 
@@ -163,6 +186,9 @@ async def get_deployments():
 @app.post("/api/deployments/deploy")
 async def deploy_server(request: DeploymentRequest):
     """Deploy a new TTS server"""
+    if DEMO_MODE or verda_client is None:
+        raise HTTPException(status_code=503, detail="Deployments disabled in demo mode. Configure Verda credentials to enable.")
+
     try:
         print(f"Deploying: {request.name} on {request.gpu_type}")
 
@@ -205,6 +231,9 @@ async def deploy_server(request: DeploymentRequest):
 @app.post("/api/deployments/stop")
 async def stop_deployment(request: StopDeploymentRequest):
     """Stop a deployment"""
+    if DEMO_MODE or verda_client is None:
+        raise HTTPException(status_code=503, detail="Deployments disabled in demo mode.")
+
     try:
         deployment_id = request.deployment_id
 
@@ -235,6 +264,9 @@ async def stop_deployment(request: StopDeploymentRequest):
 @app.get("/api/deployments/{deployment_id}/logs")
 async def get_deployment_logs(deployment_id: str):
     """Get logs for a deployment"""
+    if DEMO_MODE or verda_client is None:
+        return {"logs": "Logs unavailable in demo mode."}
+
     try:
         logs = verda_client.get_deployment_logs(deployment_id)
         return {"logs": logs}
@@ -246,11 +278,25 @@ async def get_deployment_logs(deployment_id: str):
 # GPU OPTIONS
 # ============================================================================
 
+# Demo GPU data for when Verda is not available
+DEMO_GPUS = [
+    {"name": "Tesla-V100-16GB", "display_name": "Tesla V100 16GB", "memory": "16GB", "serverless_spot_price": 0.076, "instance_spot_price": 0.12},
+    {"name": "RTX-A6000", "display_name": "RTX A6000", "memory": "48GB", "serverless_spot_price": 0.125, "instance_spot_price": 0.18},
+    {"name": "A100-40GB", "display_name": "A100 40GB", "memory": "40GB", "serverless_spot_price": 0.238, "instance_spot_price": 0.35},
+    {"name": "RTX-6000-Ada", "display_name": "RTX 6000 Ada", "memory": "48GB", "serverless_spot_price": 0.285, "instance_spot_price": 0.40},
+    {"name": "L40S", "display_name": "L40S", "memory": "48GB", "serverless_spot_price": 0.315, "instance_spot_price": 0.45},
+    {"name": "A100-80GB", "display_name": "A100 80GB", "memory": "80GB", "serverless_spot_price": 0.425, "instance_spot_price": 0.60},
+    {"name": "H100", "display_name": "H100", "memory": "80GB", "serverless_spot_price": 0.850, "instance_spot_price": 1.20},
+]
+
 @app.get("/api/gpus")
 async def get_gpus():
     """Get available GPU types"""
     try:
-        gpus = verda_client.get_available_gpus()
+        if DEMO_MODE or verda_client is None:
+            gpus = DEMO_GPUS
+        else:
+            gpus = verda_client.get_available_gpus()
 
         # Format for frontend
         formatted = []
@@ -625,13 +671,363 @@ async def toggle_webhook(webhook_id: str):
     raise HTTPException(status_code=404, detail="Webhook not found")
 
 # ============================================================================
+# DEPLOYMENT METRICS
+# ============================================================================
+
+METRICS_FILE = "deployment_metrics.json"
+
+def load_metrics():
+    """Load deployment metrics from file"""
+    if os.path.exists(METRICS_FILE):
+        with open(METRICS_FILE, 'r') as f:
+            return json.load(f)
+    return {}
+
+def save_metrics(metrics):
+    """Save deployment metrics to file"""
+    with open(METRICS_FILE, 'w') as f:
+        json.dump(metrics, f, indent=2)
+
+def generate_mock_metrics(deployment_id: str):
+    """Generate realistic mock metrics for a deployment"""
+    import random
+
+    # Base values that drift slightly over time
+    base_cpu = random.uniform(15, 45)
+    base_memory = random.uniform(30, 60)
+    base_latency = random.uniform(50, 150)
+
+    return {
+        "deployment_id": deployment_id,
+        "timestamp": datetime.now().isoformat(),
+        "cpu_percent": round(base_cpu + random.uniform(-5, 15), 1),
+        "memory_percent": round(base_memory + random.uniform(-5, 10), 1),
+        "memory_used_mb": round((base_memory / 100) * 40960, 0),  # Assuming 40GB GPU
+        "memory_total_mb": 40960,
+        "gpu_utilization": round(random.uniform(20, 85), 1),
+        "gpu_memory_used_mb": round(random.uniform(8000, 32000), 0),
+        "gpu_memory_total_mb": 40960,
+        "network_rx_mbps": round(random.uniform(1, 50), 2),
+        "network_tx_mbps": round(random.uniform(5, 100), 2),
+        "requests_per_minute": random.randint(0, 120),
+        "avg_latency_ms": round(base_latency + random.uniform(-20, 40), 1),
+        "p95_latency_ms": round(base_latency * 1.5 + random.uniform(0, 50), 1),
+        "p99_latency_ms": round(base_latency * 2 + random.uniform(0, 80), 1),
+        "error_rate_percent": round(random.uniform(0, 2.5), 2),
+        "success_count_1h": random.randint(100, 5000),
+        "error_count_1h": random.randint(0, 50),
+        "uptime_seconds": random.randint(3600, 86400 * 7),
+        "status": "healthy" if random.random() > 0.05 else "degraded"
+    }
+
+@app.get("/api/deployments/{deployment_id}/metrics")
+async def get_deployment_metrics(deployment_id: str):
+    """Get real-time metrics for a deployment"""
+    try:
+        # In production, this would query actual monitoring systems
+        # For now, generate realistic mock data
+        metrics = generate_mock_metrics(deployment_id)
+
+        # Store latest metrics
+        all_metrics = load_metrics()
+        if deployment_id not in all_metrics:
+            all_metrics[deployment_id] = {"history": []}
+
+        all_metrics[deployment_id]["latest"] = metrics
+        all_metrics[deployment_id]["history"].append({
+            "timestamp": metrics["timestamp"],
+            "cpu": metrics["cpu_percent"],
+            "memory": metrics["memory_percent"],
+            "latency": metrics["avg_latency_ms"],
+            "requests": metrics["requests_per_minute"]
+        })
+
+        # Keep only last 60 data points (1 hour at 1 min intervals)
+        all_metrics[deployment_id]["history"] = all_metrics[deployment_id]["history"][-60:]
+        save_metrics(all_metrics)
+
+        return metrics
+    except Exception as e:
+        print(f"Error getting metrics: {e}")
+        return {"error": str(e)}
+
+@app.get("/api/deployments/{deployment_id}/metrics/history")
+async def get_deployment_metrics_history(deployment_id: str, period: str = "1h"):
+    """Get historical metrics for a deployment"""
+    try:
+        all_metrics = load_metrics()
+
+        if deployment_id not in all_metrics:
+            return {"history": [], "period": period}
+
+        history = all_metrics[deployment_id].get("history", [])
+
+        # Filter based on period
+        if period == "1h":
+            history = history[-60:]
+        elif period == "6h":
+            history = history[-360:]
+        elif period == "24h":
+            history = history[-1440:]
+
+        return {"history": history, "period": period}
+    except Exception as e:
+        print(f"Error getting metrics history: {e}")
+        return {"history": [], "period": period}
+
+# ============================================================================
+# USAGE LIMITS & RATE LIMITING
+# ============================================================================
+
+LIMITS_FILE = "usage_limits.json"
+
+def load_limits():
+    """Load usage limits configuration"""
+    default_limits = {
+        "api_requests_per_minute": 60,
+        "api_requests_per_day": 10000,
+        "max_concurrent_deployments": 5,
+        "max_api_keys": 10,
+        "max_webhooks": 5,
+        "cost_alert_threshold": 100.00,
+        "auto_stop_threshold": 500.00,
+        "enabled": True
+    }
+    if os.path.exists(LIMITS_FILE):
+        with open(LIMITS_FILE, 'r') as f:
+            saved = json.load(f)
+            for key in default_limits:
+                if key not in saved:
+                    saved[key] = default_limits[key]
+            return saved
+    return default_limits
+
+def save_limits(limits):
+    """Save usage limits configuration"""
+    with open(LIMITS_FILE, 'w') as f:
+        json.dump(limits, f, indent=2)
+
+@app.get("/api/limits")
+async def get_limits():
+    """Get current usage limits"""
+    limits = load_limits()
+
+    # Add current usage stats
+    keys = load_api_keys()
+    settings = load_settings()
+    stats = load_usage_stats()
+
+    today = datetime.now().strftime("%Y-%m-%d")
+    today_requests = stats.get("requests_by_day", {}).get(today, 0)
+
+    return {
+        "limits": limits,
+        "current_usage": {
+            "api_keys_count": len(keys),
+            "webhooks_count": len(settings.get("webhooks", [])),
+            "requests_today": today_requests,
+            "estimated_monthly_cost": settings.get("billing", {}).get("current_month", 0)
+        }
+    }
+
+class LimitsUpdateRequest(BaseModel):
+    api_requests_per_minute: Optional[int] = None
+    api_requests_per_day: Optional[int] = None
+    max_concurrent_deployments: Optional[int] = None
+    max_api_keys: Optional[int] = None
+    max_webhooks: Optional[int] = None
+    cost_alert_threshold: Optional[float] = None
+    auto_stop_threshold: Optional[float] = None
+    enabled: Optional[bool] = None
+
+@app.put("/api/limits")
+async def update_limits(request: LimitsUpdateRequest):
+    """Update usage limits"""
+    limits = load_limits()
+    updates = request.model_dump(exclude_none=True)
+    for key, value in updates.items():
+        limits[key] = value
+    save_limits(limits)
+    return {"success": True, "limits": limits}
+
+# ============================================================================
+# COST TRACKING
+# ============================================================================
+
+COST_FILE = "cost_tracking.json"
+
+def load_cost_data():
+    """Load cost tracking data"""
+    default_data = {
+        "hourly_rates": {},  # deployment_id -> hourly_rate
+        "usage_hours": {},   # deployment_id -> {"date": hours}
+        "daily_costs": {},   # "YYYY-MM-DD" -> cost
+        "monthly_totals": {} # "YYYY-MM" -> cost
+    }
+    if os.path.exists(COST_FILE):
+        with open(COST_FILE, 'r') as f:
+            return json.load(f)
+    return default_data
+
+def save_cost_data(data):
+    """Save cost tracking data"""
+    with open(COST_FILE, 'w') as f:
+        json.dump(data, f, indent=2)
+
+def record_deployment_cost(deployment_id: str, gpu_type: str, hours: float = 1.0):
+    """Record cost for a deployment"""
+    # GPU hourly rates (spot prices)
+    gpu_rates = {
+        "Tesla-V100-16GB": 0.076,
+        "RTX-A6000": 0.125,
+        "A100-40GB": 0.238,
+        "RTX-6000-Ada": 0.285,
+        "L40S": 0.315,
+        "A100-80GB": 0.425,
+        "H100": 0.850,
+    }
+
+    rate = gpu_rates.get(gpu_type, 0.20)
+    cost = rate * hours
+
+    data = load_cost_data()
+    today = datetime.now().strftime("%Y-%m-%d")
+    month = datetime.now().strftime("%Y-%m")
+
+    # Update hourly rate tracking
+    data["hourly_rates"][deployment_id] = rate
+
+    # Update daily cost
+    if today not in data["daily_costs"]:
+        data["daily_costs"][today] = 0
+    data["daily_costs"][today] += cost
+
+    # Update monthly total
+    if month not in data["monthly_totals"]:
+        data["monthly_totals"][month] = 0
+    data["monthly_totals"][month] += cost
+
+    save_cost_data(data)
+
+    # Also update billing in settings
+    settings = load_settings()
+    settings["billing"]["current_month"] = data["monthly_totals"].get(month, 0)
+    save_settings(settings)
+
+    return cost
+
+@app.get("/api/costs")
+async def get_cost_breakdown():
+    """Get detailed cost breakdown"""
+    data = load_cost_data()
+    today = datetime.now()
+    current_month = today.strftime("%Y-%m")
+    last_month = (today.replace(day=1) - __import__('datetime').timedelta(days=1)).strftime("%Y-%m")
+
+    # Get last 30 days of daily costs
+    daily_costs = []
+    for i in range(30):
+        day = (today - __import__('datetime').timedelta(days=i)).strftime("%Y-%m-%d")
+        daily_costs.append({
+            "date": day,
+            "cost": round(data.get("daily_costs", {}).get(day, 0), 2)
+        })
+    daily_costs.reverse()
+
+    # Calculate projections
+    days_elapsed = today.day
+    current_spend = data.get("monthly_totals", {}).get(current_month, 0)
+    if days_elapsed > 0:
+        daily_avg = current_spend / days_elapsed
+        projected_monthly = daily_avg * 30
+    else:
+        projected_monthly = 0
+
+    return {
+        "current_month": round(current_spend, 2),
+        "last_month": round(data.get("monthly_totals", {}).get(last_month, 0), 2),
+        "projected_monthly": round(projected_monthly, 2),
+        "daily_costs": daily_costs,
+        "hourly_rates": data.get("hourly_rates", {}),
+        "active_deployments_cost_per_hour": sum(data.get("hourly_rates", {}).values())
+    }
+
+@app.post("/api/costs/simulate")
+async def simulate_cost(hours: float = 1.0, deployment_id: str = "demo", gpu_type: str = "A100-40GB"):
+    """Simulate recording a cost (for testing)"""
+    cost = record_deployment_cost(deployment_id, gpu_type, hours)
+    return {"success": True, "cost_recorded": round(cost, 4), "deployment_id": deployment_id}
+
+# ============================================================================
+# DANGER ZONE OPERATIONS
+# ============================================================================
+
+@app.post("/api/danger/reset-usage")
+async def reset_usage_stats():
+    """Reset all usage statistics (danger zone)"""
+    default_stats = {
+        "total_requests": 0,
+        "requests_by_key": {},
+        "requests_by_day": {},
+        "requests_by_deployment": {},
+        "last_updated": datetime.now().isoformat()
+    }
+    save_usage_stats(default_stats)
+    return {"success": True, "message": "Usage statistics have been reset"}
+
+@app.post("/api/danger/revoke-all-keys")
+async def revoke_all_api_keys():
+    """Revoke all API keys (danger zone)"""
+    save_api_keys([])
+    return {"success": True, "message": "All API keys have been revoked"}
+
+@app.post("/api/danger/stop-all-deployments")
+async def stop_all_deployments():
+    """Stop all active deployments (danger zone)"""
+    if DEMO_MODE or verda_client is None:
+        return {"success": False, "message": "Cannot stop deployments in demo mode"}
+
+    try:
+        # Get all deployments
+        containers = verda_client.list_deployments()
+        instances = verda_client.list_instances()
+
+        stopped = 0
+        errors = []
+
+        # Stop containers
+        for c in containers:
+            try:
+                verda_client.delete_deployment(c.get('id'))
+                stopped += 1
+            except Exception as e:
+                errors.append(f"Container {c.get('id')}: {str(e)}")
+
+        # Stop instances
+        for i in instances:
+            try:
+                verda_client.delete_instance(i.get('id'))
+                stopped += 1
+            except Exception as e:
+                errors.append(f"Instance {i.get('id')}: {str(e)}")
+
+        return {
+            "success": True,
+            "stopped_count": stopped,
+            "errors": errors if errors else None,
+            "message": f"Stopped {stopped} deployments"
+        }
+    except Exception as e:
+        return {"success": False, "message": str(e)}
+
+# ============================================================================
 # HEALTH CHECK
 # ============================================================================
 
 @app.get("/health")
 async def health_check():
     """Health check endpoint"""
-    return {"status": "healthy", "service": "VoiceFlow Console"}
+    return {"status": "healthy", "service": "VoiceFlow Console", "demo_mode": DEMO_MODE}
 
 # ============================================================================
 # MAIN
