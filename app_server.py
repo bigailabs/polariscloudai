@@ -84,16 +84,21 @@ async def get_stats():
         total_deployments = len(containers) + len(instances)
         active_count = total_deployments  # Assume all listed are active
 
-        # Calculate monthly cost estimate (mock for now)
-        # In real implementation, would track actual GPU costs
+        # Calculate monthly cost estimate based on active GPUs
+        # TODO: Track actual GPU hours for real billing
         monthly_cost = active_count * 100  # Rough estimate
 
-        # Mock API request count (in real app, track this)
-        api_requests = 1200
+        # Get real API request count from usage stats
+        usage_stats = load_usage_stats()
+        current_month = datetime.now().strftime("%Y-%m")
+        monthly_requests = sum(
+            count for day, count in usage_stats.get("requests_by_day", {}).items()
+            if day.startswith(current_month)
+        )
 
         return {
             "active_deployments": active_count,
-            "api_requests": api_requests,
+            "api_requests": monthly_requests,
             "monthly_cost": round(monthly_cost, 2),
             "uptime": 99.9,
             "total_deployments": total_deployments
@@ -269,6 +274,7 @@ async def get_gpus():
 # ============================================================================
 
 API_KEYS_FILE = "api_keys.json"
+USAGE_STATS_FILE = "usage_stats.json"
 
 def load_api_keys():
     """Load API keys from file"""
@@ -281,6 +287,66 @@ def save_api_keys(keys):
     """Save API keys to file"""
     with open(API_KEYS_FILE, 'w') as f:
         json.dump(keys, f, indent=2)
+
+def load_usage_stats():
+    """Load usage statistics from file"""
+    default_stats = {
+        "total_requests": 0,
+        "requests_by_key": {},
+        "requests_by_day": {},
+        "requests_by_deployment": {},
+        "last_updated": None
+    }
+    if os.path.exists(USAGE_STATS_FILE):
+        with open(USAGE_STATS_FILE, 'r') as f:
+            saved = json.load(f)
+            for key in default_stats:
+                if key not in saved:
+                    saved[key] = default_stats[key]
+            return saved
+    return default_stats
+
+def save_usage_stats(stats):
+    """Save usage statistics to file"""
+    stats["last_updated"] = datetime.now().isoformat()
+    with open(USAGE_STATS_FILE, 'w') as f:
+        json.dump(stats, f, indent=2)
+
+def record_api_usage(key_id: str, deployment_id: str = None):
+    """Record an API usage event"""
+    stats = load_usage_stats()
+    today = datetime.now().strftime("%Y-%m-%d")
+
+    # Increment total requests
+    stats["total_requests"] = stats.get("total_requests", 0) + 1
+
+    # Increment requests by key
+    if key_id not in stats["requests_by_key"]:
+        stats["requests_by_key"][key_id] = {"total": 0, "last_used": None}
+    stats["requests_by_key"][key_id]["total"] += 1
+    stats["requests_by_key"][key_id]["last_used"] = datetime.now().isoformat()
+
+    # Increment requests by day
+    if today not in stats["requests_by_day"]:
+        stats["requests_by_day"][today] = 0
+    stats["requests_by_day"][today] += 1
+
+    # Increment requests by deployment
+    if deployment_id:
+        if deployment_id not in stats["requests_by_deployment"]:
+            stats["requests_by_deployment"][deployment_id] = 0
+        stats["requests_by_deployment"][deployment_id] += 1
+
+    save_usage_stats(stats)
+
+    # Also update last_used on the API key
+    keys = load_api_keys()
+    for key in keys:
+        if key["id"] == key_id:
+            key["last_used"] = datetime.now().isoformat()
+            key["request_count"] = key.get("request_count", 0) + 1
+            break
+    save_api_keys(keys)
 
 @app.get("/api/keys")
 async def get_api_keys():
@@ -340,24 +406,223 @@ async def revoke_api_key(key_id: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 # ============================================================================
+# USAGE ANALYTICS
+# ============================================================================
+
+@app.get("/api/usage")
+async def get_usage_analytics():
+    """Get detailed usage analytics"""
+    try:
+        stats = load_usage_stats()
+        keys = load_api_keys()
+
+        # Get last 30 days of data
+        today = datetime.now()
+        daily_data = []
+        for i in range(30):
+            day = (today - __import__('datetime').timedelta(days=i)).strftime("%Y-%m-%d")
+            daily_data.append({
+                "date": day,
+                "requests": stats.get("requests_by_day", {}).get(day, 0)
+            })
+        daily_data.reverse()
+
+        # Enrich key data with usage stats
+        key_usage = []
+        for key in keys:
+            key_stats = stats.get("requests_by_key", {}).get(key["id"], {})
+            key_usage.append({
+                "id": key["id"],
+                "name": key["name"],
+                "total_requests": key.get("request_count", key_stats.get("total", 0)),
+                "last_used": key.get("last_used") or key_stats.get("last_used"),
+                "created_at": key.get("created_at")
+            })
+
+        # Current month totals
+        current_month = today.strftime("%Y-%m")
+        this_month_requests = sum(
+            count for day, count in stats.get("requests_by_day", {}).items()
+            if day.startswith(current_month)
+        )
+
+        # Last month totals
+        last_month = (today.replace(day=1) - __import__('datetime').timedelta(days=1)).strftime("%Y-%m")
+        last_month_requests = sum(
+            count for day, count in stats.get("requests_by_day", {}).items()
+            if day.startswith(last_month)
+        )
+
+        return {
+            "total_requests": stats.get("total_requests", 0),
+            "this_month": this_month_requests,
+            "last_month": last_month_requests,
+            "daily_data": daily_data,
+            "key_usage": key_usage,
+            "deployment_usage": stats.get("requests_by_deployment", {}),
+            "last_updated": stats.get("last_updated")
+        }
+    except Exception as e:
+        print(f"Error getting usage analytics: {e}")
+        import traceback
+        traceback.print_exc()
+        return {
+            "total_requests": 0,
+            "this_month": 0,
+            "last_month": 0,
+            "daily_data": [],
+            "key_usage": [],
+            "deployment_usage": {},
+            "last_updated": None
+        }
+
+@app.post("/api/usage/record")
+async def record_usage(key_id: str, deployment_id: Optional[str] = None):
+    """Record an API usage event (for testing/manual recording)"""
+    try:
+        record_api_usage(key_id, deployment_id)
+        return {"success": True, "message": "Usage recorded"}
+    except Exception as e:
+        print(f"Error recording usage: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ============================================================================
 # SETTINGS
 # ============================================================================
 
-@app.get("/api/settings")
-async def get_settings():
-    """Get account settings"""
-    return {
+SETTINGS_FILE = "settings.json"
+
+def load_settings():
+    """Load settings from file"""
+    default_settings = {
         "account": {
             "email": "developer@example.com",
+            "name": "Developer",
+            "company": "",
             "plan": "Professional",
             "created_at": "2026-01-01"
         },
         "billing": {
-            "current_month": 87.50,
-            "last_month": 92.30,
-            "payment_method": "Credit Card (****1234)"
-        }
+            "current_month": 0.00,
+            "last_month": 0.00,
+            "payment_method": None,
+            "billing_email": ""
+        },
+        "notifications": {
+            "deployment_started": True,
+            "deployment_stopped": True,
+            "deployment_failed": True,
+            "usage_alerts": True,
+            "weekly_summary": False,
+            "email_notifications": True
+        },
+        "webhooks": []
     }
+    if os.path.exists(SETTINGS_FILE):
+        with open(SETTINGS_FILE, 'r') as f:
+            saved = json.load(f)
+            # Merge with defaults to ensure all keys exist
+            for key in default_settings:
+                if key not in saved:
+                    saved[key] = default_settings[key]
+            return saved
+    return default_settings
+
+def save_settings(settings):
+    """Save settings to file"""
+    with open(SETTINGS_FILE, 'w') as f:
+        json.dump(settings, f, indent=2)
+
+@app.get("/api/settings")
+async def get_settings():
+    """Get account settings"""
+    return load_settings()
+
+class AccountUpdateRequest(BaseModel):
+    email: Optional[str] = None
+    name: Optional[str] = None
+    company: Optional[str] = None
+
+@app.put("/api/settings/account")
+async def update_account(request: AccountUpdateRequest):
+    """Update account settings"""
+    settings = load_settings()
+    if request.email:
+        settings["account"]["email"] = request.email
+    if request.name:
+        settings["account"]["name"] = request.name
+    if request.company is not None:
+        settings["account"]["company"] = request.company
+    save_settings(settings)
+    return {"success": True, "account": settings["account"]}
+
+class NotificationUpdateRequest(BaseModel):
+    deployment_started: Optional[bool] = None
+    deployment_stopped: Optional[bool] = None
+    deployment_failed: Optional[bool] = None
+    usage_alerts: Optional[bool] = None
+    weekly_summary: Optional[bool] = None
+    email_notifications: Optional[bool] = None
+
+@app.put("/api/settings/notifications")
+async def update_notifications(request: NotificationUpdateRequest):
+    """Update notification preferences"""
+    settings = load_settings()
+    updates = request.model_dump(exclude_none=True)
+    for key, value in updates.items():
+        settings["notifications"][key] = value
+    save_settings(settings)
+    return {"success": True, "notifications": settings["notifications"]}
+
+class WebhookRequest(BaseModel):
+    url: str
+    events: List[str]
+    name: Optional[str] = None
+
+@app.get("/api/settings/webhooks")
+async def get_webhooks():
+    """Get all webhooks"""
+    settings = load_settings()
+    return {"webhooks": settings.get("webhooks", [])}
+
+@app.post("/api/settings/webhooks")
+async def create_webhook(request: WebhookRequest):
+    """Create a new webhook"""
+    import secrets
+    settings = load_settings()
+    webhook = {
+        "id": secrets.token_urlsafe(8),
+        "name": request.name or f"Webhook {len(settings.get('webhooks', [])) + 1}",
+        "url": request.url,
+        "events": request.events,
+        "created_at": datetime.now().isoformat(),
+        "last_triggered": None,
+        "active": True
+    }
+    if "webhooks" not in settings:
+        settings["webhooks"] = []
+    settings["webhooks"].append(webhook)
+    save_settings(settings)
+    return {"success": True, "webhook": webhook}
+
+@app.delete("/api/settings/webhooks/{webhook_id}")
+async def delete_webhook(webhook_id: str):
+    """Delete a webhook"""
+    settings = load_settings()
+    settings["webhooks"] = [w for w in settings.get("webhooks", []) if w["id"] != webhook_id]
+    save_settings(settings)
+    return {"success": True, "message": "Webhook deleted"}
+
+@app.put("/api/settings/webhooks/{webhook_id}/toggle")
+async def toggle_webhook(webhook_id: str):
+    """Toggle webhook active status"""
+    settings = load_settings()
+    for webhook in settings.get("webhooks", []):
+        if webhook["id"] == webhook_id:
+            webhook["active"] = not webhook.get("active", True)
+            save_settings(settings)
+            return {"success": True, "active": webhook["active"]}
+    raise HTTPException(status_code=404, detail="Webhook not found")
 
 # ============================================================================
 # HEALTH CHECK
