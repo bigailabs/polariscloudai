@@ -104,6 +104,37 @@
         }
         .toast-progress { transition: width linear; }
         .toast-icon { flex-shrink: 0; }
+
+        /* Template Cards */
+        .template-card {
+            transition: all 0.2s ease;
+        }
+        .template-card:hover {
+            transform: translateY(-4px);
+        }
+
+        /* Deployment Progress */
+        .deployment-log {
+            font-family: 'JetBrains Mono', 'Fira Code', monospace;
+        }
+        .deployment-log::-webkit-scrollbar {
+            width: 6px;
+        }
+        .deployment-log::-webkit-scrollbar-track {
+            background: #1f2937;
+        }
+        .deployment-log::-webkit-scrollbar-thumb {
+            background: #4b5563;
+            border-radius: 3px;
+        }
+
+        /* Line clamp utility */
+        .line-clamp-2 {
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
     </style>
 </head>
 <body class="bg-gray-50 text-gray-900">
@@ -126,7 +157,7 @@
 
                 <!-- Navigation Links -->
                 <div class="hidden md:flex items-center space-x-8">
-                    <a href="#" class="text-gray-700 hover:text-gray-900 transition text-sm font-medium">Dashboard</a>
+                    <a href="#" onclick="switchTab('applications'); return false;" class="text-gray-700 hover:text-gray-900 transition text-sm font-medium">Home</a>
                     <a href="#" class="text-gray-700 hover:text-gray-900 transition text-sm font-medium">Documentation</a>
                     <a href="#" class="text-gray-700 hover:text-gray-900 transition text-sm font-medium">Support</a>
                 </div>
@@ -151,14 +182,21 @@
 
     <!-- Main Content -->
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
-        <!-- Header -->
-        <div class="mb-8">
-            <h2 class="text-3xl font-bold mb-2">Dashboard</h2>
-            <p class="text-gray-600">Manage your TTS deployments and API keys</p>
+        <!-- Collapsible Dashboard Header -->
+        <div class="mb-6">
+            <button onclick="toggleDashboard()" class="flex items-center justify-between w-full text-left group">
+                <div>
+                    <h2 class="text-xl font-bold mb-1 group-hover:text-anthropic-600 transition">Dashboard</h2>
+                    <p class="text-sm text-gray-500">Manage your cloud applications and API keys</p>
+                </div>
+                <svg id="dashboard-chevron" class="w-5 h-5 text-gray-400 transform transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                </svg>
+            </button>
         </div>
 
-        <!-- Stats Grid -->
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mb-8">
+        <!-- Stats Grid (collapsible) -->
+        <div id="dashboard-stats" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8 overflow-hidden transition-all duration-300">
             <!-- Active Deployments -->
             <div class="card bg-white rounded-xl p-8 border border-gray-200 shadow-sm hover:shadow-md">
                 <div class="flex items-center justify-between mb-4">
@@ -219,7 +257,10 @@
         <!-- Tabs -->
         <div class="border-b border-gray-200 mb-6">
             <nav class="flex space-x-8">
-                <button onclick="switchTab('deployments')" id="tab-deployments" class="tab-active pb-4 px-1 text-sm font-medium transition">
+                <button onclick="switchTab('applications')" id="tab-applications" class="tab-active pb-4 px-1 text-sm font-medium transition">
+                    Applications
+                </button>
+                <button onclick="switchTab('deployments')" id="tab-deployments" class="pb-4 px-1 text-sm font-medium text-gray-600 hover:text-gray-900 transition">
                     Deployments
                 </button>
                 <button onclick="switchTab('api-keys')" id="tab-api-keys" class="pb-4 px-1 text-sm font-medium text-gray-600 hover:text-gray-900 transition">
@@ -238,7 +279,7 @@
         </div>
 
         <!-- Tab Content -->
-        <div id="content-deployments" class="tab-content">
+        <div id="content-deployments" class="tab-content hidden">
             <div id="deployments-list" class="space-y-4">
                 <!-- Deployment Card 1 -->
                 <div class="card bg-white rounded-xl p-8 border border-gray-200 shadow-sm hover:shadow-md">
@@ -316,6 +357,169 @@
                         <div>
                             <p class="text-xs text-gray-700 mb-1">Status</p>
                             <p class="text-sm text-yellow-400">Health check pending</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Applications Tab Content -->
+        <div id="content-applications" class="tab-content">
+            <!-- Step 1: Template Gallery -->
+            <div id="applications-step-1" class="space-y-6">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h3 class="text-2xl font-bold mb-2">Deploy from Template</h3>
+                        <p class="text-gray-600">One-click deployment of AI services and development tools</p>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <span class="text-sm text-gray-500">Filter:</span>
+                        <select id="application-category-filter" onchange="filterApplications(this.value)" class="bg-white border-2 border-gray-300 rounded-lg px-3 py-1 text-sm focus:border-anthropic-600 outline-none">
+                            <option value="all">All Categories</option>
+                            <option value="ai_ml">AI / ML</option>
+                            <option value="development">Development</option>
+                            <option value="desktop">Desktop</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Template Cards Grid -->
+                <div id="applications-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <p class="text-gray-600 col-span-full">Loading applications...</p>
+                </div>
+
+                <!-- Active Deployments Section -->
+                <div class="mt-8">
+                    <div class="flex items-center justify-between mb-4">
+                        <h4 class="text-lg font-semibold">My Deployments</h4>
+                        <div class="flex items-center space-x-3">
+                            <select id="deployment-status-filter" onchange="filterDeploymentsByStatus(this.value)" class="bg-white border border-gray-300 rounded-lg px-3 py-1 text-sm focus:border-anthropic-600 outline-none">
+                                <option value="all">All</option>
+                                <option value="running">Running</option>
+                                <option value="failed">Failed</option>
+                                <option value="pending">Pending</option>
+                            </select>
+                            <button onclick="syncDeploymentStatuses()" class="text-anthropic-600 hover:text-anthropic-700 text-sm" title="Sync with server">
+                                🔄 Sync
+                            </button>
+                            <button onclick="loadApplicationDeployments()" class="text-anthropic-600 hover:text-anthropic-700 text-sm">
+                                ↻ Refresh
+                            </button>
+                        </div>
+                    </div>
+                    <div id="template-deployments-list" class="space-y-4">
+                        <p class="text-gray-600">No deployments yet. Deploy an application to get started.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 2: Configure Template Deployment -->
+            <div id="applications-step-2" class="space-y-6 hidden">
+                <div class="flex items-center justify-between mb-4">
+                    <div>
+                        <button onclick="backToApplications()" class="text-anthropic-600 hover:text-anthropic-700 text-sm mb-2">← Back to Applications</button>
+                        <h3 id="template-deploy-title" class="text-2xl font-bold mb-2">Configure Deployment</h3>
+                        <p id="template-deploy-description" class="text-gray-600">Configure your deployment settings</p>
+                    </div>
+                </div>
+
+                <form id="template-deploy-form" onsubmit="submitTemplateDeployment(event)" class="space-y-6">
+                    <!-- Template Info Card -->
+                    <div class="card bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
+                        <div class="flex items-start space-x-4">
+                            <div id="template-deploy-icon" class="text-4xl">🦙</div>
+                            <div class="flex-1">
+                                <h4 id="template-deploy-name" class="text-lg font-semibold"></h4>
+                                <p id="template-deploy-time" class="text-sm text-gray-500"></p>
+                                <div id="template-deploy-features" class="mt-3 flex flex-wrap gap-2"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Deployment Name -->
+                    <div class="card bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
+                        <h4 class="text-md font-semibold mb-4">Deployment Name</h4>
+                        <div>
+                            <input id="template-name" type="text" required class="w-full bg-white border-2 border-gray-300 rounded-lg px-4 py-2 focus:border-anthropic-600 outline-none transition" placeholder="my-deployment">
+                            <p class="text-xs text-gray-500 mt-2">A unique name to identify this deployment</p>
+                        </div>
+                    </div>
+
+                    <!-- Dynamic Template Parameters -->
+                    <div id="template-parameters-container" class="card bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
+                        <h4 class="text-md font-semibold mb-4">Template Configuration</h4>
+                        <div id="template-parameters" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <!-- Parameters will be rendered here -->
+                        </div>
+                    </div>
+
+                    <!-- Deploy Button -->
+                    <button type="submit" id="template-deploy-btn" class="w-full bg-gradient-to-r from-anthropic-600 to-anthropic-700 hover:from-anthropic-700 hover:to-anthropic-800 text-white rounded-lg px-6 py-3 font-medium text-lg transition shadow-lg hover:shadow-xl">
+                        🚀 Deploy Template
+                    </button>
+                </form>
+            </div>
+
+            <!-- Step 3: Deployment Progress -->
+            <div id="applications-step-3" class="space-y-6 hidden">
+                <div class="text-center py-8">
+                    <div id="deployment-progress-icon" class="text-6xl mb-4">🚀</div>
+                    <h3 id="deployment-progress-title" class="text-2xl font-bold mb-2">Deploying...</h3>
+                    <p id="deployment-progress-status" class="text-gray-600 mb-6">Preparing deployment</p>
+
+                    <!-- Progress Bar -->
+                    <div class="max-w-md mx-auto mb-8">
+                        <div class="bg-gray-200 rounded-full h-3">
+                            <div id="deployment-progress-bar" class="bg-anthropic-600 h-3 rounded-full transition-all duration-500" style="width: 0%"></div>
+                        </div>
+                        <p id="deployment-progress-percent" class="text-sm text-gray-500 mt-2">0%</p>
+                    </div>
+
+                    <!-- Log Output -->
+                    <div class="max-w-2xl mx-auto text-left">
+                        <div class="bg-gray-900 rounded-xl p-4 h-64 overflow-y-auto font-mono text-sm">
+                            <div id="deployment-log" class="space-y-1 text-gray-300">
+                                <p class="text-gray-500">Waiting for deployment logs...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 4: Deployment Complete -->
+            <div id="applications-step-4" class="space-y-6 hidden">
+                <div class="text-center py-8">
+                    <div class="text-6xl mb-4">✅</div>
+                    <h3 class="text-2xl font-bold mb-2 text-green-600">Deployment Complete!</h3>
+                    <p id="deployment-complete-name" class="text-gray-600 mb-8">Your service is now running</p>
+                </div>
+
+                <!-- Access Panel -->
+                <div class="card bg-white rounded-xl p-6 border border-gray-200 shadow-sm max-w-2xl mx-auto">
+                    <h4 class="text-lg font-semibold mb-4">Access Your Service</h4>
+                    <div class="space-y-4">
+                        <div class="bg-gray-50 rounded-lg p-4">
+                            <p class="text-xs text-gray-500 mb-1">Service URL</p>
+                            <div class="flex items-center justify-between">
+                                <code id="deployment-access-url" class="text-sm font-mono text-anthropic-600"></code>
+                                <button onclick="copyDeploymentUrl()" class="text-anthropic-600 hover:text-anthropic-700 text-sm">Copy</button>
+                            </div>
+                        </div>
+                        <div id="deployment-access-info" class="space-y-2">
+                            <!-- Additional access info will be rendered here -->
+                        </div>
+                    </div>
+                    <div class="mt-6 space-y-3">
+                        <a id="deployment-open-link" href="#" target="_blank" class="block w-full text-center px-6 py-4 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white rounded-xl text-lg font-semibold transition shadow-lg hover:shadow-xl">
+                            🚀 Launch Service
+                        </a>
+                        <div class="flex space-x-3">
+                            <button onclick="backToApplications()" class="flex-1 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-lg text-sm font-medium transition">
+                                Deploy Another
+                            </button>
+                            <button id="deployment-stop-btn" onclick="stopCurrentDeployment()" class="flex-1 px-4 py-2 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg text-sm font-medium transition">
+                                ⏹ Stop & Remove
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -1038,7 +1242,10 @@
             activeTab.classList.remove('text-gray-600');
 
             // Load data for this tab
-            if (tabName === 'deployments') {
+            if (tabName === 'applications') {
+                loadTemplates();
+                loadApplicationDeployments();
+            } else if (tabName === 'deployments') {
                 loadDeployments();
             } else if (tabName === 'api-keys') {
                 loadAPIKeys();
@@ -1599,11 +1806,620 @@
         }
 
         // ============================================================================
+        // TEMPLATE DEPLOYMENT SYSTEM
+        // ============================================================================
+        let applicationsData = [];
+        let selectedTemplate = null;
+        let deploymentWebSocket = null;
+        let currentDeploymentId = null;
+
+        async function loadTemplates() {
+            try {
+                const response = await fetch(API_BASE + '/api/templates');
+                const data = await response.json();
+                applicationsData = data.templates || [];
+                renderApplicationGrid(applicationsData);
+            } catch (error) {
+                console.error('Error loading templates:', error);
+                document.getElementById('applications-grid').innerHTML = `
+                    <div class="col-span-full text-center py-8">
+                        <p class="text-red-500">Failed to load applications. Please try again.</p>
+                        <button onclick="loadTemplates()" class="mt-4 text-anthropic-600 hover:text-anthropic-700">Retry</button>
+                    </div>
+                `;
+            }
+        }
+
+        function filterApplications(category) {
+            if (category === 'all') {
+                renderApplicationGrid(applicationsData);
+            } else {
+                const filtered = applicationsData.filter(t => t.category === category);
+                renderApplicationGrid(filtered);
+            }
+        }
+
+        function renderApplicationGrid(templates) {
+            const container = document.getElementById('applications-grid');
+
+            if (!templates || templates.length === 0) {
+                container.innerHTML = '<p class="text-gray-600 col-span-full">No applications available.</p>';
+                return;
+            }
+
+            container.innerHTML = templates.map(template => createTemplateCard(template)).join('');
+        }
+
+        function createTemplateCard(template) {
+            const colorClasses = {
+                purple: 'border-purple-500 hover:border-purple-600',
+                orange: 'border-orange-500 hover:border-orange-600',
+                green: 'border-green-500 hover:border-green-600',
+                amber: 'border-amber-500 hover:border-amber-600',
+                blue: 'border-blue-500 hover:border-blue-600',
+            };
+
+            const bgColorClasses = {
+                purple: 'bg-purple-50',
+                orange: 'bg-orange-50',
+                green: 'bg-green-50',
+                amber: 'bg-amber-50',
+                blue: 'bg-blue-50',
+            };
+
+            const borderClass = colorClasses[template.color] || 'border-gray-300 hover:border-gray-400';
+            const bgClass = bgColorClasses[template.color] || 'bg-gray-50';
+
+            return `
+                <div onclick="selectTemplate('${template.id}')" class="card cursor-pointer bg-white border-2 ${borderClass} rounded-xl p-6 shadow-sm hover:shadow-md transition-all">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="w-12 h-12 ${bgClass} rounded-lg flex items-center justify-center">
+                            <span class="text-2xl">${template.icon}</span>
+                        </div>
+                        <span class="px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded-full">${template.category.replace('_', '/')}</span>
+                    </div>
+                    <h4 class="text-lg font-semibold mb-2">${template.name}</h4>
+                    <p class="text-sm text-gray-600 mb-4 line-clamp-2">${template.description}</p>
+                    <div class="flex flex-wrap gap-1 mb-4">
+                        ${template.features.slice(0, 3).map(f => `<span class="px-2 py-0.5 bg-gray-100 text-gray-600 text-xs rounded">${f}</span>`).join('')}
+                        ${template.features.length > 3 ? `<span class="px-2 py-0.5 bg-gray-100 text-gray-500 text-xs rounded">+${template.features.length - 3} more</span>` : ''}
+                    </div>
+                    <div class="flex items-center justify-between text-xs text-gray-500">
+                        <span>⏱️ ${template.estimated_deploy_time}</span>
+                        <span>Port: ${template.default_port}</span>
+                    </div>
+                </div>
+            `;
+        }
+
+        async function selectTemplate(templateId) {
+            const template = applicationsData.find(t => t.id === templateId);
+            if (!template) return;
+
+            selectedTemplate = template;
+
+            // Update the configuration form
+            document.getElementById('template-deploy-title').textContent = `Deploy ${template.name}`;
+            document.getElementById('template-deploy-description').textContent = template.description;
+            document.getElementById('template-deploy-icon').textContent = template.icon;
+            document.getElementById('template-deploy-name').textContent = template.name;
+            document.getElementById('template-deploy-time').textContent = `Estimated time: ${template.estimated_deploy_time}`;
+
+            // Render features
+            const featuresContainer = document.getElementById('template-deploy-features');
+            featuresContainer.innerHTML = template.features.map(f =>
+                `<span class="px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded">${f}</span>`
+            ).join('');
+
+            // Render parameters
+            renderTemplateParameters(template.parameters);
+
+            // Set default name
+            document.getElementById('template-name').value = `${template.id}-${Date.now().toString(36)}`;
+
+            // Show step 2
+            document.getElementById('applications-step-1').classList.add('hidden');
+            document.getElementById('applications-step-2').classList.remove('hidden');
+        }
+
+        function renderTemplateParameters(parameters) {
+            const container = document.getElementById('template-parameters');
+
+            if (!parameters || parameters.length === 0) {
+                container.innerHTML = '<p class="text-gray-500 col-span-2">No additional configuration required.</p>';
+                return;
+            }
+
+            container.innerHTML = parameters.map(param => {
+                let inputHtml = '';
+
+                if (param.type === 'select') {
+                    inputHtml = `
+                        <select id="param-${param.name}" ${param.required ? 'required' : ''}
+                            class="w-full bg-white border-2 border-gray-300 rounded-lg px-4 py-2 focus:border-anthropic-600 outline-none transition">
+                            ${param.options.map(opt => `<option value="${opt.value}" ${opt.value === param.default ? 'selected' : ''}>${opt.label}</option>`).join('')}
+                        </select>
+                    `;
+                } else if (param.type === 'boolean') {
+                    inputHtml = `
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" id="param-${param.name}" class="sr-only peer" ${param.default ? 'checked' : ''}>
+                            <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-anthropic-600"></div>
+                        </label>
+                    `;
+                } else if (param.type === 'number') {
+                    inputHtml = `
+                        <input type="number" id="param-${param.name}" value="${param.default || ''}"
+                            placeholder="${param.placeholder || ''}" ${param.required ? 'required' : ''}
+                            class="w-full bg-white border-2 border-gray-300 rounded-lg px-4 py-2 focus:border-anthropic-600 outline-none transition">
+                    `;
+                } else {
+                    inputHtml = `
+                        <input type="text" id="param-${param.name}" value="${param.default || ''}"
+                            placeholder="${param.placeholder || ''}" ${param.required ? 'required' : ''}
+                            class="w-full bg-white border-2 border-gray-300 rounded-lg px-4 py-2 focus:border-anthropic-600 outline-none transition">
+                    `;
+                }
+
+                return `
+                    <div>
+                        <label class="block text-sm font-medium mb-2">${param.label}</label>
+                        ${inputHtml}
+                        ${param.description ? `<p class="text-xs text-gray-500 mt-1">${param.description}</p>` : ''}
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function backToApplications() {
+            document.getElementById('applications-step-1').classList.remove('hidden');
+            document.getElementById('applications-step-2').classList.add('hidden');
+            document.getElementById('applications-step-3').classList.add('hidden');
+            document.getElementById('applications-step-4').classList.add('hidden');
+            selectedTemplate = null;
+
+            // Close WebSocket if open
+            if (deploymentWebSocket) {
+                deploymentWebSocket.close();
+                deploymentWebSocket = null;
+            }
+
+            // Reload deployments list
+            loadApplicationDeployments();
+        }
+
+        async function submitTemplateDeployment(event) {
+            event.preventDefault();
+
+            if (!selectedTemplate) {
+                toastManager.error('Error', 'No template selected');
+                return;
+            }
+
+            const name = document.getElementById('template-name').value.trim();
+
+            if (!name) {
+                toastManager.warning('Required Field', 'Please enter a deployment name');
+                return;
+            }
+
+            // Collect parameters
+            const parameters = {};
+            for (const param of selectedTemplate.parameters) {
+                const element = document.getElementById(`param-${param.name}`);
+                if (element) {
+                    if (param.type === 'boolean') {
+                        parameters[param.name] = element.checked;
+                    } else if (param.type === 'number') {
+                        parameters[param.name] = parseInt(element.value) || param.default;
+                    } else {
+                        parameters[param.name] = element.value || param.default;
+                    }
+                }
+            }
+
+            // Disable submit button
+            const submitBtn = document.getElementById('template-deploy-btn');
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '⏳ Starting deployment...';
+
+            try {
+                const response = await fetch(API_BASE + '/api/templates/deploy', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        template_id: selectedTemplate.id,
+                        name: name,
+                        parameters: parameters
+                    })
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.detail || 'Deployment failed');
+                }
+
+                currentDeploymentId = data.deployment_id;
+
+                // Show progress step
+                showDeploymentProgress(data.deployment_id);
+
+                // Connect to WebSocket for progress
+                connectDeploymentWebSocket(data.deployment_id);
+
+                toastManager.success('Deployment Started', 'Connecting to deployment progress stream...');
+
+            } catch (error) {
+                console.error('Deployment error:', error);
+                toastManager.error('Deployment Failed', error.message);
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = '🚀 Deploy Template';
+            }
+        }
+
+        function showDeploymentProgress(deploymentId) {
+            document.getElementById('applications-step-2').classList.add('hidden');
+            document.getElementById('applications-step-3').classList.remove('hidden');
+
+            // Reset progress UI
+            document.getElementById('deployment-progress-bar').style.width = '0%';
+            document.getElementById('deployment-progress-percent').textContent = '0%';
+            document.getElementById('deployment-progress-title').textContent = 'Deploying...';
+            document.getElementById('deployment-progress-status').textContent = 'Preparing deployment';
+            document.getElementById('deployment-log').innerHTML = '<p class="text-gray-500">Connecting to deployment stream...</p>';
+        }
+
+        function connectDeploymentWebSocket(deploymentId) {
+            const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${wsProtocol}//${window.location.host}/ws/deployments/${deploymentId}`;
+
+            deploymentWebSocket = new WebSocket(wsUrl);
+
+            deploymentWebSocket.onopen = () => {
+                console.log('WebSocket connected');
+                addDeploymentLog('Connected to deployment stream', 'info');
+            };
+
+            deploymentWebSocket.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+
+                if (data.type === 'heartbeat') return;
+
+                // Update progress
+                if (data.progress !== null && data.progress !== undefined) {
+                    document.getElementById('deployment-progress-bar').style.width = `${data.progress}%`;
+                    document.getElementById('deployment-progress-percent').textContent = `${data.progress}%`;
+                }
+
+                // Update status text
+                if (data.message) {
+                    document.getElementById('deployment-progress-status').textContent = data.message;
+                    addDeploymentLog(data.message, data.status || 'info');
+                }
+
+                // Check for completion
+                if (data.status === 'running') {
+                    showDeploymentComplete(deploymentId);
+                } else if (data.status === 'failed') {
+                    showDeploymentFailed(data.message);
+                }
+            };
+
+            deploymentWebSocket.onerror = (error) => {
+                console.error('WebSocket error:', error);
+                addDeploymentLog('WebSocket connection error', 'error');
+            };
+
+            deploymentWebSocket.onclose = () => {
+                console.log('WebSocket closed');
+            };
+        }
+
+        function addDeploymentLog(message, type = 'info') {
+            const logContainer = document.getElementById('deployment-log');
+            const timestamp = new Date().toLocaleTimeString();
+
+            const colorClass = {
+                'info': 'text-gray-300',
+                'success': 'text-green-400',
+                'error': 'text-red-400',
+                'warning': 'text-yellow-400',
+                'predeployment': 'text-blue-400',
+                'deploying': 'text-purple-400',
+                'running': 'text-green-400',
+                'failed': 'text-red-400'
+            }[type] || 'text-gray-300';
+
+            const logEntry = document.createElement('p');
+            logEntry.className = colorClass;
+            logEntry.innerHTML = `<span class="text-gray-500">[${timestamp}]</span> ${message}`;
+            logContainer.appendChild(logEntry);
+
+            // Auto-scroll to bottom
+            logContainer.scrollTop = logContainer.scrollHeight;
+        }
+
+        async function showDeploymentComplete(deploymentId) {
+            document.getElementById('applications-step-3').classList.add('hidden');
+            document.getElementById('applications-step-4').classList.remove('hidden');
+
+            // Fetch deployment details
+            try {
+                const response = await fetch(API_BASE + `/api/templates/deployments/${deploymentId}`);
+                const deployment = await response.json();
+
+                document.getElementById('deployment-complete-name').textContent = `${deployment.template_name} - ${deployment.name}`;
+                document.getElementById('deployment-access-url').textContent = deployment.access_url;
+                document.getElementById('deployment-open-link').href = deployment.access_url;
+
+                // Show access type specific info with credentials/instructions
+                const accessInfo = document.getElementById('deployment-access-info');
+                let infoHtml = '';
+
+                // Show instructions if available
+                if (deployment.instructions) {
+                    infoHtml += `
+                        <div class="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                            <p class="text-xs text-blue-600 font-medium mb-1">📝 Access Info</p>
+                            <p class="text-sm text-blue-800">${deployment.instructions}</p>
+                        </div>
+                    `;
+                }
+
+                // Show credentials prominently if available
+                if (deployment.credentials) {
+                    if (deployment.credentials.token) {
+                        infoHtml += `
+                            <div class="bg-green-50 border border-green-200 rounded-lg p-3">
+                                <p class="text-xs text-green-600 font-medium mb-1">🔑 Authentication Token</p>
+                                <p class="text-sm text-green-800 font-mono break-all">${deployment.credentials.token}</p>
+                            </div>
+                        `;
+                    }
+                    if (deployment.credentials.username || deployment.credentials.password) {
+                        infoHtml += `
+                            <div class="bg-yellow-50 border-2 border-yellow-300 rounded-lg p-4">
+                                <p class="text-sm text-yellow-800 font-medium">🔐 Login credentials:</p>
+                                ${deployment.credentials.username ? `<p class="text-lg text-yellow-900 font-mono mt-1"><span class="text-yellow-700">User:</span> <strong>${deployment.credentials.username}</strong></p>` : ''}
+                                ${deployment.credentials.password ? `<p class="text-lg text-yellow-900 font-mono"><span class="text-yellow-700">Pass:</span> <strong>${deployment.credentials.password}</strong></p>` : ''}
+                            </div>
+                        `;
+                    }
+                }
+
+                accessInfo.innerHTML = infoHtml;
+
+            } catch (error) {
+                console.error('Error fetching deployment details:', error);
+            }
+
+            // Close WebSocket
+            if (deploymentWebSocket) {
+                deploymentWebSocket.close();
+                deploymentWebSocket = null;
+            }
+        }
+
+        function showDeploymentFailed(errorMessage) {
+            document.getElementById('deployment-progress-icon').textContent = '❌';
+            document.getElementById('deployment-progress-title').textContent = 'Deployment Failed';
+            document.getElementById('deployment-progress-status').textContent = errorMessage || 'An error occurred during deployment';
+
+            // Close WebSocket
+            if (deploymentWebSocket) {
+                deploymentWebSocket.close();
+                deploymentWebSocket = null;
+            }
+        }
+
+        function copyDeploymentUrl() {
+            const url = document.getElementById('deployment-access-url').textContent;
+            navigator.clipboard.writeText(url);
+            toastManager.success('Copied!', 'URL copied to clipboard', { duration: 2000 });
+        }
+
+        async function loadApplicationDeployments() {
+            try {
+                const response = await fetch(API_BASE + '/api/templates/deployments');
+                const data = await response.json();
+                allDeployments = data.deployments || [];
+
+                // Apply current filter
+                const filter = document.getElementById('deployment-status-filter')?.value || 'all';
+                filterDeploymentsByStatus(filter);
+            } catch (error) {
+                console.error('Error loading template deployments:', error);
+            }
+        }
+
+        function renderApplicationDeployments(deployments) {
+            const container = document.getElementById('template-deployments-list');
+
+            if (!deployments || deployments.length === 0) {
+                container.innerHTML = '<p class="text-gray-600">No template deployments yet. Deploy a template to get started.</p>';
+                return;
+            }
+
+            container.innerHTML = deployments.map(d => createTemplateDeploymentCard(d)).join('');
+        }
+
+        function createTemplateDeploymentCard(deployment) {
+            const statusColors = {
+                'pending': 'bg-gray-500',
+                'predeployment': 'bg-blue-500',
+                'deploying': 'bg-yellow-500',
+                'running': 'bg-green-500',
+                'failed': 'bg-red-500',
+                'stopped': 'bg-gray-400'
+            };
+
+            const statusColor = statusColors[deployment.status] || 'bg-gray-500';
+
+            return `
+                <div class="card bg-white rounded-xl p-6 border border-gray-200 shadow-sm hover:shadow-md">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="flex items-center space-x-3">
+                            <span class="text-2xl">${deployment.icon || '📦'}</span>
+                            <div>
+                                <h4 class="font-semibold">${deployment.name}</h4>
+                                <p class="text-sm text-gray-500">${deployment.template_name}</p>
+                            </div>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <div class="w-2 h-2 ${statusColor} rounded-full"></div>
+                            <span class="text-sm capitalize">${deployment.status}</span>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                        <div>
+                            <p class="text-xs text-gray-500">Host</p>
+                            <p class="font-mono text-gray-800">${deployment.host}</p>
+                        </div>
+                        <div>
+                            <p class="text-xs text-gray-500">Port</p>
+                            <p class="font-mono text-gray-800">${deployment.port}</p>
+                        </div>
+                        <div>
+                            <p class="text-xs text-gray-500">Access</p>
+                            <p class="text-gray-800">${deployment.access_type}</p>
+                        </div>
+                        <div>
+                            <p class="text-xs text-gray-500">Created</p>
+                            <p class="text-gray-800">${new Date(deployment.created_at).toLocaleDateString()}</p>
+                        </div>
+                    </div>
+                    ${deployment.status === 'running' ? `
+                        <div class="mt-4 flex items-center flex-wrap gap-2">
+                            <a href="${deployment.access_url}" target="_blank" class="px-4 py-2 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white rounded-lg text-sm font-medium transition shadow-sm hover:shadow-md">
+                                🚀 Launch
+                            </a>
+                            ${deployment.credentials ? `
+                                <span class="px-3 py-2 bg-yellow-100 text-yellow-800 rounded-lg text-sm font-mono font-bold">
+                                    🔐 ${deployment.credentials.username ? deployment.credentials.username + ' / ' : ''}${deployment.credentials.password || deployment.credentials.token || ''}
+                                </span>
+                            ` : ''}
+                            <button onclick="copyToClipboard('${deployment.access_url}')" class="px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm transition">
+                                Copy URL
+                            </button>
+                            <button onclick="stopTemplateDeployment('${deployment.id}', '${deployment.name}')" class="px-3 py-2 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg text-sm transition">
+                                ⏹ Stop
+                            </button>
+                        </div>
+                    ` : `
+                        <div class="mt-4">
+                            <button onclick="stopTemplateDeployment('${deployment.id}', '${deployment.name}')" class="px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-lg text-sm transition">
+                                🗑 Remove
+                            </button>
+                        </div>
+                    `}
+                </div>
+            `;
+        }
+
+        // ============================================================================
+        // DEPLOYMENT FILTERING & SYNC
+        // ============================================================================
+        let allDeployments = [];
+
+        function filterDeploymentsByStatus(status) {
+            if (status === 'all') {
+                renderApplicationDeployments(allDeployments);
+            } else {
+                const filtered = allDeployments.filter(d => d.status === status);
+                renderApplicationDeployments(filtered);
+            }
+        }
+
+        async function syncDeploymentStatuses() {
+            try {
+                toastManager.info('Syncing...', 'Checking container statuses on server');
+
+                const response = await fetch(API_BASE + '/api/templates/deployments/sync', {
+                    method: 'POST'
+                });
+                const result = await response.json();
+
+                if (result.success) {
+                    toastManager.success('Synced', `Updated ${result.updated} deployment(s)`);
+                    loadApplicationDeployments();
+                } else {
+                    throw new Error(result.detail || 'Sync failed');
+                }
+            } catch (error) {
+                console.error('Error syncing:', error);
+                toastManager.error('Sync Failed', error.message);
+            }
+        }
+
+        // ============================================================================
+        // STOP & CLEANUP DEPLOYMENT
+        // ============================================================================
+        async function stopTemplateDeployment(deploymentId, deploymentName) {
+            if (!confirm(`Stop and remove "${deploymentName}"?\n\nThis will stop the container and clean up all resources.`)) {
+                return;
+            }
+
+            try {
+                toastManager.info('Stopping...', 'Stopping and cleaning up deployment');
+
+                const response = await fetch(API_BASE + `/api/templates/deployments/${deploymentId}?cleanup=true`, {
+                    method: 'DELETE'
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    toastManager.success('Stopped', result.message || 'Deployment stopped and removed');
+                    // Refresh the deployments list
+                    loadApplicationDeployments();
+                } else {
+                    throw new Error(result.detail || 'Failed to stop deployment');
+                }
+            } catch (error) {
+                console.error('Error stopping deployment:', error);
+                toastManager.error('Error', error.message || 'Failed to stop deployment');
+            }
+        }
+
+        async function stopCurrentDeployment() {
+            if (!currentDeploymentId) {
+                toastManager.error('Error', 'No active deployment to stop');
+                return;
+            }
+
+            if (!confirm('Stop and remove this deployment?\n\nThis will stop the container and clean up all resources.')) {
+                return;
+            }
+
+            try {
+                toastManager.info('Stopping...', 'Stopping and cleaning up deployment');
+
+                const response = await fetch(API_BASE + `/api/templates/deployments/${currentDeploymentId}?cleanup=true`, {
+                    method: 'DELETE'
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    toastManager.success('Stopped', result.message || 'Deployment stopped and removed');
+                    // Go back to template gallery
+                    backToApplications();
+                } else {
+                    throw new Error(result.detail || 'Failed to stop deployment');
+                }
+            } catch (error) {
+                console.error('Error stopping deployment:', error);
+                toastManager.error('Error', error.message || 'Failed to stop deployment');
+            }
+        }
+
+        // ============================================================================
         // UTILITIES
         // ============================================================================
         function copyToClipboard(text) {
             navigator.clipboard.writeText(text);
-            toastManager.success('Copied!', 'API key copied to clipboard.', {duration: 2000});
+            toastManager.success('Copied!', 'Copied to clipboard.', {duration: 2000});
         }
 
         function formatNumber(num) {
@@ -2234,9 +3050,31 @@
         // ============================================================================
         // INIT
         // ============================================================================
+        // Dashboard collapse state
+        let dashboardCollapsed = false;
+
+        function toggleDashboard() {
+            dashboardCollapsed = !dashboardCollapsed;
+            const stats = document.getElementById('dashboard-stats');
+            const chevron = document.getElementById('dashboard-chevron');
+
+            if (dashboardCollapsed) {
+                stats.style.maxHeight = '0';
+                stats.style.marginBottom = '0';
+                stats.style.opacity = '0';
+                chevron.classList.add('-rotate-90');
+            } else {
+                stats.style.maxHeight = '500px';
+                stats.style.marginBottom = '2rem';
+                stats.style.opacity = '1';
+                chevron.classList.remove('-rotate-90');
+            }
+        }
+
         document.addEventListener('DOMContentLoaded', () => {
             loadStats();
-            loadDeployments();
+            loadTemplates();
+            loadApplicationDeployments();
 
             // Refresh stats every 30 seconds
             setInterval(loadStats, 30000);

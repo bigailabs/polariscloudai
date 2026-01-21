@@ -4,17 +4,20 @@ VoiceFlow Console - Modern SaaS Dashboard Backend
 FastAPI server that serves the app.html frontend and provides REST APIs
 """
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any
+from enum import Enum
 import uvicorn
 import asyncio
 import json
 import os
 import sys
+import subprocess
+import secrets
 from datetime import datetime
 
 # Import existing backend modules - with demo mode fallback
@@ -24,6 +27,10 @@ try:
 except ImportError:
     DEMO_MODE = True
     VerdaClient = None
+
+# Template deployment server configuration (from environment)
+TEMPLATE_SERVER_HOST = os.getenv("TEMPLATE_SERVER_HOST", "65.108.32.148")
+TEMPLATE_SERVER_USER = os.getenv("TEMPLATE_SERVER_USER", "root")
 
 # Initialize FastAPI
 app = FastAPI(title="VoiceFlow Console API", version="1.0.0")
@@ -62,6 +69,804 @@ class APIKeyRequest(BaseModel):
 
 class StopDeploymentRequest(BaseModel):
     deployment_id: str
+
+
+# ============================================================================
+# TEMPLATE DEPLOYMENT SYSTEM
+# ============================================================================
+
+class TemplateCategory(str, Enum):
+    AI_ML = "ai_ml"
+    DEVELOPMENT = "development"
+    INFRASTRUCTURE = "infrastructure"
+    DESKTOP = "desktop"
+
+
+class TemplateParameter(BaseModel):
+    name: str
+    label: str
+    type: str  # text, number, select, boolean
+    required: bool = True
+    default: Optional[Any] = None
+    placeholder: Optional[str] = None
+    options: Optional[List[Dict[str, str]]] = None  # For select type
+    description: Optional[str] = None
+
+
+class TemplateConfig(BaseModel):
+    id: str
+    name: str
+    description: str
+    category: TemplateCategory
+    icon: str  # Emoji or icon name
+    script_path: str  # Path to deployment script
+    predeployment_required: bool = True  # Whether to run predeployment first
+    parameters: List[TemplateParameter]
+    default_port: int
+    estimated_deploy_time: str  # e.g., "3-5 minutes"
+    access_type: str  # "web", "api", "vnc", "terminal"
+    features: List[str]  # Feature list for display
+    color: str  # Tailwind color class for UI
+
+
+# Template Registry - all available deployment templates
+TEMPLATE_REGISTRY: Dict[str, TemplateConfig] = {
+    "ollama": TemplateConfig(
+        id="ollama",
+        name="Ollama LLM",
+        description="Deploy large language models with a FastAPI interface. Supports GPU acceleration for fast inference.",
+        category=TemplateCategory.AI_ML,
+        icon="🦙",
+        script_path="ollama-template/deploy_ollama_gpu.sh",
+        predeployment_required=True,
+        parameters=[
+            TemplateParameter(
+                name="model",
+                label="Model",
+                type="select",
+                required=True,
+                default="llama2",
+                options=[
+                    {"value": "llama2", "label": "Llama 2 (7B)"},
+                    {"value": "llama2:13b", "label": "Llama 2 (13B)"},
+                    {"value": "llama2:70b", "label": "Llama 2 (70B)"},
+                    {"value": "codellama", "label": "Code Llama"},
+                    {"value": "mistral", "label": "Mistral (7B)"},
+                    {"value": "mixtral", "label": "Mixtral 8x7B"},
+                    {"value": "phi", "label": "Phi-2"},
+                    {"value": "neural-chat", "label": "Neural Chat"},
+                    {"value": "starling-lm", "label": "Starling LM"},
+                ],
+                description="Choose the LLM to deploy"
+            ),
+            TemplateParameter(
+                name="port",
+                label="API Port",
+                type="number",
+                required=True,
+                default=8000,
+                placeholder="8000",
+                description="Port for the FastAPI endpoint"
+            ),
+        ],
+        default_port=8000,
+        estimated_deploy_time="5-10 minutes",
+        access_type="api",
+        features=[
+            "OpenAI-compatible API",
+            "GPU acceleration",
+            "Model hot-swapping",
+            "Streaming responses",
+            "Chat completions",
+        ],
+        color="purple"
+    ),
+    "jupyter": TemplateConfig(
+        id="jupyter",
+        name="Jupyter Notebook",
+        description="GPU-accelerated Jupyter notebook with TensorFlow and PyTorch pre-installed for data science and ML development.",
+        category=TemplateCategory.AI_ML,
+        icon="📓",
+        script_path="notbook/deploy_jupyter.sh",
+        predeployment_required=True,
+        parameters=[
+            TemplateParameter(
+                name="port",
+                label="Notebook Port",
+                type="number",
+                required=True,
+                default=8888,
+                placeholder="8888",
+                description="Port for Jupyter web interface"
+            ),
+        ],
+        default_port=8888,
+        estimated_deploy_time="3-5 minutes",
+        access_type="web",
+        features=[
+            "TensorFlow & PyTorch",
+            "GPU support (CUDA)",
+            "Pre-installed ML libraries",
+            "Persistent storage",
+            "JupyterLab interface",
+        ],
+        color="orange"
+    ),
+    "dev-terminal": TemplateConfig(
+        id="dev-terminal",
+        name="Development Terminal",
+        description="Web-based development terminal with full Linux environment, Python, Node.js, and development tools.",
+        category=TemplateCategory.DEVELOPMENT,
+        icon="💻",
+        script_path="polaris_cli/deploy-development-terminal.sh",
+        predeployment_required=True,
+        parameters=[
+            TemplateParameter(
+                name="port",
+                label="Terminal Port",
+                type="number",
+                required=True,
+                default=7681,
+                placeholder="7681",
+                description="Port for web terminal access"
+            ),
+            TemplateParameter(
+                name="container_name",
+                label="Container Name",
+                type="text",
+                required=False,
+                default="dev-terminal",
+                placeholder="dev-terminal",
+                description="Name for the Docker container"
+            ),
+        ],
+        default_port=7681,
+        estimated_deploy_time="2-4 minutes",
+        access_type="terminal",
+        features=[
+            "Full Linux environment",
+            "Python 3.10 + pip",
+            "Node.js + npm",
+            "Git & build tools",
+            "GPU access (if available)",
+            "Bore tunnel for remote access",
+        ],
+        color="green"
+    ),
+    "ubuntu-desktop": TemplateConfig(
+        id="ubuntu-desktop",
+        name="Cloud Computer",
+        description="Blazing fast Ubuntu desktop in your browser. Powered by Kasm - no installs, just click and go.",
+        category=TemplateCategory.DESKTOP,
+        icon="🖥️",
+        script_path="remotedskstop/deploy_cloud_computer.sh",
+        predeployment_required=False,
+        parameters=[
+            TemplateParameter(
+                name="port",
+                label="Desktop Port",
+                type="number",
+                required=True,
+                default=6901,
+                placeholder="6901",
+                description="Port for web desktop access"
+            ),
+        ],
+        default_port=6901,
+        estimated_deploy_time="2-3 minutes",
+        access_type="web",
+        features=[
+            "Blazing fast H.264 streaming",
+            "Full Ubuntu desktop in browser",
+            "GPU accelerated (if available)",
+            "Chrome, Firefox, VS Code ready",
+            "No software to install",
+        ],
+        color="amber"
+    ),
+    "transformer-labs": TemplateConfig(
+        id="transformer-labs",
+        name="Transformer Labs",
+        description="Fine-tune and deploy transformer models with a visual interface. Supports training, evaluation, and inference.",
+        category=TemplateCategory.AI_ML,
+        icon="🤖",
+        script_path="transformer-lab/deploy_transformer_labs.sh",
+        predeployment_required=True,
+        parameters=[
+            TemplateParameter(
+                name="port",
+                label="API Port",
+                type="number",
+                required=True,
+                default=8000,
+                placeholder="8000",
+                description="Port for the web interface"
+            ),
+            TemplateParameter(
+                name="image_type",
+                label="Image Type",
+                type="select",
+                required=True,
+                default="labs",
+                options=[
+                    {"value": "labs", "label": "Labs (Full UI)"},
+                    {"value": "api", "label": "API Only"},
+                ],
+                description="Choose between full UI or API-only deployment"
+            ),
+        ],
+        default_port=8000,
+        estimated_deploy_time="5-8 minutes",
+        access_type="web",
+        features=[
+            "Visual model training",
+            "Fine-tuning interface",
+            "Model evaluation",
+            "Inference API",
+            "Experiment tracking",
+        ],
+        color="blue"
+    ),
+}
+
+# Active template deployments storage
+TEMPLATE_DEPLOYMENTS_FILE = "template_deployments.json"
+
+
+def load_template_deployments():
+    """Load template deployments from file"""
+    if os.path.exists(TEMPLATE_DEPLOYMENTS_FILE):
+        with open(TEMPLATE_DEPLOYMENTS_FILE, 'r') as f:
+            return json.load(f)
+    return {}
+
+
+def save_template_deployments(deployments):
+    """Save template deployments to file"""
+    with open(TEMPLATE_DEPLOYMENTS_FILE, 'w') as f:
+        json.dump(deployments, f, indent=2)
+
+
+class TemplateDeploymentRequest(BaseModel):
+    template_id: str
+    name: str
+    parameters: Dict[str, Any] = Field(default_factory=dict)
+
+
+class TemplateDeploymentStatus(str, Enum):
+    PENDING = "pending"
+    PREDEPLOYMENT = "predeployment"
+    DEPLOYING = "deploying"
+    RUNNING = "running"
+    FAILED = "failed"
+    STOPPED = "stopped"
+
+
+# WebSocket connections for deployment progress
+active_connections: Dict[str, WebSocket] = {}
+
+
+async def send_deployment_progress(deployment_id: str, message: str, progress: int = None, status: str = None):
+    """Send deployment progress to connected WebSocket clients"""
+    if deployment_id in active_connections:
+        try:
+            await active_connections[deployment_id].send_json({
+                "deployment_id": deployment_id,
+                "message": message,
+                "progress": progress,
+                "status": status,
+                "timestamp": datetime.now().isoformat()
+            })
+        except Exception as e:
+            print(f"Error sending WebSocket message: {e}")
+
+
+async def get_container_access_info(template_id: str, container_name: str, host: str, ssh_user: str, port: int) -> dict:
+    """Retrieve access credentials/tokens from a deployed container"""
+    access_info = {
+        "url": f"http://{host}:{port}",
+        "credentials": None,
+        "instructions": None
+    }
+
+    try:
+        if template_id == "jupyter":
+            # Get Jupyter token from container
+            cmd = f'ssh -o StrictHostKeyChecking=no -o BatchMode=yes {ssh_user}@{host} "docker exec {container_name} jupyter server list 2>/dev/null | grep token= | head -1"'
+            process = await asyncio.create_subprocess_shell(
+                cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            stdout, _ = await process.communicate()
+            output = stdout.decode().strip()
+
+            # Parse token from output like: http://hostname:8888/?token=abc123 :: /path
+            if "token=" in output:
+                import re
+                match = re.search(r'token=([a-f0-9]+)', output)
+                if match:
+                    token = match.group(1)
+                    access_info["url"] = f"http://{host}:{port}/?token={token}"
+                    access_info["credentials"] = {"token": token}
+
+        elif template_id == "ubuntu-desktop":
+            # Kasm Workspaces - fast browser-native desktop
+            access_info["url"] = f"https://{host}:{port}"
+            access_info["credentials"] = {"username": "kasm_user", "password": "cloudpc"}
+            access_info["instructions"] = "Login with kasm_user / cloudpc"
+
+        elif template_id == "dev-terminal":
+            # Terminal has no auth by default
+            access_info["instructions"] = "No authentication required"
+
+        elif template_id == "ollama":
+            # Ollama API endpoint
+            access_info["instructions"] = "API endpoint ready. Use /api/generate for completions."
+
+        elif template_id == "transformer-labs":
+            access_info["instructions"] = "Web UI ready. No authentication required."
+
+    except Exception as e:
+        print(f"Error getting container access info: {e}")
+
+    return access_info
+
+
+async def run_deployment_script(deployment_id: str, template: TemplateConfig, request: TemplateDeploymentRequest):
+    """Execute deployment script with progress streaming via SSH"""
+    deployments = load_template_deployments()
+
+    # Use configured server
+    host = TEMPLATE_SERVER_HOST
+    ssh_user = TEMPLATE_SERVER_USER
+
+    try:
+        # Get the templates directory path
+        templates_dir = os.path.expanduser("~/Documents/PROJECTS/bigailabs-templates")
+
+        # Build the command based on template
+        if template.id == "ollama":
+            script_path = os.path.join(templates_dir, template.script_path)
+            cmd = [
+                "bash", script_path,
+                "-h", host,
+                "-u", ssh_user,
+                "-m", request.parameters.get("model", "llama2"),
+                "-p", str(request.parameters.get("port", 8000))
+            ]
+        elif template.id == "jupyter":
+            script_path = os.path.join(templates_dir, template.script_path)
+            cmd = [
+                "bash", script_path,
+                "-h", host,
+                "-u", ssh_user,
+                "-p", str(request.parameters.get("port", 8888)),
+                "-a", host
+            ]
+        elif template.id == "dev-terminal":
+            script_path = os.path.join(templates_dir, template.script_path)
+            cmd = [
+                "bash", script_path,
+                "-h", host,
+                "-u", ssh_user,
+                "-p", str(request.parameters.get("port", 7681)),
+                "-n", request.parameters.get("container_name", "dev-terminal")
+            ]
+        elif template.id == "ubuntu-desktop":
+            script_path = os.path.join(templates_dir, template.script_path)
+            cmd = [
+                "bash", script_path,
+                "-h", host,
+                "-u", ssh_user,
+                "-p", str(request.parameters.get("port", 6901)),
+                "-a", host
+            ]
+        elif template.id == "transformer-labs":
+            script_path = os.path.join(templates_dir, template.script_path)
+            cmd = [
+                "bash", script_path,
+                "-h", host,
+                "-u", ssh_user,
+                "-p", str(request.parameters.get("port", 8000)),
+                "-t", request.parameters.get("image_type", "labs")
+            ]
+        else:
+            raise ValueError(f"Unknown template: {template.id}")
+
+        # Run predeployment if required (skip by default since server should be ready)
+        if template.predeployment_required and request.parameters.get("run_predeployment", False):
+            await send_deployment_progress(deployment_id, "Running predeployment setup...", 10, "predeployment")
+            deployments[deployment_id]["status"] = TemplateDeploymentStatus.PREDEPLOYMENT.value
+            save_template_deployments(deployments)
+
+            predeployment_script = os.path.join(templates_dir, "predployment_phase_one.sh")
+            predeployment_cmd = [
+                "bash", predeployment_script,
+                "-h", host,
+                "-u", ssh_user
+            ]
+
+            process = await asyncio.create_subprocess_exec(
+                *predeployment_cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.STDOUT
+            )
+
+            while True:
+                line = await process.stdout.readline()
+                if not line:
+                    break
+                line_text = line.decode().strip()
+                if line_text:
+                    await send_deployment_progress(deployment_id, f"[Predeployment] {line_text}", 20)
+
+            await process.wait()
+
+            if process.returncode != 0:
+                raise Exception("Predeployment failed")
+
+        # Run main deployment
+        await send_deployment_progress(deployment_id, f"Deploying {template.name}...", 40, "deploying")
+        deployments = load_template_deployments()
+        deployments[deployment_id]["status"] = TemplateDeploymentStatus.DEPLOYING.value
+        save_template_deployments(deployments)
+
+        process = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.STDOUT
+        )
+
+        progress = 40
+        while True:
+            line = await process.stdout.readline()
+            if not line:
+                break
+            line_text = line.decode().strip()
+            if line_text:
+                progress = min(progress + 2, 90)
+                await send_deployment_progress(deployment_id, line_text, progress)
+
+        await process.wait()
+
+        if process.returncode == 0:
+            await send_deployment_progress(deployment_id, "Deployment completed! Fetching access credentials...", 95, "running")
+
+            # Wait a moment for the container to be fully ready
+            await asyncio.sleep(3)
+
+            # Get container name based on template
+            container_name = request.parameters.get("container_name", template.id)
+            if template.id == "jupyter":
+                container_name = "jupyter-notebook"
+            elif template.id == "ubuntu-desktop":
+                container_name = "cloud-computer"
+            elif template.id == "ollama":
+                container_name = "ollama"
+            elif template.id == "transformer-labs":
+                container_name = "transformerlab"
+
+            # Fetch access credentials
+            port = request.parameters.get("port", template.default_port)
+            access_info = await get_container_access_info(template.id, container_name, host, ssh_user, port)
+
+            # Update deployment record with access info
+            deployments = load_template_deployments()
+            deployments[deployment_id]["status"] = TemplateDeploymentStatus.RUNNING.value
+            deployments[deployment_id]["completed_at"] = datetime.now().isoformat()
+            deployments[deployment_id]["access_url"] = access_info["url"]
+            if access_info.get("credentials"):
+                deployments[deployment_id]["credentials"] = access_info["credentials"]
+            if access_info.get("instructions"):
+                deployments[deployment_id]["instructions"] = access_info["instructions"]
+            save_template_deployments(deployments)
+
+            await send_deployment_progress(deployment_id, f"Ready! Click 'Launch' to open your service.", 100, "running")
+        else:
+            raise Exception(f"Deployment script exited with code {process.returncode}")
+
+    except Exception as e:
+        await send_deployment_progress(deployment_id, f"Deployment failed: {str(e)}", 0, "failed")
+        deployments = load_template_deployments()
+        deployments[deployment_id]["status"] = TemplateDeploymentStatus.FAILED.value
+        deployments[deployment_id]["error"] = str(e)
+        save_template_deployments(deployments)
+
+
+def generate_startup_script(template: TemplateConfig, parameters: Dict[str, Any]) -> str:
+    """Generate a startup script for the template that runs on the GPU instance"""
+
+    # Base script with Docker and NVIDIA setup
+    base_script = """#!/bin/bash
+set -e
+
+echo "=== VoiceFlow Template Deployment ==="
+echo "Template: {template_name}"
+echo "Starting at: $(date)"
+
+# Install Docker if not present
+if ! command -v docker &> /dev/null; then
+    echo "Installing Docker..."
+    curl -fsSL https://get.docker.com -o get-docker.sh
+    sh get-docker.sh
+    rm get-docker.sh
+fi
+
+# Install NVIDIA Container Toolkit if not present
+if ! command -v nvidia-container-toolkit &> /dev/null; then
+    echo "Installing NVIDIA Container Toolkit..."
+    distribution=$(. /etc/os-release;echo $ID$VERSION_ID)
+    curl -s -L https://nvidia.github.io/libnvidia-container/gpgkey | apt-key add -
+    curl -s -L https://nvidia.github.io/libnvidia-container/$distribution/libnvidia-container.list | tee /etc/apt/sources.list.d/nvidia-container-toolkit.list
+    apt-get update
+    apt-get install -y nvidia-container-toolkit
+    nvidia-ctk runtime configure --runtime=docker
+    systemctl restart docker
+fi
+
+# Wait for Docker to be ready
+sleep 5
+
+"""
+
+    # Template-specific deployment commands
+    if template.id == "ollama":
+        model = parameters.get("model", "llama2")
+        port = parameters.get("port", 8000)
+        script = base_script + f"""
+echo "Deploying Ollama LLM..."
+
+# Pull and run Ollama
+docker run -d --gpus all \\
+  --name ollama \\
+  -p 11434:11434 \\
+  -v ollama:/root/.ollama \\
+  --restart unless-stopped \\
+  ollama/ollama
+
+# Wait for Ollama to start
+sleep 10
+
+# Pull the model
+docker exec ollama ollama pull {model}
+
+# Deploy FastAPI wrapper for OpenAI-compatible API
+docker run -d --gpus all \\
+  --name ollama-api \\
+  -p {port}:8000 \\
+  -e OLLAMA_HOST=http://ollama:11434 \\
+  --link ollama:ollama \\
+  --restart unless-stopped \\
+  ghcr.io/ollama/ollama-api:latest || echo "API wrapper optional"
+
+echo "Ollama deployed on port 11434, API on port {port}"
+echo "Model: {model}"
+"""
+
+    elif template.id == "jupyter":
+        port = parameters.get("port", 8888)
+        script = base_script + f"""
+echo "Deploying Jupyter Notebook..."
+
+# Generate a random token
+JUPYTER_TOKEN=$(openssl rand -hex 32)
+
+docker run -d --gpus all \\
+  --name jupyter \\
+  -p {port}:8888 \\
+  -v $(pwd)/notebooks:/home/jovyan/work \\
+  -e JUPYTER_TOKEN=$JUPYTER_TOKEN \\
+  --restart unless-stopped \\
+  jupyter/tensorflow-notebook:latest
+
+echo "Jupyter deployed on port {port}"
+echo "Access token: $JUPYTER_TOKEN"
+echo "JUPYTER_TOKEN=$JUPYTER_TOKEN" >> /root/.jupyter_token
+"""
+
+    elif template.id == "dev-terminal":
+        port = parameters.get("port", 7681)
+        container_name = parameters.get("container_name", "dev-terminal")
+        script = base_script + f"""
+echo "Deploying Development Terminal..."
+
+docker run -d --gpus all \\
+  --name {container_name} \\
+  -p {port}:7681 \\
+  -v $(pwd)/workspace:/workspace \\
+  --restart unless-stopped \\
+  tsl0922/ttyd:latest \\
+  ttyd -W bash
+
+echo "Dev Terminal deployed on port {port}"
+"""
+
+    elif template.id == "ubuntu-desktop":
+        port = parameters.get("port", 6901)
+        vnc_port = parameters.get("vnc_port", 5901)
+        script = base_script + f"""
+echo "Deploying Ubuntu Desktop..."
+
+docker run -d \\
+  --name ubuntu-desktop \\
+  -p {port}:6901 \\
+  -p {vnc_port}:5901 \\
+  -e VNC_PW=voiceflow \\
+  --restart unless-stopped \\
+  kasmweb/ubuntu-jammy-desktop:1.14.0
+
+echo "Ubuntu Desktop deployed"
+echo "Web access: port {port}"
+echo "VNC access: port {vnc_port}"
+echo "Password: voiceflow"
+"""
+
+    elif template.id == "transformer-labs":
+        port = parameters.get("port", 8000)
+        image_type = parameters.get("image_type", "labs")
+        if image_type == "api":
+            image = "transformerlab/api:latest"
+            internal_port = 8338
+        else:
+            image = "ghcr.io/bigideaafrica/labs:latest"
+            internal_port = 8000
+        script = base_script + f"""
+echo "Deploying Transformer Labs..."
+
+mkdir -p workspace config
+
+docker run -d --gpus all \\
+  --name transformerlab \\
+  -p {port}:{internal_port} \\
+  -v $(pwd)/workspace:/home/abc/workspace \\
+  -v $(pwd)/config:/config \\
+  -e PUID=1000 \\
+  -e PGID=1000 \\
+  --restart unless-stopped \\
+  {image}
+
+echo "Transformer Labs deployed on port {port}"
+"""
+
+    else:
+        script = base_script + f"""
+echo "Unknown template: {template.id}"
+exit 1
+"""
+
+    # Add completion marker
+    script += """
+echo "=== Deployment Complete ==="
+echo "Finished at: $(date)"
+echo "DEPLOYMENT_STATUS=SUCCESS" > /root/.deployment_status
+"""
+
+    return script.format(template_name=template.name)
+
+
+async def run_template_deployment(deployment_id: str, template: TemplateConfig, request: TemplateDeploymentRequest):
+    """Deploy a template by provisioning a GPU and running the startup script"""
+    deployments = load_template_deployments()
+
+    try:
+        # Update status to provisioning
+        await send_deployment_progress(deployment_id, "Provisioning GPU instance...", 10, "provisioning")
+        deployments[deployment_id]["status"] = TemplateDeploymentStatus.PROVISIONING.value
+        save_template_deployments(deployments)
+
+        # Check if we have Verda credentials
+        if DEMO_MODE or verda_client is None:
+            # Demo mode - simulate deployment
+            await send_deployment_progress(deployment_id, "Demo mode: Simulating GPU provisioning...", 20)
+            await asyncio.sleep(2)
+            await send_deployment_progress(deployment_id, "Demo mode: Creating virtual instance...", 40)
+            await asyncio.sleep(2)
+            await send_deployment_progress(deployment_id, "Demo mode: Installing Docker...", 60)
+            await asyncio.sleep(2)
+            await send_deployment_progress(deployment_id, f"Demo mode: Deploying {template.name}...", 80)
+            await asyncio.sleep(2)
+
+            # Simulate successful deployment
+            demo_ip = f"demo-{deployment_id[:8]}.voiceflow.app"
+            port = request.parameters.get("port", template.default_port)
+
+            deployments = load_template_deployments()
+            deployments[deployment_id]["status"] = TemplateDeploymentStatus.RUNNING.value
+            deployments[deployment_id]["instance_ip"] = demo_ip
+            deployments[deployment_id]["access_url"] = f"http://{demo_ip}:{port}"
+            deployments[deployment_id]["completed_at"] = datetime.now().isoformat()
+            deployments[deployment_id]["demo_mode"] = True
+            save_template_deployments(deployments)
+
+            await send_deployment_progress(
+                deployment_id,
+                f"Demo deployment complete! Access URL: http://{demo_ip}:{port}",
+                100,
+                "running"
+            )
+            return
+
+        # Real deployment with Verda
+        await send_deployment_progress(deployment_id, f"Creating {request.gpu_type} instance...", 15)
+
+        # Generate the startup script
+        startup_script = generate_startup_script(template, request.parameters)
+
+        # Create instance via Verda
+        instance = verda_client.create_instance(
+            name=request.name,
+            gpu_name=request.gpu_type,
+            use_spot=request.use_spot
+        )
+
+        if not instance:
+            raise Exception("Failed to create GPU instance")
+
+        instance_id = instance.get("id")
+        deployments = load_template_deployments()
+        deployments[deployment_id]["instance_id"] = instance_id
+        save_template_deployments(deployments)
+
+        await send_deployment_progress(deployment_id, f"Instance created: {instance_id}", 30)
+
+        # Wait for instance to be ready
+        await send_deployment_progress(deployment_id, "Waiting for instance to be ready...", 40)
+
+        max_wait = 300  # 5 minutes
+        start_time = asyncio.get_event_loop().time()
+
+        while asyncio.get_event_loop().time() - start_time < max_wait:
+            instance_info = verda_client.get_instance(instance_id)
+            if instance_info:
+                status = instance_info.get("status", "")
+                ip = instance_info.get("ip", "")
+
+                if status == "running" and ip:
+                    await send_deployment_progress(deployment_id, f"Instance ready at {ip}", 50)
+                    break
+
+                await send_deployment_progress(deployment_id, f"Instance status: {status}...", 45)
+
+            await asyncio.sleep(10)
+        else:
+            raise Exception("Timeout waiting for instance to be ready")
+
+        # Get final instance info
+        instance_info = verda_client.get_instance(instance_id)
+        instance_ip = instance_info.get("ip")
+
+        await send_deployment_progress(deployment_id, "Installing software...", 60, "installing")
+        deployments = load_template_deployments()
+        deployments[deployment_id]["status"] = TemplateDeploymentStatus.INSTALLING.value
+        deployments[deployment_id]["instance_ip"] = instance_ip
+        save_template_deployments(deployments)
+
+        # The startup script runs automatically on the instance
+        # Poll for completion by checking if the container is running
+        await send_deployment_progress(deployment_id, "Waiting for deployment to complete...", 70)
+
+        # Wait for the application to be ready
+        port = request.parameters.get("port", template.default_port)
+        access_url = f"http://{instance_ip}:{port}"
+
+        await asyncio.sleep(30)  # Give time for startup script to run
+
+        await send_deployment_progress(deployment_id, f"Deployment complete! Access: {access_url}", 100, "running")
+
+        deployments = load_template_deployments()
+        deployments[deployment_id]["status"] = TemplateDeploymentStatus.RUNNING.value
+        deployments[deployment_id]["access_url"] = access_url
+        deployments[deployment_id]["completed_at"] = datetime.now().isoformat()
+        save_template_deployments(deployments)
+
+    except Exception as e:
+        await send_deployment_progress(deployment_id, f"Deployment failed: {str(e)}", 0, "failed")
+        deployments = load_template_deployments()
+        deployments[deployment_id]["status"] = TemplateDeploymentStatus.FAILED.value
+        deployments[deployment_id]["error"] = str(e)
+        save_template_deployments(deployments)
+
 
 # ============================================================================
 # SERVE FRONTEND
@@ -273,6 +1078,274 @@ async def get_deployment_logs(deployment_id: str):
     except Exception as e:
         print(f"Error getting logs: {e}")
         return {"logs": "Unable to fetch logs"}
+
+
+# ============================================================================
+# TEMPLATE DEPLOYMENT ENDPOINTS
+# ============================================================================
+
+@app.get("/api/templates")
+async def get_templates():
+    """Get all available deployment templates"""
+    templates = []
+    for template_id, template in TEMPLATE_REGISTRY.items():
+        templates.append({
+            "id": template.id,
+            "name": template.name,
+            "description": template.description,
+            "category": template.category.value,
+            "icon": template.icon,
+            "default_port": template.default_port,
+            "estimated_deploy_time": template.estimated_deploy_time,
+            "access_type": template.access_type,
+            "features": template.features,
+            "color": template.color,
+            "parameters": [p.model_dump() for p in template.parameters],
+        })
+    return {"templates": templates}
+
+
+@app.post("/api/templates/deploy")
+async def deploy_template(request: TemplateDeploymentRequest):
+    """Deploy a template to a remote server"""
+    if request.template_id not in TEMPLATE_REGISTRY:
+        raise HTTPException(status_code=404, detail=f"Template '{request.template_id}' not found")
+
+    template = TEMPLATE_REGISTRY[request.template_id]
+
+    # Generate deployment ID
+    deployment_id = f"td_{secrets.token_urlsafe(8)}"
+
+    # Get port from parameters
+    port = request.parameters.get("port", template.default_port)
+
+    # Create deployment record
+    deployments = load_template_deployments()
+
+    # Set up access URL and credentials based on template
+    access_url = f"http://{TEMPLATE_SERVER_HOST}:{port}"
+    credentials = None
+
+    if template.id == "ubuntu-desktop":
+        # Kasm uses HTTPS and has username/password auth
+        access_url = f"https://{TEMPLATE_SERVER_HOST}:{port}"
+        credentials = {"username": "kasm_user", "password": "cloudpc"}
+    elif template.id == "jupyter":
+        # Token will be added after deployment completes
+        pass
+
+    deployment_record = {
+        "id": deployment_id,
+        "template_id": template.id,
+        "template_name": template.name,
+        "name": request.name,
+        "host": TEMPLATE_SERVER_HOST,
+        "port": port,
+        "parameters": request.parameters,
+        "status": TemplateDeploymentStatus.PENDING.value,
+        "created_at": datetime.now().isoformat(),
+        "access_type": template.access_type,
+        "access_url": access_url,
+        "icon": template.icon,
+        "color": template.color,
+    }
+
+    if credentials:
+        deployment_record["credentials"] = credentials
+
+    deployments[deployment_id] = deployment_record
+    save_template_deployments(deployments)
+
+    # Start deployment in background
+    asyncio.create_task(run_deployment_script(deployment_id, template, request))
+
+    return {
+        "success": True,
+        "deployment_id": deployment_id,
+        "message": f"Deployment of {template.name} started. Connect to WebSocket for progress updates.",
+        "websocket_url": f"/ws/deployments/{deployment_id}"
+    }
+
+
+@app.get("/api/templates/deployments")
+async def get_template_deployments():
+    """Get all template deployments"""
+    deployments = load_template_deployments()
+    return {"deployments": list(deployments.values())}
+
+
+@app.get("/api/templates/deployments/{deployment_id}")
+async def get_template_deployment(deployment_id: str):
+    """Get a specific template deployment"""
+    deployments = load_template_deployments()
+    if deployment_id not in deployments:
+        raise HTTPException(status_code=404, detail=f"Deployment '{deployment_id}' not found")
+    return deployments[deployment_id]
+
+
+@app.post("/api/templates/deployments/sync")
+async def sync_deployment_statuses():
+    """Sync deployment statuses with actual container states on the server"""
+    deployments = load_template_deployments()
+    updated = 0
+
+    try:
+        # Get list of running containers from server
+        cmd = f'ssh -o StrictHostKeyChecking=no -o BatchMode=yes {TEMPLATE_SERVER_USER}@{TEMPLATE_SERVER_HOST} "docker ps --format {{{{.Names}}}}"'
+        process = await asyncio.create_subprocess_shell(
+            cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
+        )
+        stdout, _ = await process.communicate()
+        running_containers = set(stdout.decode().strip().split('\n')) if stdout else set()
+
+        # Container name mapping
+        container_names = {
+            "jupyter": "jupyter-notebook",
+            "ubuntu-desktop": "cloud-computer",
+            "ollama": "ollama",
+            "transformer-labs": "transformerlab",
+        }
+
+        # Update each deployment's status
+        for dep_id, dep in deployments.items():
+            template_id = dep.get("template_id")
+            container_name = dep.get("parameters", {}).get("container_name")
+
+            if not container_name:
+                container_name = container_names.get(template_id, template_id)
+
+            # Check if container is actually running
+            is_running = container_name in running_containers
+
+            old_status = dep.get("status")
+            if is_running and old_status != "running":
+                dep["status"] = "running"
+                updated += 1
+            elif not is_running and old_status == "running":
+                dep["status"] = "stopped"
+                updated += 1
+
+        save_template_deployments(deployments)
+
+        return {"success": True, "updated": updated, "running_containers": list(running_containers)}
+
+    except Exception as e:
+        return {"success": False, "error": str(e), "updated": 0}
+
+
+@app.delete("/api/templates/deployments/{deployment_id}")
+async def delete_template_deployment(deployment_id: str, cleanup: bool = True):
+    """Stop container and delete a template deployment record"""
+    deployments = load_template_deployments()
+    if deployment_id not in deployments:
+        raise HTTPException(status_code=404, detail=f"Deployment '{deployment_id}' not found")
+
+    deployment = deployments[deployment_id]
+    cleanup_result = None
+
+    # Stop and remove the container on remote server if cleanup requested
+    if cleanup and deployment.get("status") == "running":
+        try:
+            template_id = deployment.get("template_id")
+            container_name = deployment.get("parameters", {}).get("container_name", template_id)
+
+            # Map template IDs to their container names
+            container_names = {
+                "jupyter": "jupyter-notebook",
+                "ubuntu-desktop": "cloud-computer",
+                "ollama": "ollama",
+                "transformer-labs": "transformerlab",
+                "dev-terminal": deployment.get("parameters", {}).get("container_name", "dev-terminal")
+            }
+            container_name = container_names.get(template_id, container_name)
+
+            host = deployment.get("host", TEMPLATE_SERVER_HOST)
+            ssh_user = TEMPLATE_SERVER_USER
+
+            # Stop and remove the container
+            cmd = f'ssh -o StrictHostKeyChecking=no -o BatchMode=yes {ssh_user}@{host} "docker stop {container_name}; docker rm {container_name}"'
+            process = await asyncio.create_subprocess_shell(
+                cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            stdout, stderr = await process.communicate()
+            if process.returncode == 0:
+                cleanup_result = "Container stopped and removed"
+            else:
+                cleanup_result = f"Cleanup attempted: {stderr.decode().strip() or stdout.decode().strip()}"
+
+        except Exception as e:
+            cleanup_result = f"Cleanup warning: {str(e)}"
+
+    # Delete the deployment record
+    del deployments[deployment_id]
+    save_template_deployments(deployments)
+
+    return {
+        "success": True,
+        "message": "Deployment stopped and removed",
+        "cleanup": cleanup_result
+    }
+
+
+@app.get("/api/templates/{template_id}")
+async def get_template(template_id: str):
+    """Get a specific template by ID"""
+    if template_id not in TEMPLATE_REGISTRY:
+        raise HTTPException(status_code=404, detail=f"Template '{template_id}' not found")
+
+    template = TEMPLATE_REGISTRY[template_id]
+    return {
+        "id": template.id,
+        "name": template.name,
+        "description": template.description,
+        "category": template.category.value,
+        "icon": template.icon,
+        "script_path": template.script_path,
+        "predeployment_required": template.predeployment_required,
+        "default_port": template.default_port,
+        "estimated_deploy_time": template.estimated_deploy_time,
+        "access_type": template.access_type,
+        "features": template.features,
+        "color": template.color,
+        "parameters": [p.model_dump() for p in template.parameters],
+    }
+
+
+@app.websocket("/ws/deployments/{deployment_id}")
+async def deployment_websocket(websocket: WebSocket, deployment_id: str):
+    """WebSocket endpoint for real-time deployment progress"""
+    await websocket.accept()
+    active_connections[deployment_id] = websocket
+
+    try:
+        # Send initial status
+        deployments = load_template_deployments()
+        if deployment_id in deployments:
+            await websocket.send_json({
+                "deployment_id": deployment_id,
+                "message": "Connected to deployment progress stream",
+                "status": deployments[deployment_id].get("status", "unknown"),
+                "timestamp": datetime.now().isoformat()
+            })
+
+        # Keep connection alive and wait for messages
+        while True:
+            try:
+                # Receive any client messages (for keep-alive)
+                data = await asyncio.wait_for(websocket.receive_text(), timeout=30.0)
+            except asyncio.TimeoutError:
+                # Send heartbeat
+                await websocket.send_json({"type": "heartbeat", "timestamp": datetime.now().isoformat()})
+    except WebSocketDisconnect:
+        pass
+    finally:
+        if deployment_id in active_connections:
+            del active_connections[deployment_id]
+
 
 # ============================================================================
 # GPU OPTIONS
