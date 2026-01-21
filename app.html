@@ -176,7 +176,7 @@
                 <!-- Navigation Links -->
                 <div class="hidden md:flex items-center space-x-8">
                     <a href="#" onclick="switchTab('applications'); return false;" class="text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition text-sm font-medium">Home</a>
-                    <a href="#" class="text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition text-sm font-medium">Pricing</a>
+                    <a href="#" onclick="switchTab('pricing'); return false;" class="text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition text-sm font-medium">Pricing</a>
                     <a href="#" class="text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition text-sm font-medium">Documentation</a>
                     <a href="#" class="text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition text-sm font-medium">Support</a>
                 </div>
@@ -304,7 +304,7 @@
 
                 <form id="template-deploy-form" onsubmit="submitTemplateDeployment(event)" class="space-y-6">
                     <!-- Template Info Card -->
-                    <div class="card bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
+                    <div class="card bg-white dark:bg-[#1a1a1a] rounded-xl p-6 border border-gray-200 dark:border-gray-700 shadow-sm">
                         <div class="flex items-start space-x-4">
                             <div id="template-deploy-icon" class="text-4xl">🦙</div>
                             <div class="flex-1">
@@ -316,16 +316,16 @@
                     </div>
 
                     <!-- Deployment Name -->
-                    <div class="card bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
+                    <div class="card bg-white dark:bg-[#1a1a1a] rounded-xl p-6 border border-gray-200 dark:border-gray-700 shadow-sm">
                         <h4 class="text-md font-semibold mb-4">Deployment Name</h4>
                         <div>
-                            <input id="template-name" type="text" required class="w-full bg-white border-2 border-gray-300 rounded-lg px-4 py-2 focus:border-anthropic-600 outline-none transition" placeholder="my-deployment">
+                            <input id="template-name" type="text" required class="w-full bg-white dark:bg-gray-800 dark:text-white border-2 border-gray-300 dark:border-gray-600 rounded-lg px-4 py-2 focus:border-anthropic-600 outline-none transition" placeholder="my-deployment">
                             <p class="text-xs text-gray-500 mt-2">A unique name to identify this deployment</p>
                         </div>
                     </div>
 
                     <!-- Dynamic Template Parameters -->
-                    <div id="template-parameters-container" class="card bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
+                    <div id="template-parameters-container" class="card bg-white dark:bg-[#1a1a1a] rounded-xl p-6 border border-gray-200 dark:border-gray-700 shadow-sm">
                         <h4 class="text-md font-semibold mb-4">Template Configuration</h4>
                         <div id="template-parameters" class="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <!-- Parameters will be rendered here -->
@@ -374,10 +374,10 @@
                 </div>
 
                 <!-- Access Panel -->
-                <div class="card bg-white rounded-xl p-6 border border-gray-200 shadow-sm max-w-2xl mx-auto">
+                <div class="card bg-white dark:bg-[#1a1a1a] rounded-xl p-6 border border-gray-200 dark:border-gray-700 shadow-sm max-w-2xl mx-auto">
                     <h4 class="text-lg font-semibold mb-4">Access Your Service</h4>
                     <div class="space-y-4">
-                        <div class="bg-gray-50 rounded-lg p-4">
+                        <div class="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-4">
                             <p class="text-xs text-gray-500 mb-1">Service URL</p>
                             <div class="flex items-center justify-between">
                                 <code id="deployment-access-url" class="text-sm font-mono text-anthropic-600"></code>
@@ -406,11 +406,11 @@
         </div>
 
         <div id="content-api-keys" class="tab-content hidden">
-            <div class="card bg-white rounded-xl p-8 border border-gray-200 shadow-sm hover:shadow-md mb-6">
+            <div class="card bg-white dark:bg-[#1a1a1a] rounded-xl p-8 border border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-md mb-6">
                 <div class="flex items-center justify-between mb-6">
                     <div>
-                        <h3 class="text-lg font-semibold mb-1">API Keys</h3>
-                        <p class="text-sm text-gray-600">Manage your API authentication keys</p>
+                        <h3 class="text-lg font-semibold mb-1 dark:text-white">API Keys</h3>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">Manage your API authentication keys</p>
                     </div>
                     <button onclick="generateAPIKey()" class="px-4 py-2 bg-gradient-to-r from-anthropic-600 to-anthropic-700 hover:from-anthropic-700 hover:to-anthropic-800 rounded-lg text-sm font-medium text-white transition">
                         + Generate New Key
@@ -428,26 +428,26 @@
             <div class="space-y-6">
                 <!-- Usage Summary Cards -->
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <div class="card bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
+                    <div class="card bg-white dark:bg-[#1a1a1a] rounded-xl p-6 border border-gray-200 dark:border-gray-700 shadow-sm">
                         <p class="text-xs text-gray-700 mb-1">Total Requests (All Time)</p>
-                        <p id="analytics-total" class="text-3xl font-bold text-gray-900">0</p>
+                        <p id="analytics-total" class="text-3xl font-bold text-gray-900 dark:text-white">0</p>
                     </div>
-                    <div class="card bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
+                    <div class="card bg-white dark:bg-[#1a1a1a] rounded-xl p-6 border border-gray-200 dark:border-gray-700 shadow-sm">
                         <p class="text-xs text-gray-700 mb-1">This Month</p>
                         <p id="analytics-this-month" class="text-3xl font-bold text-anthropic-600">0</p>
                     </div>
-                    <div class="card bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
+                    <div class="card bg-white dark:bg-[#1a1a1a] rounded-xl p-6 border border-gray-200 dark:border-gray-700 shadow-sm">
                         <p class="text-xs text-gray-700 mb-1">Last Month</p>
                         <p id="analytics-last-month" class="text-3xl font-bold text-gray-600">0</p>
                     </div>
                 </div>
 
                 <!-- Usage Chart -->
-                <div class="card bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
+                <div class="card bg-white dark:bg-[#1a1a1a] rounded-xl p-6 border border-gray-200 dark:border-gray-700 shadow-sm">
                     <div class="flex items-center justify-between mb-6">
                         <div>
-                            <h3 class="text-lg font-semibold mb-1">API Requests (Last 30 Days)</h3>
-                            <p class="text-sm text-gray-600">Daily request volume</p>
+                            <h3 class="text-lg font-semibold mb-1 dark:text-white">API Requests (Last 30 Days)</h3>
+                            <p class="text-sm text-gray-600 dark:text-gray-400">Daily request volume</p>
                         </div>
                     </div>
                     <div id="usage-chart" class="h-64 flex items-end justify-between gap-1">
@@ -457,11 +457,11 @@
                 </div>
 
                 <!-- API Key Usage Breakdown -->
-                <div class="card bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
+                <div class="card bg-white dark:bg-[#1a1a1a] rounded-xl p-6 border border-gray-200 dark:border-gray-700 shadow-sm">
                     <div class="flex items-center justify-between mb-6">
                         <div>
-                            <h3 class="text-lg font-semibold mb-1">Usage by API Key</h3>
-                            <p class="text-sm text-gray-600">Request distribution across your API keys</p>
+                            <h3 class="text-lg font-semibold mb-1 dark:text-white">Usage by API Key</h3>
+                            <p class="text-sm text-gray-600 dark:text-gray-400">Request distribution across your API keys</p>
                         </div>
                     </div>
                     <div id="key-usage-list" class="space-y-3">
@@ -470,11 +470,11 @@
                 </div>
 
                 <!-- Deployment Usage -->
-                <div class="card bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
+                <div class="card bg-white dark:bg-[#1a1a1a] rounded-xl p-6 border border-gray-200 dark:border-gray-700 shadow-sm">
                     <div class="flex items-center justify-between mb-6">
                         <div>
-                            <h3 class="text-lg font-semibold mb-1">Usage by Deployment</h3>
-                            <p class="text-sm text-gray-600">Requests per deployment</p>
+                            <h3 class="text-lg font-semibold mb-1 dark:text-white">Usage by Deployment</h3>
+                            <p class="text-sm text-gray-600 dark:text-gray-400">Requests per deployment</p>
                         </div>
                     </div>
                     <div id="deployment-usage-list" class="space-y-3">
@@ -488,52 +488,52 @@
             <!-- Step 1: Select Application -->
             <div id="deploy-step-1" class="space-y-6">
                 <div>
-                    <h3 class="text-2xl font-bold mb-2">Deploy New Service</h3>
-                    <p class="text-gray-600">Choose the AI service you want to deploy</p>
+                    <h3 class="text-2xl font-bold mb-2 dark:text-white">Deploy New Service</h3>
+                    <p class="text-gray-600 dark:text-gray-400">Choose the AI service you want to deploy</p>
                 </div>
 
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     <!-- Text-to-Speech App -->
-                    <div onclick="selectApp('tts')" class="card cursor-pointer bg-white border-2 border-anthropic-600 rounded-xl p-8 shadow-sm hover:shadow-md hover:border-anthropic-500">
+                    <div onclick="selectApp('tts')" class="card cursor-pointer bg-white dark:bg-[#1a1a1a] border-2 border-anthropic-600 rounded-xl p-8 shadow-sm hover:shadow-md hover:border-anthropic-500">
                         <div class="flex items-center justify-between mb-4">
                             <div class="w-12 h-12 bg-anthropic-600 bg-opacity-20 rounded-lg flex items-center justify-center">
                                 <span class="text-2xl">💻</span>
                             </div>
                             <span class="px-2 py-1 bg-green-600 bg-opacity-20 text-green-400 text-xs rounded-full">Popular</span>
                         </div>
-                        <h4 class="text-lg font-semibold mb-2">Text-to-Speech</h4>
-                        <p class="text-sm text-gray-600 mb-4">Convert text to natural-sounding speech with voice cloning</p>
-                        <div class="flex items-center justify-between text-xs text-gray-700">
+                        <h4 class="text-lg font-semibold mb-2 text-gray-900 dark:text-white">Text-to-Speech</h4>
+                        <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">Convert text to natural-sounding speech with voice cloning</p>
+                        <div class="flex items-center justify-between text-xs text-gray-700 dark:text-gray-300">
                             <span>🔥 Most Popular</span>
                             <span>From $0.076/hr</span>
                         </div>
                     </div>
 
                     <!-- Coming Soon Apps -->
-                    <div class="card bg-white border-2 border-gray-300 rounded-xl p-8 shadow-sm opacity-50 cursor-not-allowed">
+                    <div class="card bg-white dark:bg-[#1a1a1a] border-2 border-gray-300 dark:border-gray-600 rounded-xl p-8 shadow-sm opacity-60 cursor-not-allowed">
                         <div class="flex items-center justify-between mb-4">
                             <div class="w-12 h-12 bg-blue-600 bg-opacity-20 rounded-lg flex items-center justify-center">
                                 <span class="text-2xl">🎧</span>
                             </div>
                             <span class="px-2 py-1 bg-gray-600 bg-opacity-20 text-gray-400 text-xs rounded-full">Soon</span>
                         </div>
-                        <h4 class="text-lg font-semibold mb-2">Speech-to-Text</h4>
-                        <p class="text-sm text-gray-600 mb-4">Transcribe audio to text with high accuracy</p>
-                        <div class="flex items-center justify-between text-xs text-gray-700">
+                        <h4 class="text-lg font-semibold mb-2 text-gray-900 dark:text-white">Speech-to-Text</h4>
+                        <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">Transcribe audio to text with high accuracy</p>
+                        <div class="flex items-center justify-between text-xs text-gray-700 dark:text-gray-300">
                             <span>Coming Soon</span>
                         </div>
                     </div>
 
-                    <div class="card bg-white border-2 border-gray-300 rounded-xl p-8 shadow-sm opacity-50 cursor-not-allowed">
+                    <div class="card bg-white dark:bg-[#1a1a1a] border-2 border-gray-300 dark:border-gray-600 rounded-xl p-8 shadow-sm opacity-60 cursor-not-allowed">
                         <div class="flex items-center justify-between mb-4">
                             <div class="w-12 h-12 bg-yellow-600 bg-opacity-20 rounded-lg flex items-center justify-center">
                                 <span class="text-2xl">🗣️</span>
                             </div>
                             <span class="px-2 py-1 bg-gray-600 bg-opacity-20 text-gray-400 text-xs rounded-full">Soon</span>
                         </div>
-                        <h4 class="text-lg font-semibold mb-2">Voice Cloning</h4>
-                        <p class="text-sm text-gray-600 mb-4">Clone any voice from a short audio sample</p>
-                        <div class="flex items-center justify-between text-xs text-gray-700">
+                        <h4 class="text-lg font-semibold mb-2 text-gray-900 dark:text-white">Voice Cloning</h4>
+                        <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">Clone any voice from a short audio sample</p>
+                        <div class="flex items-center justify-between text-xs text-gray-700 dark:text-gray-300">
                             <span>Coming Soon</span>
                         </div>
                     </div>
@@ -545,29 +545,29 @@
                 <div class="flex items-center justify-between mb-4">
                     <div>
                         <button onclick="backToAppSelect()" class="text-anthropic-600 hover:text-anthropic-700 text-sm mb-2">← Back to app selection</button>
-                        <h3 class="text-2xl font-bold mb-2">Configure Text-to-Speech Server</h3>
-                        <p class="text-gray-600">Choose your GPU and deployment settings</p>
+                        <h3 class="text-2xl font-bold mb-2 dark:text-white">Configure Text-to-Speech Server</h3>
+                        <p class="text-gray-600 dark:text-gray-400">Choose your GPU and deployment settings</p>
                     </div>
                 </div>
 
                 <form onsubmit="deployServer(event)" class="space-y-6">
                     <!-- Server Name -->
-                    <div class="card bg-white rounded-xl p-8 border border-gray-200 shadow-sm hover:shadow-md">
-                        <label class="block text-sm font-medium mb-2">Server Name</label>
-                        <input id="server-name" type="text" class="w-full bg-white border-2 border-gray-300 rounded-lg px-4 py-2 focus:border-anthropic-600 focus:ring-2 focus:ring-anthropic-600 focus:ring-opacity-50 outline-none transition" placeholder="my-tts-server">
-                        <p class="text-xs text-gray-700 mt-2">Choose a unique name for your deployment</p>
+                    <div class="card bg-white dark:bg-[#1a1a1a] rounded-xl p-8 border border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-md">
+                        <label class="block text-sm font-medium mb-2 dark:text-gray-200">Server Name</label>
+                        <input id="server-name" type="text" class="w-full bg-white dark:bg-gray-800 dark:text-white border-2 border-gray-300 dark:border-gray-600 rounded-lg px-4 py-2 focus:border-anthropic-600 focus:ring-2 focus:ring-anthropic-600 focus:ring-opacity-50 outline-none transition" placeholder="my-tts-server">
+                        <p class="text-xs text-gray-700 dark:text-gray-400 mt-2">Choose a unique name for your deployment</p>
                     </div>
 
                     <!-- GPU Selection -->
-                    <div class="card bg-white rounded-xl p-8 border border-gray-200 shadow-sm hover:shadow-md">
+                    <div class="card bg-white dark:bg-[#1a1a1a] rounded-xl p-8 border border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-md">
                         <div class="flex items-center justify-between mb-4">
                             <div>
-                                <label class="block text-sm font-medium mb-1">Select GPU</label>
-                                <p class="text-xs text-gray-700">Choose based on your performance and budget needs</p>
+                                <label class="block text-sm font-medium mb-1 dark:text-gray-200">Select GPU</label>
+                                <p class="text-xs text-gray-700 dark:text-gray-400">Choose based on your performance and budget needs</p>
                             </div>
                             <div class="flex items-center space-x-2">
                                 <input id="use-spot" type="checkbox" checked class="w-4 h-4 text-anthropic-600 bg-white border-gray-300 rounded focus:ring-anthropic-600">
-                                <label class="text-sm text-gray-800">Spot instances <span class="text-green-400">(60-75% off)</span></label>
+                                <label class="text-sm text-gray-800 dark:text-gray-200">Spot instances <span class="text-green-400">(60-75% off)</span></label>
                             </div>
                         </div>
 
@@ -578,22 +578,22 @@
                     </div>
 
                     <!-- Deployment Type -->
-                    <div class="card bg-white rounded-xl p-8 border border-gray-200 shadow-sm hover:shadow-md">
-                        <label class="block text-sm font-medium mb-4">Deployment Type</label>
+                    <div class="card bg-white dark:bg-[#1a1a1a] rounded-xl p-8 border border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-md">
+                        <label class="block text-sm font-medium mb-4 dark:text-gray-200">Deployment Type</label>
                         <div class="grid grid-cols-2 gap-4">
-                            <label class="card cursor-pointer bg-gray-50 border-2 border-anthropic-600 rounded-lg p-4">
+                            <label class="card cursor-pointer bg-gray-50 dark:bg-gray-800 border-2 border-anthropic-600 rounded-lg p-4">
                                 <input type="radio" name="type" value="raw_compute" checked class="sr-only">
                                 <div class="text-center">
-                                    <p class="font-medium mb-1">Raw Compute</p>
-                                    <p class="text-xs text-gray-600">Full SSH access, maximum control</p>
+                                    <p class="font-medium mb-1 dark:text-white">Raw Compute</p>
+                                    <p class="text-xs text-gray-600 dark:text-gray-400">Full SSH access, maximum control</p>
                                     <p class="text-xs text-green-400 mt-2">Cheapest option</p>
                                 </div>
                             </label>
-                            <label class="card cursor-pointer bg-gray-50 border-2 border-gray-300 rounded-lg p-4 hover:border-gray-400">
+                            <label class="card cursor-pointer bg-gray-50 dark:bg-gray-800 border-2 border-gray-300 dark:border-gray-600 rounded-lg p-4 hover:border-gray-400">
                                 <input type="radio" name="type" value="serverless" class="sr-only">
                                 <div class="text-center">
-                                    <p class="font-medium mb-1">Serverless</p>
-                                    <p class="text-xs text-gray-600">Auto-scaling, managed infrastructure</p>
+                                    <p class="font-medium mb-1 dark:text-white">Serverless</p>
+                                    <p class="text-xs text-gray-600 dark:text-gray-400">Auto-scaling, managed infrastructure</p>
                                     <p class="text-xs text-yellow-400 mt-2">Coming soon</p>
                                 </div>
                             </label>
@@ -611,11 +611,11 @@
         <div id="content-settings" class="tab-content hidden">
             <div class="space-y-6">
                 <!-- Account Settings -->
-                <div class="card bg-white rounded-xl p-8 border border-gray-200 shadow-sm hover:shadow-md">
+                <div class="card bg-white dark:bg-[#1a1a1a] rounded-xl p-8 border border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-md">
                     <div class="flex items-center justify-between mb-6">
                         <div>
-                            <h3 class="text-lg font-semibold mb-1">Account Settings</h3>
-                            <p class="text-sm text-gray-600">Manage your account information</p>
+                            <h3 class="text-lg font-semibold mb-1 dark:text-white">Account Settings</h3>
+                            <p class="text-sm text-gray-600 dark:text-gray-400">Manage your account information</p>
                         </div>
                         <span id="account-plan-badge" class="px-3 py-1 bg-anthropic-600 bg-opacity-20 text-anthropic-600 text-sm font-medium rounded-full">Professional</span>
                     </div>
@@ -623,17 +623,17 @@
                     <form id="account-form" onsubmit="saveAccountSettings(event)" class="space-y-4">
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
-                                <label class="block text-sm font-medium mb-2">Name</label>
-                                <input id="settings-name" type="text" class="w-full bg-white border-2 border-gray-300 rounded-lg px-4 py-2 focus:border-anthropic-600 focus:ring-2 focus:ring-anthropic-600 focus:ring-opacity-50 outline-none transition" placeholder="Your name">
+                                <label class="block text-sm font-medium mb-2 dark:text-gray-200">Name</label>
+                                <input id="settings-name" type="text" class="w-full bg-white dark:bg-gray-800 dark:text-white border-2 border-gray-300 dark:border-gray-600 rounded-lg px-4 py-2 focus:border-anthropic-600 focus:ring-2 focus:ring-anthropic-600 focus:ring-opacity-50 outline-none transition" placeholder="Your name">
                             </div>
                             <div>
-                                <label class="block text-sm font-medium mb-2">Email</label>
-                                <input id="settings-email" type="email" class="w-full bg-white border-2 border-gray-300 rounded-lg px-4 py-2 focus:border-anthropic-600 focus:ring-2 focus:ring-anthropic-600 focus:ring-opacity-50 outline-none transition" placeholder="your@email.com">
+                                <label class="block text-sm font-medium mb-2 dark:text-gray-200">Email</label>
+                                <input id="settings-email" type="email" class="w-full bg-white dark:bg-gray-800 dark:text-white border-2 border-gray-300 dark:border-gray-600 rounded-lg px-4 py-2 focus:border-anthropic-600 focus:ring-2 focus:ring-anthropic-600 focus:ring-opacity-50 outline-none transition" placeholder="your@email.com">
                             </div>
                         </div>
                         <div>
-                            <label class="block text-sm font-medium mb-2">Company (Optional)</label>
-                            <input id="settings-company" type="text" class="w-full bg-white border-2 border-gray-300 rounded-lg px-4 py-2 focus:border-anthropic-600 focus:ring-2 focus:ring-anthropic-600 focus:ring-opacity-50 outline-none transition" placeholder="Your company">
+                            <label class="block text-sm font-medium mb-2 dark:text-gray-200">Company (Optional)</label>
+                            <input id="settings-company" type="text" class="w-full bg-white dark:bg-gray-800 dark:text-white border-2 border-gray-300 dark:border-gray-600 rounded-lg px-4 py-2 focus:border-anthropic-600 focus:ring-2 focus:ring-anthropic-600 focus:ring-opacity-50 outline-none transition" placeholder="Your company">
                         </div>
                         <div class="flex justify-end">
                             <button type="submit" class="px-4 py-2 bg-gradient-to-r from-anthropic-600 to-anthropic-700 hover:from-anthropic-700 hover:to-anthropic-800 rounded-lg text-sm font-medium text-white transition">
@@ -644,49 +644,49 @@
                 </div>
 
                 <!-- Billing Summary -->
-                <div class="card bg-white rounded-xl p-8 border border-gray-200 shadow-sm hover:shadow-md">
+                <div class="card bg-white dark:bg-[#1a1a1a] rounded-xl p-8 border border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-md">
                     <div class="flex items-center justify-between mb-6">
                         <div>
-                            <h3 class="text-lg font-semibold mb-1">Billing</h3>
-                            <p class="text-sm text-gray-600">Your usage and billing information</p>
+                            <h3 class="text-lg font-semibold mb-1 dark:text-white">Billing</h3>
+                            <p class="text-sm text-gray-600 dark:text-gray-400">Your usage and billing information</p>
                         </div>
                     </div>
 
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-                        <div class="bg-gray-50 rounded-lg p-4">
+                        <div class="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-4">
                             <p class="text-xs text-gray-700 mb-1">Current Month</p>
-                            <p id="billing-current" class="text-2xl font-bold text-gray-900">$0.00</p>
+                            <p id="billing-current" class="text-2xl font-bold text-gray-900 dark:text-white">$0.00</p>
                         </div>
-                        <div class="bg-gray-50 rounded-lg p-4">
+                        <div class="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-4">
                             <p class="text-xs text-gray-700 mb-1">Last Month</p>
                             <p id="billing-last" class="text-2xl font-bold text-gray-600">$0.00</p>
                         </div>
-                        <div class="bg-gray-50 rounded-lg p-4">
+                        <div class="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-4">
                             <p class="text-xs text-gray-700 mb-1">Payment Method</p>
                             <p id="billing-method" class="text-sm font-medium text-gray-800">No payment method</p>
                         </div>
                     </div>
 
-                    <div class="flex items-center justify-between pt-4 border-t border-gray-200">
-                        <p class="text-sm text-gray-600">Need to update billing details?</p>
+                    <div class="flex items-center justify-between pt-4 border-t border-gray-200 dark:border-gray-700">
+                        <p class="text-sm text-gray-600 dark:text-gray-400">Need to update billing details?</p>
                         <button class="text-anthropic-600 hover:text-anthropic-700 text-sm font-medium">Contact Support →</button>
                     </div>
                 </div>
 
                 <!-- Notification Preferences -->
-                <div class="card bg-white rounded-xl p-8 border border-gray-200 shadow-sm hover:shadow-md">
+                <div class="card bg-white dark:bg-[#1a1a1a] rounded-xl p-8 border border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-md">
                     <div class="flex items-center justify-between mb-6">
                         <div>
-                            <h3 class="text-lg font-semibold mb-1">Notifications</h3>
-                            <p class="text-sm text-gray-600">Control how you receive alerts</p>
+                            <h3 class="text-lg font-semibold mb-1 dark:text-white">Notifications</h3>
+                            <p class="text-sm text-gray-600 dark:text-gray-400">Control how you receive alerts</p>
                         </div>
                     </div>
 
                     <div class="space-y-4">
-                        <div class="flex items-center justify-between py-3 border-b border-gray-100">
+                        <div class="flex items-center justify-between py-3 border-b border-gray-100 dark:border-gray-700">
                             <div>
-                                <p class="text-sm font-medium">Email Notifications</p>
-                                <p class="text-xs text-gray-600">Receive notifications via email</p>
+                                <p class="text-sm font-medium dark:text-gray-200">Email Notifications</p>
+                                <p class="text-xs text-gray-600 dark:text-gray-400">Receive notifications via email</p>
                             </div>
                             <label class="relative inline-flex items-center cursor-pointer">
                                 <input type="checkbox" id="notif-email" class="sr-only peer" onchange="updateNotification('email_notifications', this.checked)">
@@ -694,10 +694,10 @@
                             </label>
                         </div>
 
-                        <div class="flex items-center justify-between py-3 border-b border-gray-100">
+                        <div class="flex items-center justify-between py-3 border-b border-gray-100 dark:border-gray-700">
                             <div>
-                                <p class="text-sm font-medium">Deployment Started</p>
-                                <p class="text-xs text-gray-600">Alert when a new deployment starts</p>
+                                <p class="text-sm font-medium dark:text-gray-200">Deployment Started</p>
+                                <p class="text-xs text-gray-600 dark:text-gray-400">Alert when a new deployment starts</p>
                             </div>
                             <label class="relative inline-flex items-center cursor-pointer">
                                 <input type="checkbox" id="notif-started" class="sr-only peer" onchange="updateNotification('deployment_started', this.checked)">
@@ -705,10 +705,10 @@
                             </label>
                         </div>
 
-                        <div class="flex items-center justify-between py-3 border-b border-gray-100">
+                        <div class="flex items-center justify-between py-3 border-b border-gray-100 dark:border-gray-700">
                             <div>
-                                <p class="text-sm font-medium">Deployment Stopped</p>
-                                <p class="text-xs text-gray-600">Alert when a deployment stops</p>
+                                <p class="text-sm font-medium dark:text-gray-200">Deployment Stopped</p>
+                                <p class="text-xs text-gray-600 dark:text-gray-400">Alert when a deployment stops</p>
                             </div>
                             <label class="relative inline-flex items-center cursor-pointer">
                                 <input type="checkbox" id="notif-stopped" class="sr-only peer" onchange="updateNotification('deployment_stopped', this.checked)">
@@ -716,10 +716,10 @@
                             </label>
                         </div>
 
-                        <div class="flex items-center justify-between py-3 border-b border-gray-100">
+                        <div class="flex items-center justify-between py-3 border-b border-gray-100 dark:border-gray-700">
                             <div>
-                                <p class="text-sm font-medium">Deployment Failed</p>
-                                <p class="text-xs text-gray-600">Alert when a deployment fails</p>
+                                <p class="text-sm font-medium dark:text-gray-200">Deployment Failed</p>
+                                <p class="text-xs text-gray-600 dark:text-gray-400">Alert when a deployment fails</p>
                             </div>
                             <label class="relative inline-flex items-center cursor-pointer">
                                 <input type="checkbox" id="notif-failed" class="sr-only peer" onchange="updateNotification('deployment_failed', this.checked)">
@@ -727,10 +727,10 @@
                             </label>
                         </div>
 
-                        <div class="flex items-center justify-between py-3 border-b border-gray-100">
+                        <div class="flex items-center justify-between py-3 border-b border-gray-100 dark:border-gray-700">
                             <div>
-                                <p class="text-sm font-medium">Usage Alerts</p>
-                                <p class="text-xs text-gray-600">Alert when approaching usage limits</p>
+                                <p class="text-sm font-medium dark:text-gray-200">Usage Alerts</p>
+                                <p class="text-xs text-gray-600 dark:text-gray-400">Alert when approaching usage limits</p>
                             </div>
                             <label class="relative inline-flex items-center cursor-pointer">
                                 <input type="checkbox" id="notif-usage" class="sr-only peer" onchange="updateNotification('usage_alerts', this.checked)">
@@ -740,8 +740,8 @@
 
                         <div class="flex items-center justify-between py-3">
                             <div>
-                                <p class="text-sm font-medium">Weekly Summary</p>
-                                <p class="text-xs text-gray-600">Receive a weekly usage summary</p>
+                                <p class="text-sm font-medium dark:text-gray-200">Weekly Summary</p>
+                                <p class="text-xs text-gray-600 dark:text-gray-400">Receive a weekly usage summary</p>
                             </div>
                             <label class="relative inline-flex items-center cursor-pointer">
                                 <input type="checkbox" id="notif-weekly" class="sr-only peer" onchange="updateNotification('weekly_summary', this.checked)">
@@ -752,11 +752,11 @@
                 </div>
 
                 <!-- Webhooks -->
-                <div class="card bg-white rounded-xl p-8 border border-gray-200 shadow-sm hover:shadow-md">
+                <div class="card bg-white dark:bg-[#1a1a1a] rounded-xl p-8 border border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-md">
                     <div class="flex items-center justify-between mb-6">
                         <div>
-                            <h3 class="text-lg font-semibold mb-1">Webhooks</h3>
-                            <p class="text-sm text-gray-600">Receive real-time event notifications</p>
+                            <h3 class="text-lg font-semibold mb-1 dark:text-white">Webhooks</h3>
+                            <p class="text-sm text-gray-600 dark:text-gray-400">Receive real-time event notifications</p>
                         </div>
                         <button onclick="showAddWebhookModal()" class="px-4 py-2 bg-gradient-to-r from-anthropic-600 to-anthropic-700 hover:from-anthropic-700 hover:to-anthropic-800 rounded-lg text-sm font-medium text-white transition">
                             + Add Webhook
@@ -769,11 +769,11 @@
                 </div>
 
                 <!-- Usage Limits -->
-                <div class="card bg-white rounded-xl p-8 border border-gray-200 shadow-sm hover:shadow-md">
+                <div class="card bg-white dark:bg-[#1a1a1a] rounded-xl p-8 border border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-md">
                     <div class="flex items-center justify-between mb-6">
                         <div>
-                            <h3 class="text-lg font-semibold mb-1">Usage Limits</h3>
-                            <p class="text-sm text-gray-600">Configure rate limits and usage thresholds</p>
+                            <h3 class="text-lg font-semibold mb-1 dark:text-white">Usage Limits</h3>
+                            <p class="text-sm text-gray-600 dark:text-gray-400">Configure rate limits and usage thresholds</p>
                         </div>
                         <label class="relative inline-flex items-center cursor-pointer">
                             <input type="checkbox" id="limits-enabled" class="sr-only peer" onchange="toggleLimits(this.checked)">
@@ -784,31 +784,31 @@
 
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div>
-                            <label class="block text-sm font-medium mb-2">API Requests per Minute</label>
-                            <input id="limit-rpm" type="number" min="1" max="1000" class="w-full bg-white border-2 border-gray-300 rounded-lg px-4 py-2 focus:border-anthropic-600 focus:ring-2 focus:ring-anthropic-600 focus:ring-opacity-50 outline-none transition" placeholder="60">
+                            <label class="block text-sm font-medium mb-2 dark:text-gray-200">API Requests per Minute</label>
+                            <input id="limit-rpm" type="number" min="1" max="1000" class="w-full bg-white dark:bg-gray-800 dark:text-white border-2 border-gray-300 dark:border-gray-600 rounded-lg px-4 py-2 focus:border-anthropic-600 focus:ring-2 focus:ring-anthropic-600 focus:ring-opacity-50 outline-none transition" placeholder="60">
                             <p class="text-xs text-gray-600 mt-1">Rate limit per API key</p>
                         </div>
                         <div>
-                            <label class="block text-sm font-medium mb-2">API Requests per Day</label>
-                            <input id="limit-rpd" type="number" min="100" max="1000000" class="w-full bg-white border-2 border-gray-300 rounded-lg px-4 py-2 focus:border-anthropic-600 focus:ring-2 focus:ring-anthropic-600 focus:ring-opacity-50 outline-none transition" placeholder="10000">
+                            <label class="block text-sm font-medium mb-2 dark:text-gray-200">API Requests per Day</label>
+                            <input id="limit-rpd" type="number" min="100" max="1000000" class="w-full bg-white dark:bg-gray-800 dark:text-white border-2 border-gray-300 dark:border-gray-600 rounded-lg px-4 py-2 focus:border-anthropic-600 focus:ring-2 focus:ring-anthropic-600 focus:ring-opacity-50 outline-none transition" placeholder="10000">
                             <p class="text-xs text-gray-600 mt-1">Daily quota per API key</p>
                         </div>
                         <div>
-                            <label class="block text-sm font-medium mb-2">Max Concurrent Deployments</label>
-                            <input id="limit-deployments" type="number" min="1" max="50" class="w-full bg-white border-2 border-gray-300 rounded-lg px-4 py-2 focus:border-anthropic-600 focus:ring-2 focus:ring-anthropic-600 focus:ring-opacity-50 outline-none transition" placeholder="5">
+                            <label class="block text-sm font-medium mb-2 dark:text-gray-200">Max Concurrent Deployments</label>
+                            <input id="limit-deployments" type="number" min="1" max="50" class="w-full bg-white dark:bg-gray-800 dark:text-white border-2 border-gray-300 dark:border-gray-600 rounded-lg px-4 py-2 focus:border-anthropic-600 focus:ring-2 focus:ring-anthropic-600 focus:ring-opacity-50 outline-none transition" placeholder="5">
                         </div>
                         <div>
-                            <label class="block text-sm font-medium mb-2">Max API Keys</label>
-                            <input id="limit-keys" type="number" min="1" max="100" class="w-full bg-white border-2 border-gray-300 rounded-lg px-4 py-2 focus:border-anthropic-600 focus:ring-2 focus:ring-anthropic-600 focus:ring-opacity-50 outline-none transition" placeholder="10">
+                            <label class="block text-sm font-medium mb-2 dark:text-gray-200">Max API Keys</label>
+                            <input id="limit-keys" type="number" min="1" max="100" class="w-full bg-white dark:bg-gray-800 dark:text-white border-2 border-gray-300 dark:border-gray-600 rounded-lg px-4 py-2 focus:border-anthropic-600 focus:ring-2 focus:ring-anthropic-600 focus:ring-opacity-50 outline-none transition" placeholder="10">
                         </div>
                         <div>
-                            <label class="block text-sm font-medium mb-2">Cost Alert Threshold ($)</label>
-                            <input id="limit-cost-alert" type="number" min="1" step="0.01" class="w-full bg-white border-2 border-gray-300 rounded-lg px-4 py-2 focus:border-anthropic-600 focus:ring-2 focus:ring-anthropic-600 focus:ring-opacity-50 outline-none transition" placeholder="100.00">
+                            <label class="block text-sm font-medium mb-2 dark:text-gray-200">Cost Alert Threshold ($)</label>
+                            <input id="limit-cost-alert" type="number" min="1" step="0.01" class="w-full bg-white dark:bg-gray-800 dark:text-white border-2 border-gray-300 dark:border-gray-600 rounded-lg px-4 py-2 focus:border-anthropic-600 focus:ring-2 focus:ring-anthropic-600 focus:ring-opacity-50 outline-none transition" placeholder="100.00">
                             <p class="text-xs text-gray-600 mt-1">Alert when monthly cost exceeds this</p>
                         </div>
                         <div>
-                            <label class="block text-sm font-medium mb-2">Auto-Stop Threshold ($)</label>
-                            <input id="limit-auto-stop" type="number" min="1" step="0.01" class="w-full bg-white border-2 border-gray-300 rounded-lg px-4 py-2 focus:border-anthropic-600 focus:ring-2 focus:ring-anthropic-600 focus:ring-opacity-50 outline-none transition" placeholder="500.00">
+                            <label class="block text-sm font-medium mb-2 dark:text-gray-200">Auto-Stop Threshold ($)</label>
+                            <input id="limit-auto-stop" type="number" min="1" step="0.01" class="w-full bg-white dark:bg-gray-800 dark:text-white border-2 border-gray-300 dark:border-gray-600 rounded-lg px-4 py-2 focus:border-anthropic-600 focus:ring-2 focus:ring-anthropic-600 focus:ring-opacity-50 outline-none transition" placeholder="500.00">
                             <p class="text-xs text-gray-600 mt-1">Auto-stop deployments when cost exceeds this</p>
                         </div>
                     </div>
@@ -838,7 +838,7 @@
                         <div class="flex items-center justify-between p-4 bg-red-50 rounded-lg border border-red-200">
                             <div>
                                 <p class="text-sm font-medium text-gray-900">Reset Usage Statistics</p>
-                                <p class="text-xs text-gray-600">Clear all API usage data and analytics</p>
+                                <p class="text-xs text-gray-600 dark:text-gray-400">Clear all API usage data and analytics</p>
                             </div>
                             <button onclick="dangerResetUsage()" class="px-4 py-2 bg-white border-2 border-red-500 text-red-600 hover:bg-red-50 rounded-lg text-sm font-medium transition">
                                 Reset Stats
@@ -848,7 +848,7 @@
                         <div class="flex items-center justify-between p-4 bg-red-50 rounded-lg border border-red-200">
                             <div>
                                 <p class="text-sm font-medium text-gray-900">Revoke All API Keys</p>
-                                <p class="text-xs text-gray-600">Permanently delete all generated API keys</p>
+                                <p class="text-xs text-gray-600 dark:text-gray-400">Permanently delete all generated API keys</p>
                             </div>
                             <button onclick="dangerRevokeAllKeys()" class="px-4 py-2 bg-white border-2 border-red-500 text-red-600 hover:bg-red-50 rounded-lg text-sm font-medium transition">
                                 Revoke All
@@ -858,13 +858,204 @@
                         <div class="flex items-center justify-between p-4 bg-red-50 rounded-lg border border-red-200">
                             <div>
                                 <p class="text-sm font-medium text-gray-900">Stop All Deployments</p>
-                                <p class="text-xs text-gray-600">Immediately stop all running deployments</p>
+                                <p class="text-xs text-gray-600 dark:text-gray-400">Immediately stop all running deployments</p>
                             </div>
                             <button onclick="dangerStopAllDeployments()" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition">
                                 Stop All
                             </button>
                         </div>
                     </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Pricing Page -->
+        <div id="content-pricing" class="tab-content hidden">
+            <div class="space-y-12">
+                <!-- Hero Section -->
+                <div class="text-center max-w-3xl mx-auto">
+                    <h2 class="text-4xl font-bold mb-4 bg-gradient-to-r from-anthropic-500 to-anthropic-700 bg-clip-text text-transparent">
+                        Simple, transparent pricing
+                    </h2>
+                    <p class="text-xl text-gray-600 dark:text-gray-400 mb-2">
+                        Your computer in the cloud. No hidden fees.
+                    </p>
+                    <p class="text-gray-500 dark:text-gray-500">
+                        Pay only for what you use. Scale up or down anytime.
+                    </p>
+                </div>
+
+                <!-- Pricing Cards -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-5xl mx-auto">
+                    <!-- Starter -->
+                    <div class="card bg-white dark:bg-[#1a1a1a] rounded-2xl p-8 border border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-lg transition-all">
+                        <div class="mb-6">
+                            <h3 class="text-lg font-semibold dark:text-white mb-2">Starter</h3>
+                            <p class="text-gray-500 dark:text-gray-400 text-sm">Perfect for trying things out</p>
+                        </div>
+                        <div class="mb-6">
+                            <span class="text-4xl font-bold dark:text-white">Free</span>
+                        </div>
+                        <ul class="space-y-3 mb-8">
+                            <li class="flex items-center text-sm text-gray-600 dark:text-gray-400">
+                                <svg class="w-5 h-5 text-green-500 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                                </svg>
+                                1 deployment
+                            </li>
+                            <li class="flex items-center text-sm text-gray-600 dark:text-gray-400">
+                                <svg class="w-5 h-5 text-green-500 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                                </svg>
+                                Community support
+                            </li>
+                            <li class="flex items-center text-sm text-gray-600 dark:text-gray-400">
+                                <svg class="w-5 h-5 text-green-500 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                                </svg>
+                                Basic analytics
+                            </li>
+                        </ul>
+                        <button class="w-full py-3 px-4 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-900 dark:text-white rounded-xl font-medium transition">
+                            Get Started
+                        </button>
+                    </div>
+
+                    <!-- Pro - Featured -->
+                    <div class="card bg-gradient-to-br from-anthropic-600 to-anthropic-700 rounded-2xl p-8 shadow-xl hover:shadow-2xl transition-all transform hover:-translate-y-1 relative">
+                        <div class="absolute -top-3 left-1/2 -translate-x-1/2">
+                            <span class="px-4 py-1 bg-white dark:bg-gray-900 text-anthropic-600 text-xs font-bold rounded-full shadow-md">
+                                MOST POPULAR
+                            </span>
+                        </div>
+                        <div class="mb-6">
+                            <h3 class="text-lg font-semibold text-white mb-2">Pro</h3>
+                            <p class="text-anthropic-100 text-sm">For individuals & small teams</p>
+                        </div>
+                        <div class="mb-6">
+                            <span class="text-4xl font-bold text-white">$29</span>
+                            <span class="text-anthropic-200">/month</span>
+                        </div>
+                        <ul class="space-y-3 mb-8">
+                            <li class="flex items-center text-sm text-white">
+                                <svg class="w-5 h-5 text-anthropic-200 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                                </svg>
+                                10 deployments
+                            </li>
+                            <li class="flex items-center text-sm text-white">
+                                <svg class="w-5 h-5 text-anthropic-200 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                                </svg>
+                                Priority support
+                            </li>
+                            <li class="flex items-center text-sm text-white">
+                                <svg class="w-5 h-5 text-anthropic-200 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                                </svg>
+                                Advanced analytics
+                            </li>
+                            <li class="flex items-center text-sm text-white">
+                                <svg class="w-5 h-5 text-anthropic-200 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                                </svg>
+                                Custom domains
+                            </li>
+                            <li class="flex items-center text-sm text-white">
+                                <svg class="w-5 h-5 text-anthropic-200 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                                </svg>
+                                API access
+                            </li>
+                        </ul>
+                        <button class="w-full py-3 px-4 bg-white hover:bg-gray-100 text-anthropic-700 rounded-xl font-bold transition shadow-lg">
+                            Start Free Trial
+                        </button>
+                    </div>
+
+                    <!-- Enterprise -->
+                    <div class="card bg-white dark:bg-[#1a1a1a] rounded-2xl p-8 border border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-lg transition-all">
+                        <div class="mb-6">
+                            <h3 class="text-lg font-semibold dark:text-white mb-2">Enterprise</h3>
+                            <p class="text-gray-500 dark:text-gray-400 text-sm">For organizations at scale</p>
+                        </div>
+                        <div class="mb-6">
+                            <span class="text-4xl font-bold dark:text-white">Custom</span>
+                        </div>
+                        <ul class="space-y-3 mb-8">
+                            <li class="flex items-center text-sm text-gray-600 dark:text-gray-400">
+                                <svg class="w-5 h-5 text-green-500 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                                </svg>
+                                Unlimited deployments
+                            </li>
+                            <li class="flex items-center text-sm text-gray-600 dark:text-gray-400">
+                                <svg class="w-5 h-5 text-green-500 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                                </svg>
+                                24/7 dedicated support
+                            </li>
+                            <li class="flex items-center text-sm text-gray-600 dark:text-gray-400">
+                                <svg class="w-5 h-5 text-green-500 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                                </svg>
+                                SSO & SAML
+                            </li>
+                            <li class="flex items-center text-sm text-gray-600 dark:text-gray-400">
+                                <svg class="w-5 h-5 text-green-500 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                                </svg>
+                                SLA guarantees
+                            </li>
+                            <li class="flex items-center text-sm text-gray-600 dark:text-gray-400">
+                                <svg class="w-5 h-5 text-green-500 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                                </svg>
+                                On-premise option
+                            </li>
+                        </ul>
+                        <button class="w-full py-3 px-4 bg-gray-900 dark:bg-white hover:bg-gray-800 dark:hover:bg-gray-100 text-white dark:text-gray-900 rounded-xl font-medium transition">
+                            Contact Sales
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Usage-based pricing -->
+                <div class="max-w-3xl mx-auto">
+                    <div class="card bg-white dark:bg-[#1a1a1a] rounded-2xl p-8 border border-gray-200 dark:border-gray-700">
+                        <div class="text-center mb-8">
+                            <h3 class="text-2xl font-bold dark:text-white mb-2">Pay-as-you-go compute</h3>
+                            <p class="text-gray-500 dark:text-gray-400">All plans include usage-based compute pricing</p>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            <div class="text-center p-4 bg-gray-50 dark:bg-gray-800/50 rounded-xl">
+                                <div class="text-3xl mb-2">🖥️</div>
+                                <p class="text-sm font-medium dark:text-white mb-1">Standard</p>
+                                <p class="text-2xl font-bold text-anthropic-600">$0.05</p>
+                                <p class="text-xs text-gray-500">per hour</p>
+                            </div>
+                            <div class="text-center p-4 bg-gray-50 dark:bg-gray-800/50 rounded-xl">
+                                <div class="text-3xl mb-2">⚡</div>
+                                <p class="text-sm font-medium dark:text-white mb-1">GPU (RTX 4090)</p>
+                                <p class="text-2xl font-bold text-anthropic-600">$0.50</p>
+                                <p class="text-xs text-gray-500">per hour</p>
+                            </div>
+                            <div class="text-center p-4 bg-gray-50 dark:bg-gray-800/50 rounded-xl">
+                                <div class="text-3xl mb-2">🚀</div>
+                                <p class="text-sm font-medium dark:text-white mb-1">GPU (A100)</p>
+                                <p class="text-2xl font-bold text-anthropic-600">$2.00</p>
+                                <p class="text-xs text-gray-500">per hour</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- FAQ teaser -->
+                <div class="text-center">
+                    <p class="text-gray-500 dark:text-gray-400 mb-4">Have questions?</p>
+                    <a href="#" class="text-anthropic-600 hover:text-anthropic-700 font-medium">
+                        Read our FAQ →
+                    </a>
                 </div>
             </div>
         </div>
@@ -1226,7 +1417,7 @@
             const color = statusColors[deployment.status] || 'gray';
 
             return `
-                <div class="card bg-white rounded-xl p-8 border border-gray-200 shadow-sm hover:shadow-md">
+                <div class="card bg-white dark:bg-[#1a1a1a] rounded-xl p-8 border border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-md">
                     <div class="flex items-center justify-between mb-4">
                         <div class="flex items-center space-x-4">
                             <div class="flex items-center space-x-2">
@@ -1251,19 +1442,19 @@
                     <!-- Quick Metrics Row -->
                     <div id="quick-metrics-${deployment.id}" class="grid grid-cols-4 gap-3 mb-4 p-3 bg-gray-50 rounded-lg">
                         <div class="text-center">
-                            <p class="text-xs text-gray-600">CPU</p>
+                            <p class="text-xs text-gray-600 dark:text-gray-400">CPU</p>
                             <p class="text-sm font-semibold text-gray-900" data-metric="cpu">--</p>
                         </div>
                         <div class="text-center">
-                            <p class="text-xs text-gray-600">Memory</p>
+                            <p class="text-xs text-gray-600 dark:text-gray-400">Memory</p>
                             <p class="text-sm font-semibold text-gray-900" data-metric="memory">--</p>
                         </div>
                         <div class="text-center">
-                            <p class="text-xs text-gray-600">Latency</p>
+                            <p class="text-xs text-gray-600 dark:text-gray-400">Latency</p>
                             <p class="text-sm font-semibold text-gray-900" data-metric="latency">--</p>
                         </div>
                         <div class="text-center">
-                            <p class="text-xs text-gray-600">Req/min</p>
+                            <p class="text-xs text-gray-600 dark:text-gray-400">Req/min</p>
                             <p class="text-sm font-semibold text-gray-900" data-metric="rpm">--</p>
                         </div>
                     </div>
@@ -1400,12 +1591,12 @@
             }
 
             return `
-                <div class="bg-gray-50 rounded-lg p-4">
+                <div class="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-4">
                     <div class="flex items-center justify-between mb-3">
                         <div class="flex items-center space-x-3">
                             <div>
                                 <p class="text-sm font-medium text-gray-900">${key.name}</p>
-                                <p class="text-xs text-gray-700">Created ${new Date(key.created_at).toLocaleDateString()}</p>
+                                <p class="text-xs text-gray-700 dark:text-gray-400">Created ${new Date(key.created_at).toLocaleDateString()}</p>
                             </div>
                             <span class="px-2 py-0.5 bg-${usageColor}-100 text-${usageColor}-700 text-xs rounded-full">${usageStatus} usage</span>
                         </div>
@@ -1586,7 +1777,7 @@
                     </div>
 
                     <div class="pt-3 border-t border-gray-300">
-                        <p class="text-xs text-gray-700">~${Math.round(gpu.spot_price * 24 * 30)}/mo with spot</p>
+                        <p class="text-xs text-gray-700 dark:text-gray-400">~${Math.round(gpu.spot_price * 24 * 30)}/mo with spot</p>
                     </div>
                 </div>
             `;
@@ -1869,7 +2060,7 @@
                 if (param.type === 'select') {
                     inputHtml = `
                         <select id="param-${param.name}" ${param.required ? 'required' : ''}
-                            class="w-full bg-white border-2 border-gray-300 rounded-lg px-4 py-2 focus:border-anthropic-600 outline-none transition">
+                            class="w-full bg-white dark:bg-gray-800 dark:text-white border-2 border-gray-300 dark:border-gray-600 rounded-lg px-4 py-2 focus:border-anthropic-600 outline-none transition">
                             ${param.options.map(opt => `<option value="${opt.value}" ${opt.value === param.default ? 'selected' : ''}>${opt.label}</option>`).join('')}
                         </select>
                     `;
@@ -1884,19 +2075,19 @@
                     inputHtml = `
                         <input type="number" id="param-${param.name}" value="${param.default || ''}"
                             placeholder="${param.placeholder || ''}" ${param.required ? 'required' : ''}
-                            class="w-full bg-white border-2 border-gray-300 rounded-lg px-4 py-2 focus:border-anthropic-600 outline-none transition">
+                            class="w-full bg-white dark:bg-gray-800 dark:text-white border-2 border-gray-300 dark:border-gray-600 rounded-lg px-4 py-2 focus:border-anthropic-600 outline-none transition">
                     `;
                 } else {
                     inputHtml = `
                         <input type="text" id="param-${param.name}" value="${param.default || ''}"
                             placeholder="${param.placeholder || ''}" ${param.required ? 'required' : ''}
-                            class="w-full bg-white border-2 border-gray-300 rounded-lg px-4 py-2 focus:border-anthropic-600 outline-none transition">
+                            class="w-full bg-white dark:bg-gray-800 dark:text-white border-2 border-gray-300 dark:border-gray-600 rounded-lg px-4 py-2 focus:border-anthropic-600 outline-none transition">
                     `;
                 }
 
                 return `
                     <div>
-                        <label class="block text-sm font-medium mb-2">${param.label}</label>
+                        <label class="block text-sm font-medium mb-2 dark:text-gray-200">${param.label}</label>
                         ${inputHtml}
                         ${param.description ? `<p class="text-xs text-gray-500 mt-1">${param.description}</p>` : ''}
                     </div>
@@ -2423,8 +2614,8 @@
                     <div class="flex items-center space-x-4">
                         <div class="flex-1">
                             <div class="flex items-center justify-between mb-1">
-                                <span class="text-sm font-medium">${key.name}</span>
-                                <span class="text-sm text-gray-600">${formatNumber(key.total_requests || 0)} requests</span>
+                                <span class="text-sm font-medium dark:text-gray-200">${key.name}</span>
+                                <span class="text-sm text-gray-600 dark:text-gray-400">${formatNumber(key.total_requests || 0)} requests</span>
                             </div>
                             <div class="w-full bg-gray-200 rounded-full h-2">
                                 <div class="bg-anthropic-600 h-2 rounded-full transition-all" style="width: ${percentage}%"></div>
@@ -2457,7 +2648,7 @@
                         <div class="flex-1">
                             <div class="flex items-center justify-between mb-1">
                                 <span class="text-sm font-medium font-mono">${deploymentId}</span>
-                                <span class="text-sm text-gray-600">${formatNumber(count)} requests</span>
+                                <span class="text-sm text-gray-600 dark:text-gray-400">${formatNumber(count)} requests</span>
                             </div>
                             <div class="w-full bg-gray-200 rounded-full h-2">
                                 <div class="bg-green-500 h-2 rounded-full transition-all" style="width: ${percentage}%"></div>
@@ -2573,7 +2764,7 @@
             const statusText = webhook.active ? 'Active' : 'Inactive';
 
             return `
-                <div class="bg-gray-50 rounded-lg p-4">
+                <div class="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-4">
                     <div class="flex items-center justify-between mb-3">
                         <div class="flex items-center space-x-3">
                             <div class="w-2 h-2 ${statusClass} rounded-full"></div>
@@ -3042,7 +3233,7 @@
             </div>
 
             <!-- Footer -->
-            <div class="p-6 border-t border-gray-200 flex justify-end space-x-3">
+            <div class="p-6 border-t border-gray-200 dark:border-gray-700 flex justify-end space-x-3">
                 <button onclick="copyLogs()" class="px-4 py-2 bg-white border-2 border-gray-300 hover:bg-gray-50 rounded-lg text-sm font-medium">
                     Copy Logs
                 </button>
@@ -3077,13 +3268,13 @@
             <!-- Form -->
             <form id="webhook-form" onsubmit="createWebhook(event)" class="flex-1 overflow-auto p-6 space-y-4">
                 <div>
-                    <label class="block text-sm font-medium mb-2">Webhook Name (Optional)</label>
-                    <input id="webhook-name" type="text" class="w-full bg-white border-2 border-gray-300 rounded-lg px-4 py-2 focus:border-anthropic-600 focus:ring-2 focus:ring-anthropic-600 focus:ring-opacity-50 outline-none transition" placeholder="My Webhook">
+                    <label class="block text-sm font-medium mb-2 dark:text-gray-200">Webhook Name (Optional)</label>
+                    <input id="webhook-name" type="text" class="w-full bg-white dark:bg-gray-800 dark:text-white border-2 border-gray-300 dark:border-gray-600 rounded-lg px-4 py-2 focus:border-anthropic-600 focus:ring-2 focus:ring-anthropic-600 focus:ring-opacity-50 outline-none transition" placeholder="My Webhook">
                 </div>
 
                 <div>
-                    <label class="block text-sm font-medium mb-2">Webhook URL</label>
-                    <input id="webhook-url" type="url" class="w-full bg-white border-2 border-gray-300 rounded-lg px-4 py-2 focus:border-anthropic-600 focus:ring-2 focus:ring-anthropic-600 focus:ring-opacity-50 outline-none transition" placeholder="https://your-server.com/webhook" required>
+                    <label class="block text-sm font-medium mb-2 dark:text-gray-200">Webhook URL</label>
+                    <input id="webhook-url" type="url" class="w-full bg-white dark:bg-gray-800 dark:text-white border-2 border-gray-300 dark:border-gray-600 rounded-lg px-4 py-2 focus:border-anthropic-600 focus:ring-2 focus:ring-anthropic-600 focus:ring-opacity-50 outline-none transition" placeholder="https://your-server.com/webhook" required>
                     <p class="text-xs text-gray-600 mt-1">We'll send a POST request to this URL when events occur</p>
                 </div>
 
@@ -3093,36 +3284,36 @@
                         <label class="flex items-center space-x-3 cursor-pointer">
                             <input type="checkbox" name="webhook-events" value="deployment.started" class="w-4 h-4 text-anthropic-600 bg-white border-gray-300 rounded focus:ring-anthropic-600">
                             <div>
-                                <p class="text-sm font-medium">deployment.started</p>
-                                <p class="text-xs text-gray-600">When a new deployment starts</p>
+                                <p class="text-sm font-medium dark:text-gray-200">deployment.started</p>
+                                <p class="text-xs text-gray-600 dark:text-gray-400">When a new deployment starts</p>
                             </div>
                         </label>
                         <label class="flex items-center space-x-3 cursor-pointer">
                             <input type="checkbox" name="webhook-events" value="deployment.stopped" class="w-4 h-4 text-anthropic-600 bg-white border-gray-300 rounded focus:ring-anthropic-600">
                             <div>
-                                <p class="text-sm font-medium">deployment.stopped</p>
-                                <p class="text-xs text-gray-600">When a deployment stops</p>
+                                <p class="text-sm font-medium dark:text-gray-200">deployment.stopped</p>
+                                <p class="text-xs text-gray-600 dark:text-gray-400">When a deployment stops</p>
                             </div>
                         </label>
                         <label class="flex items-center space-x-3 cursor-pointer">
                             <input type="checkbox" name="webhook-events" value="deployment.failed" class="w-4 h-4 text-anthropic-600 bg-white border-gray-300 rounded focus:ring-anthropic-600">
                             <div>
-                                <p class="text-sm font-medium">deployment.failed</p>
-                                <p class="text-xs text-gray-600">When a deployment fails</p>
+                                <p class="text-sm font-medium dark:text-gray-200">deployment.failed</p>
+                                <p class="text-xs text-gray-600 dark:text-gray-400">When a deployment fails</p>
                             </div>
                         </label>
                         <label class="flex items-center space-x-3 cursor-pointer">
                             <input type="checkbox" name="webhook-events" value="api.request" class="w-4 h-4 text-anthropic-600 bg-white border-gray-300 rounded focus:ring-anthropic-600">
                             <div>
-                                <p class="text-sm font-medium">api.request</p>
-                                <p class="text-xs text-gray-600">When an API request is made (high volume)</p>
+                                <p class="text-sm font-medium dark:text-gray-200">api.request</p>
+                                <p class="text-xs text-gray-600 dark:text-gray-400">When an API request is made (high volume)</p>
                             </div>
                         </label>
                         <label class="flex items-center space-x-3 cursor-pointer">
                             <input type="checkbox" name="webhook-events" value="usage.threshold" class="w-4 h-4 text-anthropic-600 bg-white border-gray-300 rounded focus:ring-anthropic-600">
                             <div>
-                                <p class="text-sm font-medium">usage.threshold</p>
-                                <p class="text-xs text-gray-600">When usage approaches limits</p>
+                                <p class="text-sm font-medium dark:text-gray-200">usage.threshold</p>
+                                <p class="text-xs text-gray-600 dark:text-gray-400">When usage approaches limits</p>
                             </div>
                         </label>
                     </div>
@@ -3130,7 +3321,7 @@
             </form>
 
             <!-- Footer -->
-            <div class="p-6 border-t border-gray-200 flex justify-end space-x-3">
+            <div class="p-6 border-t border-gray-200 dark:border-gray-700 flex justify-end space-x-3">
                 <button type="button" onclick="closeWebhookModal()" class="px-4 py-2 bg-white border-2 border-gray-300 hover:bg-gray-50 rounded-lg text-sm font-medium">
                     Cancel
                 </button>
@@ -3161,14 +3352,14 @@
             <!-- Form -->
             <form id="api-key-form" onsubmit="createAPIKey(event)" class="flex-1 overflow-auto p-6 space-y-4">
                 <div>
-                    <label class="block text-sm font-medium mb-2">Key Name <span class="text-red-500">*</span></label>
-                    <input id="new-key-name" type="text" class="w-full bg-white border-2 border-gray-300 rounded-lg px-4 py-2 focus:border-anthropic-600 focus:ring-2 focus:ring-anthropic-600 focus:ring-opacity-50 outline-none transition" placeholder="e.g., Production Key, Mobile App" required>
+                    <label class="block text-sm font-medium mb-2 dark:text-gray-200">Key Name <span class="text-red-500">*</span></label>
+                    <input id="new-key-name" type="text" class="w-full bg-white dark:bg-gray-800 dark:text-white border-2 border-gray-300 dark:border-gray-600 rounded-lg px-4 py-2 focus:border-anthropic-600 focus:ring-2 focus:ring-anthropic-600 focus:ring-opacity-50 outline-none transition" placeholder="e.g., Production Key, Mobile App" required>
                     <p class="text-xs text-gray-600 mt-1">A descriptive name to identify this key</p>
                 </div>
 
                 <div>
-                    <label class="block text-sm font-medium mb-2">Description (Optional)</label>
-                    <textarea id="new-key-description" rows="2" class="w-full bg-white border-2 border-gray-300 rounded-lg px-4 py-2 focus:border-anthropic-600 focus:ring-2 focus:ring-anthropic-600 focus:ring-opacity-50 outline-none transition resize-none" placeholder="What will this key be used for?"></textarea>
+                    <label class="block text-sm font-medium mb-2 dark:text-gray-200">Description (Optional)</label>
+                    <textarea id="new-key-description" rows="2" class="w-full bg-white dark:bg-gray-800 dark:text-white border-2 border-gray-300 dark:border-gray-600 rounded-lg px-4 py-2 focus:border-anthropic-600 focus:ring-2 focus:ring-anthropic-600 focus:ring-opacity-50 outline-none transition resize-none" placeholder="What will this key be used for?"></textarea>
                 </div>
 
                 <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
@@ -3179,7 +3370,7 @@
             </form>
 
             <!-- Footer -->
-            <div class="p-6 border-t border-gray-200 flex justify-end space-x-3">
+            <div class="p-6 border-t border-gray-200 dark:border-gray-700 flex justify-end space-x-3">
                 <button type="button" onclick="closeAPIKeyModal()" class="px-4 py-2 bg-white border-2 border-gray-300 hover:bg-gray-50 rounded-lg text-sm font-medium">
                     Cancel
                 </button>
@@ -3222,7 +3413,7 @@
                     <div class="bg-white rounded-xl p-6 border border-gray-200">
                         <div class="flex items-center justify-between mb-4">
                             <h4 class="text-sm font-medium text-gray-700">CPU Usage</h4>
-                            <span id="metric-cpu" class="text-2xl font-bold text-gray-900">--%</span>
+                            <span id="metric-cpu" class="text-2xl font-bold text-gray-900 dark:text-white">--%</span>
                         </div>
                         <div class="w-full bg-gray-200 rounded-full h-3">
                             <div id="cpu-bar" class="bg-blue-500 h-3 rounded-full transition-all" style="width: 0%"></div>
@@ -3233,7 +3424,7 @@
                     <div class="bg-white rounded-xl p-6 border border-gray-200">
                         <div class="flex items-center justify-between mb-4">
                             <h4 class="text-sm font-medium text-gray-700">Memory Usage</h4>
-                            <span id="metric-memory" class="text-2xl font-bold text-gray-900">--%</span>
+                            <span id="metric-memory" class="text-2xl font-bold text-gray-900 dark:text-white">--%</span>
                         </div>
                         <div class="w-full bg-gray-200 rounded-full h-3">
                             <div id="memory-bar" class="bg-green-500 h-3 rounded-full transition-all" style="width: 0%"></div>
@@ -3244,7 +3435,7 @@
                     <div class="bg-white rounded-xl p-6 border border-gray-200">
                         <div class="flex items-center justify-between mb-4">
                             <h4 class="text-sm font-medium text-gray-700">GPU Utilization</h4>
-                            <span id="metric-gpu-util" class="text-2xl font-bold text-gray-900">--%</span>
+                            <span id="metric-gpu-util" class="text-2xl font-bold text-gray-900 dark:text-white">--%</span>
                         </div>
                         <div class="w-full bg-gray-200 rounded-full h-3">
                             <div id="gpu-bar" class="bg-anthropic-500 h-3 rounded-full transition-all" style="width: 0%"></div>
@@ -3310,7 +3501,7 @@
             </div>
 
             <!-- Footer -->
-            <div class="p-6 border-t border-gray-200 flex justify-between items-center">
+            <div class="p-6 border-t border-gray-200 dark:border-gray-700 flex justify-between items-center">
                 <p class="text-sm text-gray-500">Metrics refresh automatically every 5 seconds</p>
                 <button onclick="closeMetricsModal()" class="px-4 py-2 bg-anthropic-600 hover:bg-anthropic-700 text-white rounded-lg text-sm font-medium">
                     Close
