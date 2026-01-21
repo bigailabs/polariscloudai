@@ -80,6 +80,7 @@ class TemplateCategory(str, Enum):
     DEVELOPMENT = "development"
     INFRASTRUCTURE = "infrastructure"
     DESKTOP = "desktop"
+    GAMES = "games"
 
 
 class TemplateParameter(BaseModel):
@@ -113,51 +114,53 @@ class TemplateConfig(BaseModel):
 TEMPLATE_REGISTRY: Dict[str, TemplateConfig] = {
     "ollama": TemplateConfig(
         id="ollama",
-        name="Ollama LLM",
-        description="Deploy large language models with a FastAPI interface. Supports GPU acceleration for fast inference.",
+        name="Ollama Chat",
+        description="ChatGPT-like interface for open-source LLMs. Beautiful UI with Open WebUI, powered by Ollama.",
         category=TemplateCategory.AI_ML,
         icon="🦙",
-        script_path="ollama-template/deploy_ollama_gpu.sh",
-        predeployment_required=True,
+        script_path="ollama-template/deploy_ollama.sh",
+        predeployment_required=False,
         parameters=[
             TemplateParameter(
                 name="model",
                 label="Model",
                 type="select",
                 required=True,
-                default="llama2",
+                default="llama3.2",
                 options=[
-                    {"value": "llama2", "label": "Llama 2 (7B)"},
-                    {"value": "llama2:13b", "label": "Llama 2 (13B)"},
-                    {"value": "llama2:70b", "label": "Llama 2 (70B)"},
-                    {"value": "codellama", "label": "Code Llama"},
+                    {"value": "llama3.2", "label": "Llama 3.2 (3B) - Fast"},
+                    {"value": "llama3.2:1b", "label": "Llama 3.2 (1B) - Fastest"},
+                    {"value": "llama3.1", "label": "Llama 3.1 (8B)"},
+                    {"value": "llama3.1:70b", "label": "Llama 3.1 (70B) - Best"},
                     {"value": "mistral", "label": "Mistral (7B)"},
                     {"value": "mixtral", "label": "Mixtral 8x7B"},
-                    {"value": "phi", "label": "Phi-2"},
-                    {"value": "neural-chat", "label": "Neural Chat"},
-                    {"value": "starling-lm", "label": "Starling LM"},
+                    {"value": "codellama", "label": "Code Llama"},
+                    {"value": "deepseek-coder", "label": "DeepSeek Coder"},
+                    {"value": "phi3", "label": "Phi-3"},
+                    {"value": "gemma2", "label": "Gemma 2"},
+                    {"value": "qwen2.5", "label": "Qwen 2.5"},
                 ],
                 description="Choose the LLM to deploy"
             ),
             TemplateParameter(
                 name="port",
-                label="API Port",
+                label="Web UI Port",
                 type="number",
                 required=True,
-                default=8000,
-                placeholder="8000",
-                description="Port for the FastAPI endpoint"
+                default=3000,
+                placeholder="3000",
+                description="Port for the chat interface"
             ),
         ],
-        default_port=8000,
-        estimated_deploy_time="5-10 minutes",
-        access_type="api",
+        default_port=3000,
+        estimated_deploy_time="3-5 minutes",
+        access_type="web",
         features=[
-            "OpenAI-compatible API",
+            "ChatGPT-like interface",
             "GPU acceleration",
-            "Model hot-swapping",
-            "Streaming responses",
-            "Chat completions",
+            "Multiple models",
+            "Conversation history",
+            "OpenAI-compatible API",
         ],
         color="purple"
     ),
@@ -266,46 +269,236 @@ TEMPLATE_REGISTRY: Dict[str, TemplateConfig] = {
     ),
     "transformer-labs": TemplateConfig(
         id="transformer-labs",
-        name="Transformer Labs",
-        description="Fine-tune and deploy transformer models with a visual interface. Supports training, evaluation, and inference.",
+        name="Transformer Lab",
+        description="Fine-tune LLMs with a visual interface. Train, evaluate, and deploy models - all from your browser.",
         category=TemplateCategory.AI_ML,
         icon="🤖",
-        script_path="transformer-lab/deploy_transformer_labs.sh",
-        predeployment_required=True,
+        script_path="transformer-lab/deploy_transformer_lab.sh",
+        predeployment_required=False,
         parameters=[
             TemplateParameter(
                 name="port",
-                label="API Port",
+                label="Web UI Port",
                 type="number",
                 required=True,
-                default=8000,
-                placeholder="8000",
+                default=8338,
+                placeholder="8338",
                 description="Port for the web interface"
             ),
-            TemplateParameter(
-                name="image_type",
-                label="Image Type",
-                type="select",
-                required=True,
-                default="labs",
-                options=[
-                    {"value": "labs", "label": "Labs (Full UI)"},
-                    {"value": "api", "label": "API Only"},
-                ],
-                description="Choose between full UI or API-only deployment"
-            ),
         ],
-        default_port=8000,
-        estimated_deploy_time="5-8 minutes",
+        default_port=8338,
+        estimated_deploy_time="2-3 minutes",
         access_type="web",
         features=[
-            "Visual model training",
-            "Fine-tuning interface",
+            "Visual model fine-tuning",
+            "LoRA/QLoRA training",
             "Model evaluation",
-            "Inference API",
+            "One-click inference",
             "Experiment tracking",
         ],
         color="blue"
+    ),
+    "minecraft": TemplateConfig(
+        id="minecraft",
+        name="Minecraft Server",
+        description="Host your own Minecraft server. Supports Paper, Fabric, Forge, Spigot, and Vanilla.",
+        category=TemplateCategory.GAMES,
+        icon="⛏️",
+        script_path="minecraft/deploy_minecraft.sh",
+        predeployment_required=False,
+        parameters=[
+            TemplateParameter(
+                name="port",
+                label="Server Port",
+                type="number",
+                required=True,
+                default=25565,
+                placeholder="25565",
+                description="Port for Minecraft connections"
+            ),
+            TemplateParameter(
+                name="server_type",
+                label="Server Type",
+                type="select",
+                required=True,
+                default="PAPER",
+                options=[
+                    {"value": "PAPER", "label": "Paper (Recommended)"},
+                    {"value": "VANILLA", "label": "Vanilla"},
+                    {"value": "FABRIC", "label": "Fabric"},
+                    {"value": "FORGE", "label": "Forge"},
+                    {"value": "SPIGOT", "label": "Spigot"},
+                ],
+                description="Server software type"
+            ),
+            TemplateParameter(
+                name="memory",
+                label="Memory",
+                type="select",
+                required=True,
+                default="4G",
+                options=[
+                    {"value": "2G", "label": "2 GB"},
+                    {"value": "4G", "label": "4 GB (Recommended)"},
+                    {"value": "8G", "label": "8 GB"},
+                    {"value": "16G", "label": "16 GB"},
+                ],
+                description="Server memory allocation"
+            ),
+        ],
+        default_port=25565,
+        estimated_deploy_time="2-4 minutes",
+        access_type="game",
+        features=[
+            "Paper/Fabric/Forge/Spigot support",
+            "Auto-updates available",
+            "RCON enabled",
+            "Persistent world data",
+            "Plugin support (Paper/Spigot)",
+        ],
+        color="green"
+    ),
+    "valheim": TemplateConfig(
+        id="valheim",
+        name="Valheim Server",
+        description="Viking survival multiplayer server. Explore, build, and conquer with friends.",
+        category=TemplateCategory.GAMES,
+        icon="⚔️",
+        script_path="valheim/deploy_valheim.sh",
+        predeployment_required=False,
+        parameters=[
+            TemplateParameter(
+                name="port",
+                label="Game Port",
+                type="number",
+                required=True,
+                default=2456,
+                placeholder="2456",
+                description="UDP port for game connections (uses 3 consecutive ports)"
+            ),
+            TemplateParameter(
+                name="server_name",
+                label="Server Name",
+                type="text",
+                required=True,
+                default="Valheim Server",
+                placeholder="My Valheim Server",
+                description="Name shown in server browser"
+            ),
+            TemplateParameter(
+                name="password",
+                label="Server Password",
+                type="text",
+                required=True,
+                default="valheim123",
+                placeholder="valheim123",
+                description="Password to join (min 5 characters)"
+            ),
+        ],
+        default_port=2456,
+        estimated_deploy_time="3-5 minutes",
+        access_type="game",
+        features=[
+            "Auto-updates enabled",
+            "Automatic backups every 2 hours",
+            "Persistent world data",
+            "Password protected",
+            "Graceful shutdown (saves world)",
+        ],
+        color="orange"
+    ),
+    "terraria": TemplateConfig(
+        id="terraria",
+        name="Terraria Server",
+        description="2D sandbox adventure server. Dig, fight, explore, and build with friends.",
+        category=TemplateCategory.GAMES,
+        icon="🌳",
+        script_path="terraria/deploy_terraria.sh",
+        predeployment_required=False,
+        parameters=[
+            TemplateParameter(
+                name="port",
+                label="Game Port",
+                type="number",
+                required=True,
+                default=7777,
+                placeholder="7777",
+                description="Port for game connections"
+            ),
+            TemplateParameter(
+                name="world_name",
+                label="World Name",
+                type="text",
+                required=True,
+                default="BigAI",
+                placeholder="MyWorld",
+                description="Name of the world"
+            ),
+            TemplateParameter(
+                name="world_size",
+                label="World Size",
+                type="select",
+                required=True,
+                default="medium",
+                options=[
+                    {"value": "small", "label": "Small"},
+                    {"value": "medium", "label": "Medium (Recommended)"},
+                    {"value": "large", "label": "Large"},
+                ],
+                description="Size of the generated world"
+            ),
+        ],
+        default_port=7777,
+        estimated_deploy_time="1-2 minutes",
+        access_type="game",
+        features=[
+            "Auto-generated world",
+            "Up to 8 players",
+            "Persistent world data",
+            "Lightweight server",
+            "Journey/Classic/Expert/Master modes",
+        ],
+        color="green"
+    ),
+    "factorio": TemplateConfig(
+        id="factorio",
+        name="Factorio Server",
+        description="Factory building multiplayer server. Automate, optimize, and expand your industrial empire.",
+        category=TemplateCategory.GAMES,
+        icon="🏭",
+        script_path="factorio/deploy_factorio.sh",
+        predeployment_required=False,
+        parameters=[
+            TemplateParameter(
+                name="port",
+                label="Game Port",
+                type="number",
+                required=True,
+                default=34197,
+                placeholder="34197",
+                description="UDP port for game connections"
+            ),
+            TemplateParameter(
+                name="server_name",
+                label="Server Name",
+                type="text",
+                required=True,
+                default="Factorio Server",
+                placeholder="My Factory",
+                description="Name of the server"
+            ),
+        ],
+        default_port=34197,
+        estimated_deploy_time="2-3 minutes",
+        access_type="game",
+        features=[
+            "Auto-save every 10 minutes",
+            "LAN discovery enabled",
+            "Persistent factory data",
+            "Mod support available",
+            "Admin commands available",
+        ],
+        color="orange"
     ),
 }
 
@@ -401,8 +594,8 @@ async def get_container_access_info(template_id: str, container_name: str, host:
             access_info["instructions"] = "No authentication required"
 
         elif template_id == "ollama":
-            # Ollama API endpoint
-            access_info["instructions"] = "API endpoint ready. Use /api/generate for completions."
+            # Ollama with Open WebUI
+            access_info["instructions"] = "Create a local account on first visit (no email needed), then start chatting!"
 
         elif template_id == "transformer-labs":
             access_info["instructions"] = "Web UI ready. No authentication required."
@@ -432,8 +625,8 @@ async def run_deployment_script(deployment_id: str, template: TemplateConfig, re
                 "bash", script_path,
                 "-h", host,
                 "-u", ssh_user,
-                "-m", request.parameters.get("model", "llama2"),
-                "-p", str(request.parameters.get("port", 8000))
+                "-m", request.parameters.get("model", "llama3.2"),
+                "-p", str(request.parameters.get("port", 3000))
             ]
         elif template.id == "jupyter":
             script_path = os.path.join(templates_dir, template.script_path)
@@ -468,8 +661,46 @@ async def run_deployment_script(deployment_id: str, template: TemplateConfig, re
                 "bash", script_path,
                 "-h", host,
                 "-u", ssh_user,
-                "-p", str(request.parameters.get("port", 8000)),
-                "-t", request.parameters.get("image_type", "labs")
+                "-p", str(request.parameters.get("port", 8338))
+            ]
+        elif template.id == "minecraft":
+            script_path = os.path.join(templates_dir, template.script_path)
+            cmd = [
+                "bash", script_path,
+                "-h", host,
+                "-u", ssh_user,
+                "-p", str(request.parameters.get("port", 25565)),
+                "-t", request.parameters.get("server_type", "PAPER"),
+                "-m", request.parameters.get("memory", "4G")
+            ]
+        elif template.id == "valheim":
+            script_path = os.path.join(templates_dir, template.script_path)
+            cmd = [
+                "bash", script_path,
+                "-h", host,
+                "-u", ssh_user,
+                "-p", str(request.parameters.get("port", 2456)),
+                "-n", request.parameters.get("server_name", "Valheim Server"),
+                "-w", request.parameters.get("password", "valheim123")
+            ]
+        elif template.id == "terraria":
+            script_path = os.path.join(templates_dir, template.script_path)
+            cmd = [
+                "bash", script_path,
+                "-h", host,
+                "-u", ssh_user,
+                "-p", str(request.parameters.get("port", 7777)),
+                "-w", request.parameters.get("world_name", "BigAI"),
+                "-s", request.parameters.get("world_size", "medium")
+            ]
+        elif template.id == "factorio":
+            script_path = os.path.join(templates_dir, template.script_path)
+            cmd = [
+                "bash", script_path,
+                "-h", host,
+                "-u", ssh_user,
+                "-p", str(request.parameters.get("port", 34197)),
+                "-n", request.parameters.get("server_name", "Factorio Server")
             ]
         else:
             raise ValueError(f"Unknown template: {template.id}")
@@ -543,9 +774,17 @@ async def run_deployment_script(deployment_id: str, template: TemplateConfig, re
             elif template.id == "ubuntu-desktop":
                 container_name = "cloud-computer"
             elif template.id == "ollama":
-                container_name = "ollama"
+                container_name = "open-webui"
             elif template.id == "transformer-labs":
                 container_name = "transformerlab"
+            elif template.id == "minecraft":
+                container_name = "minecraft-server"
+            elif template.id == "valheim":
+                container_name = "valheim-server"
+            elif template.id == "terraria":
+                container_name = "terraria-server"
+            elif template.id == "factorio":
+                container_name = "factorio-server"
 
             # Fetch access credentials
             port = request.parameters.get("port", template.default_port)
@@ -704,7 +943,7 @@ echo "Password: voiceflow"
 
     elif template.id == "transformer-labs":
         port = parameters.get("port", 8000)
-        image_type = parameters.get("image_type", "labs")
+        image_type = parameters.get("image_type", "api")
         if image_type == "api":
             image = "transformerlab/api:latest"
             internal_port = 8338
@@ -1205,7 +1444,7 @@ async def sync_deployment_statuses():
             "jupyter": "jupyter-notebook",
             "ubuntu-desktop": "cloud-computer",
             "ollama": "ollama",
-            "transformer-labs": "transformerlab",
+            "transformer-labs": "transformerlab-api",
         }
 
         # Update each deployment's status
@@ -1256,7 +1495,7 @@ async def delete_template_deployment(deployment_id: str, cleanup: bool = True):
                 "jupyter": "jupyter-notebook",
                 "ubuntu-desktop": "cloud-computer",
                 "ollama": "ollama",
-                "transformer-labs": "transformerlab",
+                "transformer-labs": "transformerlab-api",
                 "dev-terminal": deployment.get("parameters", {}).get("container_name", "dev-terminal")
             }
             container_name = container_names.get(template_id, container_name)
