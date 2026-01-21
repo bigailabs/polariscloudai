@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="light">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,6 +7,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
+            darkMode: 'class',
             theme: {
                 extend: {
                     colors: {
@@ -34,6 +35,11 @@
             font-family: 'Inter', sans-serif;
         }
 
+        /* Dark mode base */
+        .dark body {
+            background-color: #0f0f0f;
+        }
+
         .gradient-bg {
             background: linear-gradient(135deg, #f06820 0%, #e14d16 100%);
         }
@@ -46,6 +52,10 @@
         .card:hover {
             transform: translateY(-2px);
             box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+        }
+
+        .dark .card:hover {
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
         }
 
         .status-dot {
@@ -76,9 +86,17 @@
             background: #f9fafb;
         }
 
+        .dark ::-webkit-scrollbar-track {
+            background: #1a1a1a;
+        }
+
         ::-webkit-scrollbar-thumb {
             background: #d1d5db;
             border-radius: 4px;
+        }
+
+        .dark ::-webkit-scrollbar-thumb {
+            background: #404040;
         }
 
         ::-webkit-scrollbar-thumb:hover {
@@ -137,9 +155,9 @@
         }
     </style>
 </head>
-<body class="bg-gray-50 text-gray-900">
+<body class="bg-gray-50 dark:bg-[#0f0f0f] text-gray-900 dark:text-gray-100 transition-colors duration-200">
     <!-- Navigation -->
-    <nav class="bg-white border-b border-gray-200 sticky top-0 z-50 backdrop-blur-sm bg-opacity-80">
+    <nav class="bg-white dark:bg-[#1a1a1a] border-b border-gray-200 dark:border-gray-800 sticky top-0 z-50 backdrop-blur-sm bg-opacity-80 dark:bg-opacity-80">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex justify-between items-center h-16">
                 <!-- Logo -->
@@ -148,30 +166,36 @@
                         <span class="text-xl">💻</span>
                     </div>
                     <div>
-                        <h1 class="text-lg font-bold text-gray-900">
+                        <h1 class="text-lg font-bold text-gray-900 dark:text-white">
                             Computer
                         </h1>
-                        <p class="text-xs text-gray-600">Cloud Console</p>
+                        <p class="text-xs text-gray-600 dark:text-gray-400">Cloud Console</p>
                     </div>
                 </div>
 
                 <!-- Navigation Links -->
                 <div class="hidden md:flex items-center space-x-8">
-                    <a href="#" onclick="switchTab('applications'); return false;" class="text-gray-700 hover:text-gray-900 transition text-sm font-medium">Home</a>
-                    <a href="#" class="text-gray-700 hover:text-gray-900 transition text-sm font-medium">Pricing</a>
-                    <a href="#" class="text-gray-700 hover:text-gray-900 transition text-sm font-medium">Documentation</a>
-                    <a href="#" class="text-gray-700 hover:text-gray-900 transition text-sm font-medium">Support</a>
+                    <a href="#" onclick="switchTab('applications'); return false;" class="text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition text-sm font-medium">Home</a>
+                    <a href="#" class="text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition text-sm font-medium">Pricing</a>
+                    <a href="#" class="text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition text-sm font-medium">Documentation</a>
+                    <a href="#" class="text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition text-sm font-medium">Support</a>
                 </div>
 
                 <!-- User Menu -->
                 <div class="flex items-center space-x-4">
+                    <!-- Dark Mode Toggle -->
+                    <button onclick="toggleDarkMode()" class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition" title="Toggle dark mode">
+                        <svg id="dark-mode-icon" class="w-5 h-5 text-gray-600 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path>
+                        </svg>
+                    </button>
                     <!-- Notifications -->
-                    <button class="p-2 rounded-lg hover:bg-gray-100 transition">
-                        <svg class="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <button class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition">
+                        <svg class="w-5 h-5 text-gray-600 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path>
                         </svg>
                     </button>
-                    <div class="flex items-center space-x-2 px-3 py-2 bg-gray-100 rounded-lg">
+                    <div class="flex items-center space-x-2 px-3 py-2 bg-gray-100 dark:bg-gray-800 rounded-lg">
                         <div class="w-8 h-8 bg-gradient-to-br from-anthropic-500 to-anthropic-600 rounded-full flex items-center justify-center text-sm font-bold text-white">
                             D
                         </div>
@@ -185,21 +209,21 @@
     <!-- Main Content -->
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         <!-- Tabs -->
-        <div class="border-b border-gray-200 mb-6">
+        <div class="border-b border-gray-200 dark:border-gray-700 mb-6">
             <nav class="flex space-x-8">
                 <button onclick="switchTab('applications')" id="tab-applications" class="tab-active pb-4 px-1 text-sm font-medium transition">
                     Applications
                 </button>
-                <button onclick="switchTab('deploy')" id="tab-deploy" class="pb-4 px-1 text-sm font-medium text-gray-600 hover:text-gray-900 transition">
+                <button onclick="switchTab('deploy')" id="tab-deploy" class="pb-4 px-1 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition">
                     Models
                 </button>
-                <button onclick="switchTab('deployments')" id="tab-deployments" class="pb-4 px-1 text-sm font-medium text-gray-600 hover:text-gray-900 transition">
+                <button onclick="switchTab('deployments')" id="tab-deployments" class="pb-4 px-1 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition">
                     Deployments
                 </button>
-                <button onclick="switchTab('analytics')" id="tab-analytics" class="pb-4 px-1 text-sm font-medium text-gray-600 hover:text-gray-900 transition">
+                <button onclick="switchTab('analytics')" id="tab-analytics" class="pb-4 px-1 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition">
                     Analytics
                 </button>
-                <button onclick="switchTab('settings')" id="tab-settings" class="pb-4 px-1 text-sm font-medium text-gray-600 hover:text-gray-900 transition">
+                <button onclick="switchTab('settings')" id="tab-settings" class="pb-4 px-1 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition">
                     Settings
                 </button>
             </nav>
@@ -212,7 +236,7 @@
                 <div class="flex items-center justify-between">
                     <div>
                         <h3 class="text-2xl font-bold mb-1">Active Deployments</h3>
-                        <p class="text-gray-600">Your running applications and services</p>
+                        <p class="text-gray-600 dark:text-gray-400">Your running applications and services</p>
                     </div>
                     <div class="flex items-center space-x-3">
                         <button onclick="syncDeploymentStatuses()" class="px-4 py-2 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 rounded-lg text-sm font-medium transition flex items-center space-x-2">
@@ -239,23 +263,23 @@
             <div id="applications-step-1" class="space-y-6">
                 <div>
                     <h3 class="text-2xl font-bold mb-2">Your Computer in the Cloud</h3>
-                    <p class="text-gray-600 mb-4">Deploy apps privately from our growing library</p>
+                    <p class="text-gray-600 dark:text-gray-400 mb-4">Deploy apps privately from our growing library</p>
 
                     <!-- Category Pills -->
                     <div id="category-pills" class="flex flex-wrap gap-2">
                         <button onclick="filterApplications('all')" data-category="all" class="category-pill active px-4 py-2 rounded-full text-sm font-medium transition-all bg-anthropic-600 text-white">
                             All
                         </button>
-                        <button onclick="filterApplications('ai_ml')" data-category="ai_ml" class="category-pill px-4 py-2 rounded-full text-sm font-medium transition-all bg-gray-100 text-gray-700 hover:bg-gray-200">
+                        <button onclick="filterApplications('ai_ml')" data-category="ai_ml" class="category-pill px-4 py-2 rounded-full text-sm font-medium transition-all bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700">
                             🤖 AI / ML
                         </button>
-                        <button onclick="filterApplications('games')" data-category="games" class="category-pill px-4 py-2 rounded-full text-sm font-medium transition-all bg-gray-100 text-gray-700 hover:bg-gray-200">
+                        <button onclick="filterApplications('games')" data-category="games" class="category-pill px-4 py-2 rounded-full text-sm font-medium transition-all bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700">
                             🎮 Games
                         </button>
-                        <button onclick="filterApplications('development')" data-category="development" class="category-pill px-4 py-2 rounded-full text-sm font-medium transition-all bg-gray-100 text-gray-700 hover:bg-gray-200">
+                        <button onclick="filterApplications('development')" data-category="development" class="category-pill px-4 py-2 rounded-full text-sm font-medium transition-all bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700">
                             💻 Development
                         </button>
-                        <button onclick="filterApplications('desktop')" data-category="desktop" class="category-pill px-4 py-2 rounded-full text-sm font-medium transition-all bg-gray-100 text-gray-700 hover:bg-gray-200">
+                        <button onclick="filterApplications('desktop')" data-category="desktop" class="category-pill px-4 py-2 rounded-full text-sm font-medium transition-all bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700">
                             🖥️ Desktop
                         </button>
                     </div>
@@ -263,7 +287,7 @@
 
                 <!-- Template Cards Grid -->
                 <div id="applications-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    <p class="text-gray-600 col-span-full">Loading applications...</p>
+                    <p class="text-gray-600 dark:text-gray-400 col-span-full">Loading applications...</p>
                 </div>
 
             </div>
@@ -1074,6 +1098,48 @@
         }
 
         // ============================================================================
+        // DARK MODE
+        // ============================================================================
+        function toggleDarkMode() {
+            const html = document.documentElement;
+            const isDark = html.classList.contains('dark');
+
+            if (isDark) {
+                html.classList.remove('dark');
+                localStorage.setItem('theme', 'light');
+                updateDarkModeIcon(false);
+            } else {
+                html.classList.add('dark');
+                localStorage.setItem('theme', 'dark');
+                updateDarkModeIcon(true);
+            }
+        }
+
+        function updateDarkModeIcon(isDark) {
+            const icon = document.getElementById('dark-mode-icon');
+            if (isDark) {
+                // Sun icon for dark mode (click to go light)
+                icon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path>';
+            } else {
+                // Moon icon for light mode (click to go dark)
+                icon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path>';
+            }
+        }
+
+        function initDarkMode() {
+            const savedTheme = localStorage.getItem('theme');
+            const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+
+            if (savedTheme === 'dark' || (!savedTheme && prefersDark)) {
+                document.documentElement.classList.add('dark');
+                updateDarkModeIcon(true);
+            }
+        }
+
+        // Initialize dark mode on load
+        initDarkMode();
+
+        // ============================================================================
         // TAB SWITCHING
         // ============================================================================
         function switchTab(tabName) {
@@ -1690,10 +1756,10 @@
             document.querySelectorAll('.category-pill').forEach(pill => {
                 if (pill.dataset.category === category) {
                     pill.classList.add('active', 'bg-anthropic-600', 'text-white');
-                    pill.classList.remove('bg-gray-100', 'text-gray-700', 'hover:bg-gray-200');
+                    pill.classList.remove('bg-gray-100', 'dark:bg-gray-800', 'text-gray-700', 'dark:text-gray-300', 'hover:bg-gray-200', 'dark:hover:bg-gray-700');
                 } else {
                     pill.classList.remove('active', 'bg-anthropic-600', 'text-white');
-                    pill.classList.add('bg-gray-100', 'text-gray-700', 'hover:bg-gray-200');
+                    pill.classList.add('bg-gray-100', 'dark:bg-gray-800', 'text-gray-700', 'dark:text-gray-300', 'hover:bg-gray-200', 'dark:hover:bg-gray-700');
                 }
             });
 
@@ -1727,31 +1793,31 @@
             };
 
             const bgColorClasses = {
-                purple: 'bg-purple-50',
-                orange: 'bg-orange-50',
-                green: 'bg-green-50',
-                amber: 'bg-amber-50',
-                blue: 'bg-blue-50',
+                purple: 'bg-purple-50 dark:bg-purple-900/30',
+                orange: 'bg-orange-50 dark:bg-orange-900/30',
+                green: 'bg-green-50 dark:bg-green-900/30',
+                amber: 'bg-amber-50 dark:bg-amber-900/30',
+                blue: 'bg-blue-50 dark:bg-blue-900/30',
             };
 
             const borderClass = colorClasses[template.color] || 'border-gray-300 hover:border-gray-400';
-            const bgClass = bgColorClasses[template.color] || 'bg-gray-50';
+            const bgClass = bgColorClasses[template.color] || 'bg-gray-50 dark:bg-gray-800';
 
             return `
-                <div onclick="selectTemplate('${template.id}')" class="card cursor-pointer bg-white border-2 ${borderClass} rounded-xl p-6 shadow-sm hover:shadow-md transition-all">
+                <div onclick="selectTemplate('${template.id}')" class="card cursor-pointer bg-white dark:bg-[#1a1a1a] border-2 ${borderClass} rounded-xl p-6 shadow-sm hover:shadow-md transition-all">
                     <div class="flex items-center justify-between mb-4">
                         <div class="w-12 h-12 ${bgClass} rounded-lg flex items-center justify-center">
                             <span class="text-2xl">${template.icon}</span>
                         </div>
-                        <span class="px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded-full">${template.category.replace('_', '/')}</span>
+                        <span class="px-2 py-1 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 text-xs rounded-full">${template.category.replace('_', '/')}</span>
                     </div>
-                    <h4 class="text-lg font-semibold mb-2">${template.name}</h4>
-                    <p class="text-sm text-gray-600 mb-4 line-clamp-2">${template.description}</p>
+                    <h4 class="text-lg font-semibold mb-2 dark:text-white">${template.name}</h4>
+                    <p class="text-sm text-gray-600 dark:text-gray-400 mb-4 line-clamp-2">${template.description}</p>
                     <div class="flex flex-wrap gap-1 mb-4">
-                        ${template.features.slice(0, 3).map(f => `<span class="px-2 py-0.5 bg-gray-100 text-gray-600 text-xs rounded">${f}</span>`).join('')}
-                        ${template.features.length > 3 ? `<span class="px-2 py-0.5 bg-gray-100 text-gray-500 text-xs rounded">+${template.features.length - 3} more</span>` : ''}
+                        ${template.features.slice(0, 3).map(f => `<span class="px-2 py-0.5 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 text-xs rounded">${f}</span>`).join('')}
+                        ${template.features.length > 3 ? `<span class="px-2 py-0.5 bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-500 text-xs rounded">+${template.features.length - 3} more</span>` : ''}
                     </div>
-                    <div class="flex items-center justify-between text-xs text-gray-500">
+                    <div class="flex items-center justify-between text-xs text-gray-500 dark:text-gray-500">
                         <span>⏱️ ${template.estimated_deploy_time}</span>
                         <span>Port: ${template.default_port}</span>
                     </div>
@@ -2118,35 +2184,35 @@
             // Build connection string based on access type
             let connectionInfo = '';
             if (deployment.access_type === 'game') {
-                connectionInfo = `<p class="font-mono text-sm text-gray-700">${deployment.host}:${deployment.port}</p>`;
+                connectionInfo = `<p class="font-mono text-sm text-gray-700 dark:text-gray-300">${deployment.host}:${deployment.port}</p>`;
             } else {
-                connectionInfo = `<p class="font-mono text-sm text-gray-700 truncate">${deployment.access_url}</p>`;
+                connectionInfo = `<p class="font-mono text-sm text-gray-700 dark:text-gray-300 truncate">${deployment.access_url}</p>`;
             }
 
             return `
-                <div class="card bg-white rounded-xl p-5 border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
+                <div class="card bg-white dark:bg-[#1a1a1a] rounded-xl p-5 border border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-md transition-shadow">
                     <!-- Header -->
                     <div class="flex items-center justify-between mb-3">
                         <div class="flex items-center space-x-3">
-                            <div class="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
+                            <div class="w-10 h-10 bg-gray-100 dark:bg-gray-800 rounded-lg flex items-center justify-center">
                                 <span class="text-xl">${deployment.icon || '📦'}</span>
                             </div>
                             <div>
-                                <h4 class="font-semibold text-gray-900">${deployment.template_name}</h4>
+                                <h4 class="font-semibold text-gray-900 dark:text-white">${deployment.template_name}</h4>
                                 <div class="flex items-center space-x-2">
                                     <div class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                                    <span class="text-xs text-green-600 font-medium">Running</span>
+                                    <span class="text-xs text-green-600 dark:text-green-400 font-medium">Running</span>
                                 </div>
                             </div>
                         </div>
                     </div>
 
                     <!-- Connection Info -->
-                    <div class="bg-gray-50 rounded-lg p-3 mb-3">
+                    <div class="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-3 mb-3">
                         ${connectionInfo}
                         ${deployment.credentials ? `
-                            <p class="text-xs text-gray-500 mt-1">
-                                Login: <span class="font-mono font-medium text-gray-700">${deployment.credentials.username || ''} / ${deployment.credentials.password || deployment.credentials.token || ''}</span>
+                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                Login: <span class="font-mono font-medium text-gray-700 dark:text-gray-300">${deployment.credentials.username || ''} / ${deployment.credentials.password || deployment.credentials.token || ''}</span>
                             </p>
                         ` : ''}
                     </div>
@@ -2156,10 +2222,10 @@
                         <a href="${deployment.access_url}" target="_blank" class="flex-1 px-4 py-2 bg-anthropic-600 hover:bg-anthropic-700 text-white rounded-lg text-sm font-medium transition text-center">
                             Launch
                         </a>
-                        <button onclick="copyToClipboard('${deployment.access_type === 'game' ? deployment.host + ':' + deployment.port : deployment.access_url}')" class="p-2 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-lg transition" title="Copy URL">
+                        <button onclick="copyToClipboard('${deployment.access_type === 'game' ? deployment.host + ':' + deployment.port : deployment.access_url}')" class="p-2 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400 rounded-lg transition" title="Copy URL">
                             📋
                         </button>
-                        <button onclick="stopTemplateDeployment('${deployment.id}', '${deployment.template_name}')" class="p-2 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg transition" title="Stop">
+                        <button onclick="stopTemplateDeployment('${deployment.id}', '${deployment.template_name}')" class="p-2 bg-red-50 dark:bg-red-900/30 hover:bg-red-100 dark:hover:bg-red-900/50 text-red-600 dark:text-red-400 rounded-lg transition" title="Stop">
                             ⏹
                         </button>
                     </div>
