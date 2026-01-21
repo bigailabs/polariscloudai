@@ -165,12 +165,6 @@
 
                 <!-- User Menu -->
                 <div class="flex items-center space-x-4">
-                    <!-- Dashboard Toggle -->
-                    <button onclick="toggleDashboard()" class="p-2 rounded-lg hover:bg-gray-100 transition" title="Toggle Dashboard">
-                        <svg class="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path>
-                        </svg>
-                    </button>
                     <!-- Notifications -->
                     <button class="p-2 rounded-lg hover:bg-gray-100 transition">
                         <svg class="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -189,66 +183,7 @@
     </nav>
 
     <!-- Main Content -->
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <!-- Stats Grid (collapsible) -->
-        <div id="dashboard-stats" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8 overflow-hidden transition-all duration-300">
-            <!-- Active Deployments -->
-            <div class="card bg-white rounded-xl p-8 border border-gray-200 shadow-sm hover:shadow-md">
-                <div class="flex items-center justify-between mb-4">
-                    <div class="w-12 h-12 bg-anthropic-600 bg-opacity-20 rounded-lg flex items-center justify-center">
-                        <svg class="w-6 h-6 text-anthropic-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01"></path>
-                        </svg>
-                    </div>
-                    <span class="text-2xl font-bold text-green-400" data-stat="deployments">0</span>
-                </div>
-                <h3 class="text-sm font-medium text-gray-600">Active Deployments</h3>
-                <p class="text-xs text-gray-700 mt-1">Running instances</p>
-            </div>
-
-            <!-- API Requests -->
-            <div class="card bg-white rounded-xl p-8 border border-gray-200 shadow-sm hover:shadow-md">
-                <div class="flex items-center justify-between mb-4">
-                    <div class="w-12 h-12 bg-blue-600 bg-opacity-20 rounded-lg flex items-center justify-center">
-                        <svg class="w-6 h-6 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path>
-                        </svg>
-                    </div>
-                    <span class="text-2xl font-bold text-gray-900" data-stat="requests">0</span>
-                </div>
-                <h3 class="text-sm font-medium text-gray-600">API Requests</h3>
-                <p class="text-xs text-gray-700 mt-1">This month</p>
-            </div>
-
-            <!-- Monthly Cost -->
-            <div class="card bg-white rounded-xl p-8 border border-gray-200 shadow-sm hover:shadow-md">
-                <div class="flex items-center justify-between mb-4">
-                    <div class="w-12 h-12 bg-green-600 bg-opacity-20 rounded-lg flex items-center justify-center">
-                        <svg class="w-6 h-6 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                        </svg>
-                    </div>
-                    <span class="text-2xl font-bold text-green-400" data-stat="cost">$0</span>
-                </div>
-                <h3 class="text-sm font-medium text-gray-600">Monthly Cost</h3>
-                <p class="text-xs text-gray-700 mt-1">Est. $90-120/mo</p>
-            </div>
-
-            <!-- Uptime -->
-            <div class="card bg-white rounded-xl p-8 border border-gray-200 shadow-sm hover:shadow-md">
-                <div class="flex items-center justify-between mb-4">
-                    <div class="w-12 h-12 bg-yellow-600 bg-opacity-20 rounded-lg flex items-center justify-center">
-                        <svg class="w-6 h-6 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
-                        </svg>
-                    </div>
-                    <span class="text-2xl font-bold text-green-400" data-stat="uptime">0%</span>
-                </div>
-                <h3 class="text-sm font-medium text-gray-600">Uptime</h3>
-                <p class="text-xs text-gray-700 mt-1">Last 30 days</p>
-            </div>
-        </div>
-
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         <!-- Tabs -->
         <div class="border-b border-gray-200 mb-6">
             <nav class="flex space-x-8">
@@ -303,8 +238,8 @@
             <!-- Step 1: Template Gallery -->
             <div id="applications-step-1" class="space-y-6">
                 <div>
-                    <h3 class="text-2xl font-bold mb-2">Deploy from Template</h3>
-                    <p class="text-gray-600 mb-4">One-click deployment of AI services, games, and development tools</p>
+                    <h3 class="text-2xl font-bold mb-2">Your Private Cloud</h3>
+                    <p class="text-gray-600 mb-4">Deploy apps privately from our growing library</p>
 
                     <!-- Category Pills -->
                     <div id="category-pills" class="flex flex-wrap gap-2">
