@@ -359,19 +359,27 @@
         <div id="content-applications" class="tab-content">
             <!-- Step 1: Template Gallery -->
             <div id="applications-step-1" class="space-y-6">
-                <div class="flex items-center justify-between">
-                    <div>
-                        <h3 class="text-2xl font-bold mb-2">Deploy from Template</h3>
-                        <p class="text-gray-600">One-click deployment of AI services and development tools</p>
-                    </div>
-                    <div class="flex items-center space-x-2">
-                        <span class="text-sm text-gray-500">Filter:</span>
-                        <select id="application-category-filter" onchange="filterApplications(this.value)" class="bg-white border-2 border-gray-300 rounded-lg px-3 py-1 text-sm focus:border-anthropic-600 outline-none">
-                            <option value="all">All Categories</option>
-                            <option value="ai_ml">AI / ML</option>
-                            <option value="development">Development</option>
-                            <option value="desktop">Desktop</option>
-                        </select>
+                <div>
+                    <h3 class="text-2xl font-bold mb-2">Deploy from Template</h3>
+                    <p class="text-gray-600 mb-4">One-click deployment of AI services, games, and development tools</p>
+
+                    <!-- Category Pills -->
+                    <div id="category-pills" class="flex flex-wrap gap-2">
+                        <button onclick="filterApplications('all')" data-category="all" class="category-pill active px-4 py-2 rounded-full text-sm font-medium transition-all bg-anthropic-600 text-white">
+                            All
+                        </button>
+                        <button onclick="filterApplications('ai_ml')" data-category="ai_ml" class="category-pill px-4 py-2 rounded-full text-sm font-medium transition-all bg-gray-100 text-gray-700 hover:bg-gray-200">
+                            🤖 AI / ML
+                        </button>
+                        <button onclick="filterApplications('games')" data-category="games" class="category-pill px-4 py-2 rounded-full text-sm font-medium transition-all bg-gray-100 text-gray-700 hover:bg-gray-200">
+                            🎮 Games
+                        </button>
+                        <button onclick="filterApplications('development')" data-category="development" class="category-pill px-4 py-2 rounded-full text-sm font-medium transition-all bg-gray-100 text-gray-700 hover:bg-gray-200">
+                            💻 Development
+                        </button>
+                        <button onclick="filterApplications('desktop')" data-category="desktop" class="category-pill px-4 py-2 rounded-full text-sm font-medium transition-all bg-gray-100 text-gray-700 hover:bg-gray-200">
+                            🖥️ Desktop
+                        </button>
                     </div>
                 </div>
 
@@ -1823,6 +1831,18 @@
         }
 
         function filterApplications(category) {
+            // Update active pill state
+            document.querySelectorAll('.category-pill').forEach(pill => {
+                if (pill.dataset.category === category) {
+                    pill.classList.add('active', 'bg-anthropic-600', 'text-white');
+                    pill.classList.remove('bg-gray-100', 'text-gray-700', 'hover:bg-gray-200');
+                } else {
+                    pill.classList.remove('active', 'bg-anthropic-600', 'text-white');
+                    pill.classList.add('bg-gray-100', 'text-gray-700', 'hover:bg-gray-200');
+                }
+            });
+
+            // Filter and render
             if (category === 'all') {
                 renderApplicationGrid(applicationsData);
             } else {
