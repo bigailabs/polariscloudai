@@ -1,0 +1,219 @@
+{
+  "td_G6p7gXeK3rQ": {
+    "id": "td_G6p7gXeK3rQ",
+    "template_id": "ubuntu-desktop",
+    "template_name": "Ubuntu Desktop",
+    "name": "ubuntu-desktop-mknqweky",
+    "host": "65.108.32.148",
+    "port": 6901,
+    "parameters": {
+      "port": 6901,
+      "vnc_port": 5901
+    },
+    "status": "running",
+    "created_at": "2026-01-21T03:12:42.239017",
+    "access_type": "vnc",
+    "access_url": "http://65.108.32.148:6901",
+    "icon": "\ud83d\udda5\ufe0f",
+    "color": "amber",
+    "completed_at": "2026-01-21T03:14:21.287182"
+  },
+  "td_DA9In-zKoW8": {
+    "id": "td_DA9In-zKoW8",
+    "template_id": "ubuntu-desktop",
+    "template_name": "Ubuntu Desktop",
+    "name": "ubuntu-desktop-mknr5j3n",
+    "host": "65.108.32.148",
+    "port": 6901,
+    "parameters": {
+      "port": 6901,
+      "vnc_port": 5901
+    },
+    "status": "failed",
+    "created_at": "2026-01-21T03:19:47.641310",
+    "access_type": "vnc",
+    "access_url": "http://65.108.32.148:6901",
+    "icon": "\ud83d\udda5\ufe0f",
+    "color": "amber",
+    "error": "Deployment script exited with code 125"
+  },
+  "td_pfGrGVCgpyk": {
+    "id": "td_pfGrGVCgpyk",
+    "template_id": "ubuntu-desktop",
+    "template_name": "Cloud Computer",
+    "name": "ubuntu-desktop-mknrmo78",
+    "host": "65.108.32.148",
+    "port": 6901,
+    "parameters": {
+      "port": 6901
+    },
+    "status": "running",
+    "created_at": "2026-01-21T03:33:07.486510",
+    "access_type": "web",
+    "access_url": "https://65.108.32.148:6901",
+    "icon": "\ud83d\udda5\ufe0f",
+    "color": "amber",
+    "credentials": {
+      "username": "kasm_user",
+      "password": "cloudpc"
+    },
+    "completed_at": "2026-01-21T03:33:33.447081",
+    "instructions": "Login with kasm_user / cloudpc"
+  },
+  "td_tyQl7gT4hw4": {
+    "id": "td_tyQl7gT4hw4",
+    "template_id": "transformer-labs",
+    "template_name": "Transformer Labs",
+    "name": "transformer-labs-mknrsr6n",
+    "host": "65.108.32.148",
+    "port": 8000,
+    "parameters": {
+      "port": 8000,
+      "image_type": "labs"
+    },
+    "status": "failed",
+    "created_at": "2026-01-21T03:37:54.917966",
+    "access_type": "web",
+    "access_url": "http://65.108.32.148:8000",
+    "icon": "\ud83e\udd16",
+    "color": "blue",
+    "error": "Deployment script exited with code 1"
+  },
+  "td__0ulX1kTkaA": {
+    "id": "td__0ulX1kTkaA",
+    "template_id": "transformer-labs",
+    "template_name": "Transformer Labs",
+    "name": "transformer-labs-mkns3lpm",
+    "host": "65.108.32.148",
+    "port": 8000,
+    "parameters": {
+      "port": 8000,
+      "image_type": "api"
+    },
+    "status": "deploying",
+    "created_at": "2026-01-21T03:46:17.954992",
+    "access_type": "web",
+    "access_url": "http://65.108.32.148:8000",
+    "icon": "\ud83e\udd16",
+    "color": "blue"
+  },
+  "td_Hb16xI8c04E": {
+    "id": "td_Hb16xI8c04E",
+    "template_id": "transformer-labs",
+    "template_name": "Transformer Labs",
+    "name": "transformer-labs-mknsfdrv",
+    "host": "65.108.32.148",
+    "port": 8000,
+    "parameters": {
+      "port": 8000,
+      "image_type": "api"
+    },
+    "status": "running",
+    "created_at": "2026-01-21T03:55:27.256649",
+    "access_type": "web",
+    "access_url": "http://65.108.32.148:8000",
+    "icon": "\ud83e\udd16",
+    "color": "blue",
+    "completed_at": "2026-01-21T03:58:18.843622",
+    "instructions": "Web UI ready. No authentication required."
+  },
+  "td_oF_Zum_5g9o": {
+    "id": "td_oF_Zum_5g9o",
+    "template_id": "transformer-labs",
+    "template_name": "Transformer Labs",
+    "name": "transformer-labs-mknt4759",
+    "host": "65.108.32.148",
+    "port": 8000,
+    "parameters": {
+      "port": 8000,
+      "image_type": "api"
+    },
+    "status": "running",
+    "created_at": "2026-01-21T04:14:44.416460",
+    "access_type": "web",
+    "access_url": "http://65.108.32.148:8000",
+    "icon": "\ud83e\udd16",
+    "color": "blue",
+    "completed_at": "2026-01-21T04:17:33.005808",
+    "instructions": "Web UI ready. No authentication required."
+  },
+  "td_hEnHQ9vNg_A": {
+    "id": "td_hEnHQ9vNg_A",
+    "template_id": "transformer-labs",
+    "template_name": "Transformer Lab",
+    "name": "transformer-labs-mknu3lhk",
+    "host": "65.108.32.148",
+    "port": 8338,
+    "parameters": {
+      "port": 8338
+    },
+    "status": "running",
+    "created_at": "2026-01-21T04:42:16.004735",
+    "access_type": "web",
+    "access_url": "http://65.108.32.148:8338",
+    "icon": "\ud83e\udd16",
+    "color": "blue",
+    "completed_at": "2026-01-21T04:44:51.094048",
+    "instructions": "Web UI ready. No authentication required."
+  },
+  "td_ubqa4tRdbJc": {
+    "id": "td_ubqa4tRdbJc",
+    "template_id": "ollama",
+    "template_name": "Ollama Chat",
+    "name": "ollama-mknu9h2y",
+    "host": "65.108.32.148",
+    "port": 3000,
+    "parameters": {
+      "model": "llama3.2",
+      "port": 3000
+    },
+    "status": "running",
+    "created_at": "2026-01-21T04:46:50.695592",
+    "access_type": "web",
+    "access_url": "http://65.108.32.148:3000",
+    "icon": "\ud83e\udd99",
+    "color": "purple",
+    "completed_at": "2026-01-21T04:49:55.555544",
+    "instructions": "Create a local account on first visit (no email needed), then start chatting!"
+  },
+  "td_bCRLFBpAEpk": {
+    "id": "td_bCRLFBpAEpk",
+    "template_id": "minecraft",
+    "template_name": "Minecraft Server",
+    "name": "minecraft-mknuhud8",
+    "host": "65.108.32.148",
+    "port": 25565,
+    "parameters": {
+      "port": 25565,
+      "server_type": "PAPER",
+      "memory": "4G"
+    },
+    "status": "running",
+    "created_at": "2026-01-21T04:53:21.293190",
+    "access_type": "game",
+    "access_url": "http://65.108.32.148:25565",
+    "icon": "\ud83c\udfae",
+    "color": "green",
+    "completed_at": "2026-01-21T04:54:13.410870"
+  },
+  "td_mkCWT_qTQrU": {
+    "id": "td_mkCWT_qTQrU",
+    "template_id": "ollama",
+    "template_name": "Ollama Chat",
+    "name": "ollama-mknuvepy",
+    "host": "65.108.32.148",
+    "port": 3000,
+    "parameters": {
+      "model": "llama3.2",
+      "port": 3000
+    },
+    "status": "running",
+    "created_at": "2026-01-21T05:03:54.268578",
+    "access_type": "web",
+    "access_url": "http://65.108.32.148:3000",
+    "icon": "\ud83e\udd99",
+    "color": "purple",
+    "completed_at": "2026-01-21T05:04:32.847248",
+    "instructions": "Create a local account on first visit (no email needed), then start chatting!"
+  }
+}

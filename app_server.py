@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-VoiceFlow Console - Modern SaaS Dashboard Backend
+Computer - Cloud Console Backend
 FastAPI server that serves the app.html frontend and provides REST APIs
 """
 
@@ -33,7 +33,7 @@ TEMPLATE_SERVER_HOST = os.getenv("TEMPLATE_SERVER_HOST", "65.108.32.148")
 TEMPLATE_SERVER_USER = os.getenv("TEMPLATE_SERVER_USER", "root")
 
 # Initialize FastAPI
-app = FastAPI(title="VoiceFlow Console API", version="1.0.0")
+app = FastAPI(title="Computer Console API", version="1.0.0")
 
 # Add CORS middleware
 app.add_middleware(
@@ -820,7 +820,7 @@ def generate_startup_script(template: TemplateConfig, parameters: Dict[str, Any]
     base_script = """#!/bin/bash
 set -e
 
-echo "=== VoiceFlow Template Deployment ==="
+echo "=== Computer Template Deployment ==="
 echo "Template: {template_name}"
 echo "Starting at: $(date)"
 
@@ -931,14 +931,14 @@ docker run -d \\
   --name ubuntu-desktop \\
   -p {port}:6901 \\
   -p {vnc_port}:5901 \\
-  -e VNC_PW=voiceflow \\
+  -e VNC_PW=computer \\
   --restart unless-stopped \\
   kasmweb/ubuntu-jammy-desktop:1.14.0
 
 echo "Ubuntu Desktop deployed"
 echo "Web access: port {port}"
 echo "VNC access: port {vnc_port}"
-echo "Password: voiceflow"
+echo "Password: computer"
 """
 
     elif template.id == "transformer-labs":
@@ -1007,7 +1007,7 @@ async def run_template_deployment(deployment_id: str, template: TemplateConfig, 
             await asyncio.sleep(2)
 
             # Simulate successful deployment
-            demo_ip = f"demo-{deployment_id[:8]}.voiceflow.app"
+            demo_ip = f"demo-{deployment_id[:8]}.computer.app"
             port = request.parameters.get("port", template.default_port)
 
             deployments = load_template_deployments()
@@ -2339,7 +2339,7 @@ async def stop_all_deployments():
 @app.get("/health")
 async def health_check():
     """Health check endpoint"""
-    return {"status": "healthy", "service": "VoiceFlow Console", "demo_mode": DEMO_MODE}
+    return {"status": "healthy", "service": "Computer Console", "demo_mode": DEMO_MODE}
 
 # ============================================================================
 # MAIN
@@ -2349,7 +2349,7 @@ if __name__ == "__main__":
     print("""
 ╔══════════════════════════════════════════════════════════════╗
 ║                                                              ║
-║          🎙️  VoiceFlow Console - Modern SaaS Dashboard       ║
+║             💻  Computer - Cloud Console                     ║
 ║                                                              ║
 ║  Frontend:  http://localhost:8080                            ║
 ║  API Docs:  http://localhost:8080/docs                       ║
