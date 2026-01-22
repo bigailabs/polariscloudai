@@ -2195,8 +2195,10 @@
         }
 
         function connectDeploymentWebSocket(deploymentId) {
-            const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-            const wsUrl = `${wsProtocol}//${window.location.host}/ws/deployments/${deploymentId}`;
+            // Use API_BASE for WebSocket connection
+            const apiHost = API_BASE.replace('https://', '').replace('http://', '');
+            const wsProtocol = API_BASE.startsWith('https:') ? 'wss:' : 'ws:';
+            const wsUrl = `${wsProtocol}//${apiHost}/ws/deployments/${deploymentId}`;
 
             deploymentWebSocket = new WebSocket(wsUrl);
 

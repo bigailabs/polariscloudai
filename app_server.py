@@ -20,6 +20,15 @@ import subprocess
 import secrets
 from datetime import datetime
 
+# Docker SDK for local container management
+try:
+    import docker
+    docker_client = docker.from_env()
+    DOCKER_AVAILABLE = True
+except:
+    docker_client = None
+    DOCKER_AVAILABLE = False
+
 # Import existing backend modules - with demo mode fallback
 DEMO_MODE = False
 try:
@@ -1429,22 +1438,35 @@ async def sync_deployment_statuses():
     updated = 0
 
     try:
-        # Get list of running containers from server
-        cmd = f'ssh -o StrictHostKeyChecking=no -o BatchMode=yes {TEMPLATE_SERVER_USER}@{TEMPLATE_SERVER_HOST} "docker ps --format {{{{.Names}}}}"'
-        process = await asyncio.create_subprocess_shell(
-            cmd,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE
-        )
-        stdout, _ = await process.communicate()
-        running_containers = set(stdout.decode().strip().split('\n')) if stdout else set()
+        # Get list of running containers - use Docker SDK if available, else SSH
+        running_containers = set()
+
+        if DOCKER_AVAILABLE and docker_client:
+            # Use Docker SDK directly
+            containers = docker_client.containers.list()
+            running_containers = set(c.name for c in containers)
+        else:
+            # Fallback to SSH
+            cmd = f'ssh -o StrictHostKeyChecking=no -o BatchMode=yes {TEMPLATE_SERVER_USER}@{TEMPLATE_SERVER_HOST} "docker ps --format {{{{.Names}}}}"'
+            process = await asyncio.create_subprocess_shell(
+                cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            stdout, _ = await process.communicate()
+            running_containers = set(stdout.decode().strip().split('\n')) if stdout else set()
 
         # Container name mapping
         container_names = {
             "jupyter": "jupyter-notebook",
             "ubuntu-desktop": "cloud-computer",
-            "ollama": "ollama",
+            "ollama": ["ollama", "open-webui"],  # Ollama has 2 containers
             "transformer-labs": "transformerlab-api",
+            "minecraft": "minecraft-server",
+            "valheim": "valheim-server",
+            "terraria": "terraria-server",
+            "factorio": "factorio-server",
+            "dev-terminal": "dev-terminal",
         }
 
         # Update each deployment's status
@@ -1453,10 +1475,15 @@ async def sync_deployment_statuses():
             container_name = dep.get("parameters", {}).get("container_name")
 
             if not container_name:
-                container_name = container_names.get(template_id, template_id)
-
-            # Check if container is actually running
-            is_running = container_name in running_containers
+                expected = container_names.get(template_id, template_id)
+                if isinstance(expected, list):
+                    # Check if any of the expected containers are running
+                    is_running = any(c in running_containers for c in expected)
+                else:
+                    container_name = expected
+                    is_running = container_name in running_containers
+            else:
+                is_running = container_name in running_containers
 
             old_status = dep.get("status")
             if is_running and old_status != "running":
@@ -1484,7 +1511,7 @@ async def delete_template_deployment(deployment_id: str, cleanup: bool = True):
     deployment = deployments[deployment_id]
     cleanup_result = None
 
-    # Stop and remove the container on remote server if cleanup requested
+    # Stop and remove the container if cleanup requested
     if cleanup and deployment.get("status") == "running":
         try:
             template_id = deployment.get("template_id")
@@ -1494,27 +1521,47 @@ async def delete_template_deployment(deployment_id: str, cleanup: bool = True):
             container_names = {
                 "jupyter": "jupyter-notebook",
                 "ubuntu-desktop": "cloud-computer",
-                "ollama": "ollama",
+                "ollama": ["ollama", "open-webui"],  # Ollama has 2 containers
                 "transformer-labs": "transformerlab-api",
+                "minecraft": "minecraft-server",
+                "valheim": "valheim-server",
+                "terraria": "terraria-server",
+                "factorio": "factorio-server",
                 "dev-terminal": deployment.get("parameters", {}).get("container_name", "dev-terminal")
             }
-            container_name = container_names.get(template_id, container_name)
+            containers_to_stop = container_names.get(template_id, container_name)
+            if not isinstance(containers_to_stop, list):
+                containers_to_stop = [containers_to_stop]
 
-            host = deployment.get("host", TEMPLATE_SERVER_HOST)
-            ssh_user = TEMPLATE_SERVER_USER
-
-            # Stop and remove the container
-            cmd = f'ssh -o StrictHostKeyChecking=no -o BatchMode=yes {ssh_user}@{host} "docker stop {container_name}; docker rm {container_name}"'
-            process = await asyncio.create_subprocess_shell(
-                cmd,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE
-            )
-            stdout, stderr = await process.communicate()
-            if process.returncode == 0:
-                cleanup_result = "Container stopped and removed"
+            stopped = []
+            if DOCKER_AVAILABLE and docker_client:
+                # Use Docker SDK directly
+                for cname in containers_to_stop:
+                    try:
+                        container = docker_client.containers.get(cname)
+                        container.stop(timeout=10)
+                        container.remove()
+                        stopped.append(cname)
+                    except docker.errors.NotFound:
+                        pass
+                    except Exception as e:
+                        stopped.append(f"{cname}: {str(e)}")
+                cleanup_result = f"Stopped containers: {', '.join(stopped)}" if stopped else "No containers found"
             else:
-                cleanup_result = f"Cleanup attempted: {stderr.decode().strip() or stdout.decode().strip()}"
+                # Fallback to SSH
+                host = deployment.get("host", TEMPLATE_SERVER_HOST)
+                ssh_user = TEMPLATE_SERVER_USER
+                for cname in containers_to_stop:
+                    cmd = f'ssh -o StrictHostKeyChecking=no -o BatchMode=yes {ssh_user}@{host} "docker stop {cname}; docker rm {cname}"'
+                    process = await asyncio.create_subprocess_shell(
+                        cmd,
+                        stdout=asyncio.subprocess.PIPE,
+                        stderr=asyncio.subprocess.PIPE
+                    )
+                    await process.communicate()
+                    if process.returncode == 0:
+                        stopped.append(cname)
+                cleanup_result = f"Stopped containers: {', '.join(stopped)}" if stopped else "Cleanup attempted"
 
         except Exception as e:
             cleanup_result = f"Cleanup warning: {str(e)}"
