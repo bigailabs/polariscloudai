@@ -2194,6 +2194,8 @@
             document.getElementById('deployment-log').innerHTML = '<p class="text-gray-500">Connecting to deployment stream...</p>';
         }
 
+        let deploymentPollingInterval = null;
+
         function connectDeploymentWebSocket(deploymentId) {
             // Use API_BASE for WebSocket connection
             const apiHost = API_BASE.replace('https://', '').replace('http://', '');
@@ -2202,7 +2204,17 @@
 
             deploymentWebSocket = new WebSocket(wsUrl);
 
+            // Set a timeout - if WebSocket doesn't connect in 3 seconds, fall back to polling
+            const wsTimeout = setTimeout(() => {
+                if (deploymentWebSocket.readyState !== WebSocket.OPEN) {
+                    console.log('WebSocket timeout, falling back to polling');
+                    deploymentWebSocket.close();
+                    startDeploymentPolling(deploymentId);
+                }
+            }, 3000);
+
             deploymentWebSocket.onopen = () => {
+                clearTimeout(wsTimeout);
                 console.log('WebSocket connected');
                 addDeploymentLog('Connected to deployment stream', 'info');
             };
@@ -2233,13 +2245,78 @@
             };
 
             deploymentWebSocket.onerror = (error) => {
-                console.error('WebSocket error:', error);
-                addDeploymentLog('WebSocket connection error', 'error');
+                clearTimeout(wsTimeout);
+                console.error('WebSocket error, falling back to polling:', error);
+                addDeploymentLog('Connecting via polling...', 'info');
+                startDeploymentPolling(deploymentId);
             };
 
             deploymentWebSocket.onclose = () => {
                 console.log('WebSocket closed');
             };
+        }
+
+        function startDeploymentPolling(deploymentId) {
+            // Clear any existing polling
+            if (deploymentPollingInterval) {
+                clearInterval(deploymentPollingInterval);
+            }
+
+            let lastStatus = '';
+
+            const pollDeployment = async () => {
+                try {
+                    const response = await fetch(`${API_BASE}/api/templates/deployments/${deploymentId}`);
+                    if (!response.ok) return;
+
+                    const data = await response.json();
+
+                    // Update progress based on status
+                    let progress = 0;
+                    let message = 'Deploying...';
+
+                    if (data.status === 'pending') {
+                        progress = 10;
+                        message = 'Preparing deployment...';
+                    } else if (data.status === 'deploying') {
+                        progress = 50;
+                        message = 'Deploying ' + data.template_name + '...';
+                    } else if (data.status === 'running') {
+                        progress = 100;
+                        message = 'Deployment complete!';
+                    } else if (data.status === 'failed') {
+                        progress = 0;
+                        message = data.error || 'Deployment failed';
+                    }
+
+                    document.getElementById('deployment-progress-bar').style.width = `${progress}%`;
+                    document.getElementById('deployment-progress-percent').textContent = `${progress}%`;
+                    document.getElementById('deployment-progress-status').textContent = message;
+
+                    // Log status changes
+                    if (data.status !== lastStatus) {
+                        addDeploymentLog(message, data.status === 'failed' ? 'error' : 'info');
+                        lastStatus = data.status;
+                    }
+
+                    // Check for completion
+                    if (data.status === 'running') {
+                        clearInterval(deploymentPollingInterval);
+                        deploymentPollingInterval = null;
+                        showDeploymentComplete(deploymentId);
+                    } else if (data.status === 'failed') {
+                        clearInterval(deploymentPollingInterval);
+                        deploymentPollingInterval = null;
+                        showDeploymentFailed(data.error || 'Deployment failed');
+                    }
+                } catch (error) {
+                    console.error('Polling error:', error);
+                }
+            };
+
+            // Poll immediately, then every 2 seconds
+            pollDeployment();
+            deploymentPollingInterval = setInterval(pollDeployment, 2000);
         }
 
         function addDeploymentLog(message, type = 'info') {
@@ -2320,10 +2397,14 @@
                 console.error('Error fetching deployment details:', error);
             }
 
-            // Close WebSocket
+            // Close WebSocket and polling
             if (deploymentWebSocket) {
                 deploymentWebSocket.close();
                 deploymentWebSocket = null;
+            }
+            if (deploymentPollingInterval) {
+                clearInterval(deploymentPollingInterval);
+                deploymentPollingInterval = null;
             }
         }
 
@@ -2332,10 +2413,14 @@
             document.getElementById('deployment-progress-title').textContent = 'Deployment Failed';
             document.getElementById('deployment-progress-status').textContent = errorMessage || 'An error occurred during deployment';
 
-            // Close WebSocket
+            // Close WebSocket and polling
             if (deploymentWebSocket) {
                 deploymentWebSocket.close();
                 deploymentWebSocket = null;
+            }
+            if (deploymentPollingInterval) {
+                clearInterval(deploymentPollingInterval);
+                deploymentPollingInterval = null;
             }
         }
 
