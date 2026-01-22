@@ -625,7 +625,7 @@ async def run_deployment_script(deployment_id: str, template: TemplateConfig, re
 
     try:
         # Get the templates directory path
-        templates_dir = os.path.expanduser("~/Documents/PROJECTS/bigailabs-templates")
+        templates_dir = os.path.expanduser("~/bigailabs-templates")
 
         # Build the command based on template
         if template.id == "ollama":
