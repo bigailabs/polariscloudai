@@ -1158,18 +1158,24 @@ async def run_template_deployment(deployment_id: str, template: TemplateConfig, 
 
 @app.get("/")
 async def serve_landing():
-    """Serve the console as the landing page"""
-    return FileResponse("app.html")
+    """Serve the landing page"""
+    return FileResponse("landing.html")
 
+@app.get("/waterfall.mp4")
+async def serve_waterfall_video():
+    """Serve the background video"""
+    return FileResponse("waterfall.mp4", media_type="video/mp4")
+
+@app.get("/app")
 @app.get("/app.html")
 @app.get("/console")
 async def serve_console():
-    """Serve the console"""
-    return FileResponse("app.html")
+    """Serve the main application console"""
+    return FileResponse("index.html")
 
 @app.get("/index.html")
 async def serve_index():
-    """Serve the old index page"""
+    """Redirect old index path to app"""
     return FileResponse("index.html")
 
 # ============================================================================
