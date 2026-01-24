@@ -8,6 +8,10 @@ import json
 import time
 import os
 
+# Load environment variables from .env file
+from dotenv import load_dotenv
+load_dotenv()
+
 # Verda API Configuration
 VERDA_CLIENT_ID = os.getenv("VERDA_CLIENT_ID", "")
 VERDA_CLIENT_SECRET = os.getenv("VERDA_CLIENT_SECRET", "")
@@ -403,7 +407,8 @@ class VerdaClient:
         self,
         name="tts-server-compute",
         gpu_name="Tesla V100 16GB",
-        use_spot=True
+        use_spot=True,
+        ssh_public_key=None
     ):
         """
         Create a raw compute instance with SSH access.
@@ -412,6 +417,7 @@ class VerdaClient:
             name: Instance hostname
             gpu_name: GPU display name (e.g., "Tesla V100 16GB")
             use_spot: Use spot instances
+            ssh_public_key: User's SSH public key (optional, uses account keys if not provided)
 
         Returns:
             Instance details including SSH connection info
@@ -450,15 +456,22 @@ class VerdaClient:
         print(f"   OS Image: {os_image}")
         print(f"   Spot: {'Yes' if use_spot else 'No'}")
 
-        # Get HF token from environment
-        hf_token = os.getenv("HF_TOKEN", "")
-        if not hf_token:
-            print("⚠️  Warning: HF_TOKEN not set in environment")
+        # Handle SSH key - either use provided key or account keys
+        ssh_key_ids = []
+        if ssh_public_key:
+            print(f"   SSH Key: User-provided")
+            key_id = self.find_or_create_ssh_key(ssh_public_key)
+            if key_id:
+                ssh_key_ids = [key_id]
+            else:
+                print("⚠️  Warning: Failed to add SSH key, trying account keys")
+                ssh_key_ids = self.get_ssh_key_ids()
+        else:
+            # Get SSH key IDs from account
+            ssh_key_ids = self.get_ssh_key_ids()
 
-        # Get first SSH key ID from account
-        ssh_key_ids = self.get_ssh_key_ids()
         if not ssh_key_ids:
-            print("⚠️  Warning: No SSH keys found in account")
+            print("⚠️  Warning: No SSH keys found")
 
         instance_config = {
             "hostname": name,
@@ -536,6 +549,69 @@ echo "TTS server started on port 8000"
             return []
         except:
             return []
+
+    def add_ssh_key(self, name: str, public_key: str):
+        """
+        Add an SSH public key to the account.
+
+        Args:
+            name: Name/label for the key
+            public_key: The SSH public key string (e.g., "ssh-rsa AAAA...")
+
+        Returns:
+            The key ID if successful, None otherwise
+        """
+        try:
+            response = requests.post(
+                f"{VERDA_API_BASE}/ssh-keys",
+                headers=self.get_headers(),
+                json={
+                    "name": name,
+                    "public_key": public_key
+                }
+            )
+            if response.status_code in [200, 201]:
+                key_data = response.json()
+                return key_data.get('id')
+            else:
+                print(f"⚠️ Failed to add SSH key: {response.status_code} - {response.text}")
+                return None
+        except Exception as e:
+            print(f"⚠️ Failed to add SSH key: {e}")
+            return None
+
+    def find_or_create_ssh_key(self, public_key: str):
+        """
+        Find existing SSH key by public key content or create new one.
+
+        Args:
+            public_key: The SSH public key string
+
+        Returns:
+            The key ID
+        """
+        try:
+            # Get all existing keys
+            response = requests.get(
+                f"{VERDA_API_BASE}/ssh-keys",
+                headers=self.get_headers()
+            )
+            if response.status_code == 200:
+                keys = response.json()
+                # Check if key already exists (compare the key content)
+                for key in keys:
+                    if isinstance(key, dict):
+                        # Compare public key content (might be stored differently)
+                        existing_key = key.get('public_key', '')
+                        if existing_key and public_key.strip().startswith(existing_key.strip()[:50]):
+                            return key.get('id')
+
+            # Key not found, create new one
+            key_name = f"polaris-{int(time.time())}"
+            return self.add_ssh_key(key_name, public_key)
+        except Exception as e:
+            print(f"⚠️ Error finding/creating SSH key: {e}")
+            return None
 
     def get_instance(self, instance_id):
         """Get instance details"""

@@ -20,6 +20,10 @@ import subprocess
 import secrets
 from datetime import datetime
 
+# Load environment variables from .env file
+from dotenv import load_dotenv
+load_dotenv()
+
 # Docker SDK for local container management
 try:
     import docker
@@ -37,9 +41,30 @@ except ImportError:
     DEMO_MODE = True
     VerdaClient = None
 
+# Import Targon client
+try:
+    from targon_client import TargonClient, TARGON_API_KEY
+    TARGON_AVAILABLE = bool(TARGON_API_KEY)
+except ImportError:
+    TargonClient = None
+    TARGON_API_KEY = ""
+    TARGON_AVAILABLE = False
+
 # Template deployment server configuration (from environment)
 TEMPLATE_SERVER_HOST = os.getenv("TEMPLATE_SERVER_HOST", "65.108.32.148")
 TEMPLATE_SERVER_USER = os.getenv("TEMPLATE_SERVER_USER", "root")
+
+# Pricing markup configuration (20% markup on provider costs)
+PRICING_MARKUP = {
+    "verda": 1.20,   # 20% markup
+    "targon": 1.20,  # 20% markup
+    "default": 1.20  # Default markup for any provider
+}
+
+def apply_markup(base_price: float, provider: str = "default") -> float:
+    """Apply pricing markup to base provider cost"""
+    multiplier = PRICING_MARKUP.get(provider, PRICING_MARKUP["default"])
+    return round(base_price * multiplier, 4)
 
 # Initialize FastAPI
 app = FastAPI(title="Computer Console API", version="1.0.0")
@@ -55,12 +80,23 @@ app.add_middleware(
 
 # Initialize clients - demo mode if no credentials
 verda_client = None
+targon_client = None
+
 if not DEMO_MODE:
     try:
         verda_client = VerdaClient(VERDA_CLIENT_ID, VERDA_CLIENT_SECRET)
     except Exception as e:
         print(f"⚠️  Verda auth failed, running in DEMO MODE: {e}")
         DEMO_MODE = True
+
+# Initialize Targon client (separate from demo mode)
+if TARGON_AVAILABLE and TargonClient:
+    try:
+        targon_client = TargonClient(TARGON_API_KEY)
+        print("🎯 Targon client initialized")
+    except Exception as e:
+        print(f"⚠️  Targon init failed: {e}")
+        targon_client = None
 
 if DEMO_MODE:
     print("🎮 Running in DEMO MODE - GPU deployments disabled")
@@ -1674,6 +1710,279 @@ async def get_gpus():
         print(f"Error getting GPUs: {e}")
         return {"gpus": []}
 
+
+# ============================================================================
+# COMPUTE - Direct GPU Rental
+# ============================================================================
+
+# In-memory store for compute instances (in production, use database)
+COMPUTE_INSTANCES = {}
+
+class ComputeInstanceRequest(BaseModel):
+    name: str
+    gpu_type: str
+    ssh_public_key: str
+    use_spot: bool = True
+    quantity: int = Field(default=1, ge=1, le=4)
+
+
+@app.get("/api/compute/gpus")
+async def get_compute_gpus():
+    """Get available GPU types from all providers (Verda + Targon)"""
+    all_gpus = []
+
+    try:
+        if DEMO_MODE or verda_client is None:
+            # Demo mode - return sample GPU catalog with markup applied
+            demo_gpus = [
+                {"name": "Tesla V100 16GB", "display_name": "Tesla V100", "memory": "16GB", "spot_price": apply_markup(0.076, "verda"), "on_demand_price": apply_markup(0.150, "verda"), "available": True, "available_count": 12, "provider": "verda"},
+                {"name": "RTX A6000 48GB", "display_name": "RTX A6000", "memory": "48GB", "spot_price": apply_markup(0.162, "verda"), "on_demand_price": apply_markup(0.324, "verda"), "available": True, "available_count": 8, "provider": "verda"},
+                {"name": "A100 SXM4 40GB", "display_name": "A100 40GB", "memory": "40GB", "spot_price": apply_markup(0.238, "verda"), "on_demand_price": apply_markup(0.476, "verda"), "available": True, "available_count": 5, "provider": "verda"},
+                {"name": "RTX 6000 Ada 48GB", "display_name": "RTX 6000 Ada", "memory": "48GB", "spot_price": apply_markup(0.273, "verda"), "on_demand_price": apply_markup(0.546, "verda"), "available": True, "available_count": 6, "provider": "verda"},
+                {"name": "L40S 48GB", "display_name": "L40S", "memory": "48GB", "spot_price": apply_markup(0.302, "verda"), "on_demand_price": apply_markup(0.604, "verda"), "available": True, "available_count": 4, "provider": "verda"},
+                {"name": "A100 SXM4 80GB", "display_name": "A100 80GB", "memory": "80GB", "spot_price": apply_markup(0.638, "verda"), "on_demand_price": apply_markup(1.276, "verda"), "available": True, "available_count": 3, "provider": "verda"},
+                {"name": "H100 SXM5 80GB", "display_name": "H100 (Verda)", "memory": "80GB", "spot_price": apply_markup(1.499, "verda"), "on_demand_price": apply_markup(2.998, "verda"), "available": True, "available_count": 2, "provider": "verda"},
+                {"name": "H200 SXM6 141GB", "display_name": "H200 (Verda)", "memory": "141GB", "spot_price": apply_markup(2.249, "verda"), "on_demand_price": apply_markup(4.498, "verda"), "available": False, "available_count": 0, "provider": "verda"},
+                {"name": "B200 SXM6 180GB", "display_name": "B200", "memory": "180GB", "spot_price": apply_markup(2.999, "verda"), "on_demand_price": apply_markup(5.998, "verda"), "available": False, "available_count": 0, "provider": "verda"},
+            ]
+            all_gpus.extend(demo_gpus)
+        else:
+            # Get real GPU pricing from Verda
+            verda_gpus = verda_client.get_available_gpus()
+            for gpu in verda_gpus:
+                base_price = gpu.get('instance_spot_price', 0)
+                all_gpus.append({
+                    "name": gpu['name'],
+                    "display_name": gpu.get('display_name', gpu['name']),
+                    "memory": gpu.get('memory', 'N/A'),
+                    "spot_price": apply_markup(base_price, "verda"),
+                    "on_demand_price": apply_markup(base_price * 2, "verda"),
+                    "available": True,
+                    "available_count": gpu.get('available_count', None),
+                    "provider": "verda"
+                })
+
+    except Exception as e:
+        print(f"Error getting Verda GPUs: {e}")
+
+    # Add Targon GPUs
+    try:
+        if targon_client:
+            targon_gpus = targon_client.get_available_gpus()
+            for gpu in targon_gpus:
+                base_price = gpu.get('instance_spot_price', 0)
+                all_gpus.append({
+                    "name": gpu['name'],
+                    "display_name": gpu.get('display_name', gpu['name']),
+                    "memory": gpu.get('memory', 'N/A'),
+                    "spot_price": apply_markup(base_price, "targon"),
+                    "on_demand_price": apply_markup(base_price * 1.5, "targon"),
+                    "available": True,
+                    "available_count": gpu.get('available_count', None),
+                    "provider": "targon"
+                })
+        elif DEMO_MODE:
+            # Demo Targon GPUs
+            demo_targon = [
+                {"name": "H100 SXM5 80GB (Targon)", "display_name": "H100 (Targon)", "memory": "80GB", "spot_price": apply_markup(1.45, "targon"), "on_demand_price": apply_markup(2.18, "targon"), "available": True, "available_count": 5, "provider": "targon"},
+                {"name": "H200 SXM5 141GB (Targon)", "display_name": "H200 (Targon)", "memory": "141GB", "spot_price": apply_markup(2.25, "targon"), "on_demand_price": apply_markup(3.38, "targon"), "available": True, "available_count": 3, "provider": "targon"},
+            ]
+            all_gpus.extend(demo_targon)
+    except Exception as e:
+        print(f"Error getting Targon GPUs: {e}")
+
+    # Deduplicate by GPU type - keep only the cheapest option for each
+    # Normalize GPU names for comparison (e.g., "H100 SXM5 80GB" and "H100 SXM5 80GB (Targon)" -> "H100 80GB")
+    def normalize_gpu_name(name):
+        """Extract core GPU identifier for deduplication"""
+        name = name.upper()
+        # Remove provider suffixes
+        for suffix in ['(VERDA)', '(TARGON)', 'VERDA', 'TARGON']:
+            name = name.replace(suffix, '')
+        # Extract key identifiers
+        for gpu_type in ['B300', 'B200', 'H200', 'H100', 'A100', 'L40S', 'L40', 'A6000', 'RTX 6000', 'V100', 'RTX']:
+            if gpu_type in name:
+                # Include memory size if present
+                import re
+                mem_match = re.search(r'(\d+)\s*GB', name)
+                mem = mem_match.group(1) + 'GB' if mem_match else ''
+                return f"{gpu_type} {mem}".strip()
+        return name.strip()
+
+    # Group by normalized name and keep cheapest
+    gpu_map = {}
+    for gpu in all_gpus:
+        key = normalize_gpu_name(gpu['name'])
+        if key not in gpu_map or gpu['spot_price'] < gpu_map[key]['spot_price']:
+            # Update display name to remove provider suffix since we're showing the best price
+            gpu_copy = gpu.copy()
+            gpu_copy['display_name'] = gpu_copy['display_name'].replace(' (Verda)', '').replace(' (Targon)', '')
+            gpu_map[key] = gpu_copy
+
+    # Convert back to list and sort by price
+    deduplicated_gpus = list(gpu_map.values())
+    deduplicated_gpus.sort(key=lambda x: x['spot_price'])
+
+    return {"gpus": deduplicated_gpus}
+
+
+@app.get("/api/compute/instances")
+async def list_compute_instances():
+    """List active compute instances from all providers"""
+    all_instances = []
+
+    try:
+        if DEMO_MODE or verda_client is None:
+            # Return in-memory instances for demo
+            all_instances.extend(list(COMPUTE_INSTANCES.values()))
+        else:
+            # Get real instances from Verda
+            verda_instances = verda_client.list_instances()
+            for inst in verda_instances:
+                all_instances.append({
+                    "id": inst.get('id'),
+                    "name": inst.get('hostname', inst.get('name', 'Unknown')),
+                    "gpu_type": inst.get('instance_type', 'Unknown'),
+                    "status": inst.get('status', 'unknown'),
+                    "ip": inst.get('ip'),
+                    "hourly_cost": inst.get('hourly_cost', 0),
+                    "created_at": inst.get('created_at'),
+                    "provider": "verda"
+                })
+
+    except Exception as e:
+        print(f"Error listing Verda instances: {e}")
+
+    # Get Targon instances
+    try:
+        if targon_client and targon_client.authenticated:
+            targon_instances = targon_client.list_instances()
+            for inst in targon_instances:
+                all_instances.append({
+                    "id": inst.get('id'),
+                    "name": inst.get('name', 'Unknown'),
+                    "gpu_type": inst.get('gpu_type', 'Unknown'),
+                    "status": inst.get('status', 'unknown'),
+                    "ip": inst.get('ip'),
+                    "ssh_command": inst.get('ssh_command'),
+                    "hourly_cost": inst.get('hourly_cost', 0),
+                    "provider": "targon"
+                })
+    except Exception as e:
+        print(f"Error listing Targon instances: {e}")
+
+    return {"instances": all_instances}
+
+
+@app.post("/api/compute/instances")
+async def create_compute_instance(request: ComputeInstanceRequest):
+    """Create one or more compute instances"""
+    try:
+        # Validate SSH key
+        if not request.ssh_public_key or not request.ssh_public_key.strip().startswith('ssh-'):
+            raise HTTPException(status_code=400, detail="Valid SSH public key is required")
+
+        quantity = request.quantity
+        created_instances = []
+
+        if DEMO_MODE or verda_client is None:
+            # Demo mode - create fake instances
+            for i in range(quantity):
+                instance_id = f"demo-{secrets.token_hex(4)}"
+                instance_name = f"{request.name}-{i+1}" if quantity > 1 else request.name
+                instance = {
+                    "id": instance_id,
+                    "name": instance_name,
+                    "gpu_type": request.gpu_type,
+                    "status": "starting",
+                    "ip": None,
+                    "hourly_cost": 0.091,  # Demo price with markup
+                    "created_at": datetime.now().isoformat(),
+                    "ssh_key_added": True
+                }
+                COMPUTE_INSTANCES[instance_id] = instance
+                created_instances.append(instance)
+
+                # Simulate startup for each instance
+                async def simulate_startup(inst_id):
+                    await asyncio.sleep(5 + i)  # Stagger startups
+                    if inst_id in COMPUTE_INSTANCES:
+                        COMPUTE_INSTANCES[inst_id]["status"] = "running"
+                        COMPUTE_INSTANCES[inst_id]["ip"] = f"10.0.{secrets.randbelow(255)}.{secrets.randbelow(255)}"
+
+                asyncio.create_task(simulate_startup(instance_id))
+
+            message = f"{quantity} instances are being provisioned" if quantity > 1 else f"Instance {request.name} is being provisioned"
+            return {
+                "success": True,
+                "message": message,
+                "instances": created_instances,
+                "instance": created_instances[0] if created_instances else None  # Backwards compat
+            }
+
+        # Create real instances via Verda
+        for i in range(quantity):
+            instance_name = f"{request.name}-{i+1}" if quantity > 1 else request.name
+            result = verda_client.create_instance(
+                name=instance_name,
+                gpu_name=request.gpu_type,
+                use_spot=request.use_spot,
+                ssh_public_key=request.ssh_public_key
+            )
+
+            if result:
+                created_instances.append({
+                    "id": result.get('id'),
+                    "name": instance_name,
+                    "gpu_type": request.gpu_type,
+                    "status": result.get('status', 'starting'),
+                    "ip": result.get('ip')
+                })
+
+        if created_instances:
+            message = f"{len(created_instances)} instances are being provisioned" if len(created_instances) > 1 else f"Instance {request.name} is being provisioned"
+            return {
+                "success": True,
+                "message": message,
+                "instances": created_instances,
+                "instance": created_instances[0] if created_instances else None
+            }
+        else:
+            raise HTTPException(status_code=500, detail="Failed to create any instances")
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error creating compute instance: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/api/compute/instances/{instance_id}")
+async def terminate_compute_instance(instance_id: str):
+    """Terminate a compute instance"""
+    try:
+        if DEMO_MODE or verda_client is None:
+            # Demo mode - remove from in-memory store
+            if instance_id in COMPUTE_INSTANCES:
+                del COMPUTE_INSTANCES[instance_id]
+                return {"success": True, "message": "Instance terminated"}
+            else:
+                raise HTTPException(status_code=404, detail="Instance not found")
+
+        # Terminate real instance via Verda
+        result = verda_client.delete_instance(instance_id)
+        if result:
+            return {"success": True, "message": "Instance terminated"}
+        else:
+            raise HTTPException(status_code=500, detail="Failed to terminate instance")
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error terminating instance: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # ============================================================================
 # API KEYS
 # ============================================================================
@@ -2393,13 +2702,14 @@ async def health_check():
 # ============================================================================
 
 if __name__ == "__main__":
-    print("""
+    port = int(os.getenv("TTS_PORT", 8081))
+    print(f"""
 ╔══════════════════════════════════════════════════════════════╗
 ║                                                              ║
 ║             💻  Computer - Cloud Console                     ║
 ║                                                              ║
-║  Frontend:  http://localhost:8080                            ║
-║  API Docs:  http://localhost:8080/docs                       ║
+║  Frontend:  http://localhost:{port}                            ║
+║  API Docs:  http://localhost:{port}/docs                       ║
 ║                                                              ║
 ╚══════════════════════════════════════════════════════════════╝
 """)
@@ -2407,6 +2717,6 @@ if __name__ == "__main__":
     uvicorn.run(
         app,
         host="0.0.0.0",
-        port=8080,
+        port=port,
         log_level="info"
     )
