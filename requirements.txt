@@ -125,3 +125,18 @@ zipp==3.23.0
 pytest==8.3.0
 pytest-asyncio==0.25.0
 verda==1.18.0
+
+# Database
+sqlalchemy[asyncio]==2.0.36
+asyncpg==0.30.0
+alembic==1.14.0
+
+# Authentication
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+
+# Storage (S3-compatible for Storj)
+boto3==1.35.0
+
+# Payments (future)
+stripe==11.0.0

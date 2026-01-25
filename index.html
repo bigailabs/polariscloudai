@@ -189,44 +189,142 @@
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path>
                         </svg>
                     </button>
-                    <!-- Notifications -->
-                    <button class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition">
+                    <!-- Notifications (only when logged in) -->
+                    <button id="notifications-btn" class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition hidden">
                         <svg class="w-5 h-5 text-gray-600 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path>
                         </svg>
                     </button>
-                    <div class="flex items-center space-x-2 px-3 py-2 bg-gray-100 dark:bg-gray-800 rounded-lg cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700 transition" onclick="switchTab('settings')">
-                        <div class="w-8 h-8 rounded-full ring-2 ring-purple-500/30 overflow-hidden shadow-lg">
-                            <svg viewBox="0 0 100 100" class="w-full h-full">
-                                <defs>
-                                    <linearGradient id="av1" x1="0%" y1="0%" x2="100%" y2="100%">
-                                        <stop offset="0%" stop-color="#0f0c29"/>
-                                        <stop offset="50%" stop-color="#302b63"/>
-                                        <stop offset="100%" stop-color="#24243e"/>
-                                    </linearGradient>
-                                    <linearGradient id="av2" x1="0%" y1="100%" x2="100%" y2="0%">
-                                        <stop offset="0%" stop-color="#f953c6"/>
-                                        <stop offset="100%" stop-color="#b91d73"/>
-                                    </linearGradient>
-                                    <linearGradient id="av3" x1="100%" y1="0%" x2="0%" y2="100%">
-                                        <stop offset="0%" stop-color="#00d2ff"/>
-                                        <stop offset="100%" stop-color="#3a7bd5"/>
-                                    </linearGradient>
-                                </defs>
-                                <rect fill="url(#av1)" width="100" height="100"/>
-                                <circle cx="20" cy="80" r="35" fill="url(#av2)" opacity="0.8"/>
-                                <circle cx="80" cy="20" r="30" fill="url(#av3)" opacity="0.7"/>
-                                <circle cx="70" cy="70" r="20" fill="#ffd700" opacity="0.6"/>
-                                <circle cx="30" cy="30" r="15" fill="#ff6b6b" opacity="0.5"/>
-                                <circle cx="50" cy="50" r="8" fill="white" opacity="0.9"/>
+                    <!-- Logged out state: Login/Signup buttons -->
+                    <div id="auth-buttons" class="flex items-center space-x-2">
+                        <button onclick="showLoginModal()" class="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition">
+                            Log in
+                        </button>
+                        <button onclick="showSignupModal()" class="px-4 py-2 bg-anthropic-600 hover:bg-anthropic-700 text-white rounded-lg text-sm font-medium transition">
+                            Sign up
+                        </button>
+                    </div>
+                    <!-- Logged in state: User dropdown -->
+                    <div id="user-menu" class="relative hidden">
+                        <button onclick="toggleUserDropdown()" class="flex items-center space-x-2 px-3 py-2 bg-gray-100 dark:bg-gray-800 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition">
+                            <div id="user-avatar" class="w-8 h-8 bg-gradient-to-br from-anthropic-500 to-anthropic-600 rounded-full flex items-center justify-center text-sm font-bold text-white">
+                                U
+                            </div>
+                            <span id="user-name" class="text-sm font-medium hidden sm:block">User</span>
+                            <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
                             </svg>
+                        </button>
+                        <!-- Dropdown menu -->
+                        <div id="user-dropdown" class="absolute right-0 mt-2 w-64 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-2 hidden z-50">
+                            <div class="px-4 py-3 border-b border-gray-200 dark:border-gray-700">
+                                <p id="dropdown-email" class="text-sm font-medium text-gray-900 dark:text-white truncate">user@example.com</p>
+                                <p id="dropdown-tier" class="text-xs text-gray-500 dark:text-gray-400">Free tier</p>
+                            </div>
+                            <div class="px-4 py-2 border-b border-gray-200 dark:border-gray-700">
+                                <div class="flex items-center justify-between text-xs">
+                                    <span class="text-gray-500">Compute used</span>
+                                    <span id="dropdown-usage" class="font-medium">0 / 30 min</span>
+                                </div>
+                                <div class="mt-1 h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                                    <div id="dropdown-usage-bar" class="h-full bg-anthropic-500 rounded-full" style="width: 0%"></div>
+                                </div>
+                            </div>
+                            <a href="#" onclick="switchTab('settings'); toggleUserDropdown(); return false;" class="block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                                Settings
+                            </a>
+                            <a href="#" onclick="handleLogout(); return false;" class="block px-4 py-2 text-sm text-red-600 hover:bg-gray-100 dark:hover:bg-gray-700">
+                                Sign out
+                            </a>
                         </div>
-                        <span class="text-sm font-medium hidden sm:block">Wizkid</span>
                     </div>
                 </div>
             </div>
         </div>
     </nav>
+
+    <!-- Auth Modals -->
+    <!-- Login Modal -->
+    <div id="login-modal" class="fixed inset-0 z-50 hidden">
+        <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" onclick="hideAuthModals()"></div>
+        <div class="absolute inset-0 flex items-center justify-center p-4">
+            <div class="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-md p-8 relative">
+                <button onclick="hideAuthModals()" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+                <div class="text-center mb-8">
+                    <div class="w-16 h-16 bg-gradient-to-br from-anthropic-500 to-anthropic-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                        <span class="text-3xl">💻</span>
+                    </div>
+                    <h2 class="text-2xl font-bold text-gray-900 dark:text-white">Welcome back</h2>
+                    <p class="text-gray-600 dark:text-gray-400 mt-1">Sign in to your account</p>
+                </div>
+                <form id="login-form" onsubmit="handleLogin(event)" class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Email</label>
+                        <input type="email" id="login-email" required class="w-full px-4 py-3 border-2 border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:border-anthropic-500 focus:outline-none transition" placeholder="you@example.com">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Password</label>
+                        <input type="password" id="login-password" required class="w-full px-4 py-3 border-2 border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:border-anthropic-500 focus:outline-none transition" placeholder="Enter your password">
+                    </div>
+                    <div id="login-error" class="text-red-500 text-sm hidden"></div>
+                    <button type="submit" id="login-submit" class="w-full bg-anthropic-600 hover:bg-anthropic-700 text-white rounded-lg px-4 py-3 font-medium transition">
+                        Sign in
+                    </button>
+                </form>
+                <p class="text-center text-sm text-gray-600 dark:text-gray-400 mt-6">
+                    Don't have an account?
+                    <button onclick="showSignupModal()" class="text-anthropic-600 hover:text-anthropic-700 font-medium">Sign up</button>
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Signup Modal -->
+    <div id="signup-modal" class="fixed inset-0 z-50 hidden">
+        <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" onclick="hideAuthModals()"></div>
+        <div class="absolute inset-0 flex items-center justify-center p-4">
+            <div class="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-md p-8 relative">
+                <button onclick="hideAuthModals()" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+                <div class="text-center mb-8">
+                    <div class="w-16 h-16 bg-gradient-to-br from-anthropic-500 to-anthropic-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                        <span class="text-3xl">💻</span>
+                    </div>
+                    <h2 class="text-2xl font-bold text-gray-900 dark:text-white">Create an account</h2>
+                    <p class="text-gray-600 dark:text-gray-400 mt-1">Start with 30 free compute minutes</p>
+                </div>
+                <form id="signup-form" onsubmit="handleSignup(event)" class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Email</label>
+                        <input type="email" id="signup-email" required class="w-full px-4 py-3 border-2 border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:border-anthropic-500 focus:outline-none transition" placeholder="you@example.com">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Password</label>
+                        <input type="password" id="signup-password" required minlength="8" class="w-full px-4 py-3 border-2 border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:border-anthropic-500 focus:outline-none transition" placeholder="Min 8 characters">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Name (optional)</label>
+                        <input type="text" id="signup-name" class="w-full px-4 py-3 border-2 border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:border-anthropic-500 focus:outline-none transition" placeholder="Your name">
+                    </div>
+                    <div id="signup-error" class="text-red-500 text-sm hidden"></div>
+                    <button type="submit" id="signup-submit" class="w-full bg-anthropic-600 hover:bg-anthropic-700 text-white rounded-lg px-4 py-3 font-medium transition">
+                        Create account
+                    </button>
+                </form>
+                <p class="text-center text-sm text-gray-600 dark:text-gray-400 mt-6">
+                    Already have an account?
+                    <button onclick="showLoginModal()" class="text-anthropic-600 hover:text-anthropic-700 font-medium">Sign in</button>
+                </p>
+            </div>
+        </div>
+    </div>
 
     <!-- Main Content -->
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
@@ -1165,47 +1263,54 @@
                         Your computer in the cloud. No hidden fees.
                     </p>
                     <p class="text-gray-500 dark:text-gray-500">
-                        Pay only for what you use. Scale up or down anytime.
+                        Start free. Upgrade when you need more compute power.
                     </p>
                 </div>
 
                 <!-- Pricing Cards -->
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-5xl mx-auto">
-                    <!-- Starter -->
+                    <!-- Free -->
                     <div class="card bg-white dark:bg-[#1a1a1a] rounded-2xl p-8 border border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-lg transition-all">
                         <div class="mb-6">
-                            <h3 class="text-lg font-semibold dark:text-white mb-2">Starter</h3>
+                            <h3 class="text-lg font-semibold dark:text-white mb-2">Free</h3>
                             <p class="text-gray-500 dark:text-gray-400 text-sm">Perfect for trying things out</p>
                         </div>
                         <div class="mb-6">
-                            <span class="text-4xl font-bold dark:text-white">Free</span>
+                            <span class="text-4xl font-bold dark:text-white">$0</span>
+                            <span class="text-gray-400">/month</span>
                         </div>
                         <ul class="space-y-3 mb-8">
                             <li class="flex items-center text-sm text-gray-600 dark:text-gray-400">
                                 <svg class="w-5 h-5 text-green-500 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
                                 </svg>
-                                1 deployment
+                                30 compute minutes/month
                             </li>
                             <li class="flex items-center text-sm text-gray-600 dark:text-gray-400">
                                 <svg class="w-5 h-5 text-green-500 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
                                 </svg>
-                                Community support
+                                All templates available
                             </li>
                             <li class="flex items-center text-sm text-gray-600 dark:text-gray-400">
-                                <svg class="w-5 h-5 text-green-500 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                                <svg class="w-5 h-5 text-gray-300 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
                                 </svg>
-                                Basic analytics
+                                <span class="text-gray-400">No persistent storage</span>
+                            </li>
+                            <li class="flex items-center text-sm text-gray-600 dark:text-gray-400">
+                                <svg class="w-5 h-5 text-gray-300 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                                </svg>
+                                <span class="text-gray-400">Community support</span>
                             </li>
                         </ul>
-                        <button class="w-full py-3 px-4 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-900 dark:text-white rounded-xl font-medium transition">
-                            Get Started
+                        <button onclick="window.authManager?.isAuthenticated() ? null : showAuthModal('signup')" class="w-full py-3 px-4 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-900 dark:text-white rounded-xl font-medium transition">
+                            Get Started Free
                         </button>
                     </div>
 
-                    <!-- Pro - Featured -->
+                    <!-- Basic - Featured -->
                     <div class="card bg-gradient-to-br from-anthropic-600 to-anthropic-700 rounded-2xl p-8 shadow-xl hover:shadow-2xl transition-all transform hover:-translate-y-1 relative">
                         <div class="absolute -top-3 left-1/2 -translate-x-1/2">
                             <span class="px-4 py-1 bg-white dark:bg-gray-900 text-anthropic-600 text-xs font-bold rounded-full shadow-md">
@@ -1213,11 +1318,11 @@
                             </span>
                         </div>
                         <div class="mb-6">
-                            <h3 class="text-lg font-semibold text-white mb-2">Pro</h3>
-                            <p class="text-anthropic-100 text-sm">For individuals & small teams</p>
+                            <h3 class="text-lg font-semibold text-white mb-2">Basic</h3>
+                            <p class="text-anthropic-100 text-sm">For students & hobbyists</p>
                         </div>
                         <div class="mb-6">
-                            <span class="text-4xl font-bold text-white">$29</span>
+                            <span class="text-4xl font-bold text-white">$10</span>
                             <span class="text-anthropic-200">/month</span>
                         </div>
                         <ul class="space-y-3 mb-8">
@@ -1225,112 +1330,110 @@
                                 <svg class="w-5 h-5 text-anthropic-200 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
                                 </svg>
-                                10 deployments
+                                300 compute minutes/month
                             </li>
                             <li class="flex items-center text-sm text-white">
                                 <svg class="w-5 h-5 text-anthropic-200 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
                                 </svg>
-                                Priority support
+                                10 GB persistent storage
                             </li>
                             <li class="flex items-center text-sm text-white">
                                 <svg class="w-5 h-5 text-anthropic-200 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
                                 </svg>
-                                Advanced analytics
+                                Data persists across restarts
                             </li>
                             <li class="flex items-center text-sm text-white">
                                 <svg class="w-5 h-5 text-anthropic-200 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
                                 </svg>
-                                Custom domains
+                                Shared GPU machines
                             </li>
                             <li class="flex items-center text-sm text-white">
                                 <svg class="w-5 h-5 text-anthropic-200 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
                                 </svg>
-                                API access
+                                Email support
                             </li>
                         </ul>
-                        <button class="w-full py-3 px-4 bg-white hover:bg-gray-100 text-anthropic-700 rounded-xl font-bold transition shadow-lg">
-                            Start Free Trial
+                        <button onclick="window.authManager?.isAuthenticated() ? window.authManager.upgradeTier('basic') : showAuthModal('signup')" class="w-full py-3 px-4 bg-white hover:bg-gray-100 text-anthropic-700 rounded-xl font-bold transition shadow-lg">
+                            Upgrade to Basic
                         </button>
                     </div>
 
-                    <!-- Enterprise -->
+                    <!-- Premium -->
                     <div class="card bg-white dark:bg-[#1a1a1a] rounded-2xl p-8 border border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-lg transition-all">
                         <div class="mb-6">
-                            <h3 class="text-lg font-semibold dark:text-white mb-2">Enterprise</h3>
-                            <p class="text-gray-500 dark:text-gray-400 text-sm">For organizations at scale</p>
+                            <h3 class="text-lg font-semibold dark:text-white mb-2">Premium</h3>
+                            <p class="text-gray-500 dark:text-gray-400 text-sm">For power users and teams</p>
                         </div>
                         <div class="mb-6">
-                            <span class="text-4xl font-bold dark:text-white">Custom</span>
+                            <span class="text-4xl font-bold dark:text-white">$20</span>
+                            <span class="text-gray-500 dark:text-gray-400">/month</span>
                         </div>
                         <ul class="space-y-3 mb-8">
                             <li class="flex items-center text-sm text-gray-600 dark:text-gray-400">
                                 <svg class="w-5 h-5 text-green-500 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
                                 </svg>
-                                Unlimited deployments
+                                1,000 compute minutes/month
                             </li>
                             <li class="flex items-center text-sm text-gray-600 dark:text-gray-400">
                                 <svg class="w-5 h-5 text-green-500 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
                                 </svg>
-                                24/7 dedicated support
+                                100 GB persistent storage
                             </li>
                             <li class="flex items-center text-sm text-gray-600 dark:text-gray-400">
                                 <svg class="w-5 h-5 text-green-500 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
                                 </svg>
-                                SSO & SAML
+                                Priority queue access
                             </li>
                             <li class="flex items-center text-sm text-gray-600 dark:text-gray-400">
                                 <svg class="w-5 h-5 text-green-500 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
                                 </svg>
-                                SLA guarantees
+                                Dedicated GPU option
                             </li>
                             <li class="flex items-center text-sm text-gray-600 dark:text-gray-400">
                                 <svg class="w-5 h-5 text-green-500 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
                                 </svg>
-                                On-premise option
+                                Priority email support
                             </li>
                         </ul>
-                        <button class="w-full py-3 px-4 bg-gray-900 dark:bg-white hover:bg-gray-800 dark:hover:bg-gray-100 text-white dark:text-gray-900 rounded-xl font-medium transition">
-                            Contact Sales
+                        <button onclick="window.authManager?.isAuthenticated() ? window.authManager.upgradeTier('premium') : showAuthModal('signup')" class="w-full py-3 px-4 bg-gray-900 dark:bg-white hover:bg-gray-800 dark:hover:bg-gray-100 text-white dark:text-gray-900 rounded-xl font-medium transition">
+                            Upgrade to Premium
                         </button>
                     </div>
                 </div>
 
-                <!-- Usage-based pricing -->
+                <!-- Overage pricing -->
                 <div class="max-w-3xl mx-auto">
                     <div class="card bg-white dark:bg-[#1a1a1a] rounded-2xl p-8 border border-gray-200 dark:border-gray-700">
                         <div class="text-center mb-8">
-                            <h3 class="text-2xl font-bold dark:text-white mb-2">Pay-as-you-go compute</h3>
-                            <p class="text-gray-500 dark:text-gray-400">All plans include usage-based compute pricing</p>
+                            <h3 class="text-2xl font-bold dark:text-white mb-2">Need more compute?</h3>
+                            <p class="text-gray-500 dark:text-gray-400">Pay only for what you use beyond your plan limits</p>
                         </div>
-                        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                            <div class="text-center p-4 bg-gray-50 dark:bg-gray-800/50 rounded-xl">
-                                <div class="text-3xl mb-2">🖥️</div>
-                                <p class="text-sm font-medium dark:text-white mb-1">Standard</p>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div class="text-center p-6 bg-gray-50 dark:bg-gray-800/50 rounded-xl">
+                                <div class="text-3xl mb-2">⏱️</div>
+                                <p class="text-sm font-medium dark:text-white mb-1">Overage Compute</p>
+                                <p class="text-2xl font-bold text-anthropic-600">$0.10</p>
+                                <p class="text-xs text-gray-500">per minute beyond plan limit</p>
+                            </div>
+                            <div class="text-center p-6 bg-gray-50 dark:bg-gray-800/50 rounded-xl">
+                                <div class="text-3xl mb-2">💾</div>
+                                <p class="text-sm font-medium dark:text-white mb-1">Extra Storage</p>
                                 <p class="text-2xl font-bold text-anthropic-600">$0.05</p>
-                                <p class="text-xs text-gray-500">per hour</p>
-                            </div>
-                            <div class="text-center p-4 bg-gray-50 dark:bg-gray-800/50 rounded-xl">
-                                <div class="text-3xl mb-2">⚡</div>
-                                <p class="text-sm font-medium dark:text-white mb-1">GPU (RTX 4090)</p>
-                                <p class="text-2xl font-bold text-anthropic-600">$0.50</p>
-                                <p class="text-xs text-gray-500">per hour</p>
-                            </div>
-                            <div class="text-center p-4 bg-gray-50 dark:bg-gray-800/50 rounded-xl">
-                                <div class="text-3xl mb-2">🚀</div>
-                                <p class="text-sm font-medium dark:text-white mb-1">GPU (A100)</p>
-                                <p class="text-2xl font-bold text-anthropic-600">$2.00</p>
-                                <p class="text-xs text-gray-500">per hour</p>
+                                <p class="text-xs text-gray-500">per GB/month beyond plan limit</p>
                             </div>
                         </div>
+                        <p class="text-center text-sm text-gray-500 dark:text-gray-400 mt-6">
+                            Your data persists across sessions. Stop deployments to pause billing.
+                        </p>
                     </div>
                 </div>
 
@@ -1350,6 +1453,376 @@
         const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
             ? ''  // Empty string means use current origin
             : 'https://freedom-recommend-ray-payday.trycloudflare.com';
+
+        // ============================================================================
+        // AUTHENTICATION SYSTEM
+        // ============================================================================
+        const auth = {
+            user: null,
+            accessToken: null,
+            refreshToken: null,
+
+            init() {
+                // Load tokens from localStorage
+                this.accessToken = localStorage.getItem('access_token');
+                this.refreshToken = localStorage.getItem('refresh_token');
+
+                if (this.accessToken) {
+                    this.fetchUser();
+                } else {
+                    this.updateUI();
+                }
+            },
+
+            async fetchUser() {
+                try {
+                    const response = await fetch(`${API_BASE}/api/auth/me`, {
+                        headers: this.getAuthHeaders()
+                    });
+
+                    if (response.ok) {
+                        this.user = await response.json();
+                        this.updateUI();
+                    } else if (response.status === 401) {
+                        // Token expired, try refresh
+                        const refreshed = await this.refreshTokens();
+                        if (!refreshed) {
+                            this.logout();
+                        }
+                    }
+                } catch (error) {
+                    console.error('Failed to fetch user:', error);
+                    this.updateUI();
+                }
+            },
+
+            async refreshTokens() {
+                if (!this.refreshToken) return false;
+
+                try {
+                    const response = await fetch(`${API_BASE}/api/auth/refresh`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ refresh_token: this.refreshToken })
+                    });
+
+                    if (response.ok) {
+                        const data = await response.json();
+                        this.setTokens(data.access_token, data.refresh_token);
+                        await this.fetchUser();
+                        return true;
+                    }
+                } catch (error) {
+                    console.error('Failed to refresh token:', error);
+                }
+                return false;
+            },
+
+            setTokens(accessToken, refreshToken) {
+                this.accessToken = accessToken;
+                this.refreshToken = refreshToken;
+                localStorage.setItem('access_token', accessToken);
+                localStorage.setItem('refresh_token', refreshToken);
+            },
+
+            clearTokens() {
+                this.accessToken = null;
+                this.refreshToken = null;
+                this.user = null;
+                localStorage.removeItem('access_token');
+                localStorage.removeItem('refresh_token');
+            },
+
+            getAuthHeaders() {
+                const headers = { 'Content-Type': 'application/json' };
+                if (this.accessToken) {
+                    headers['Authorization'] = `Bearer ${this.accessToken}`;
+                }
+                return headers;
+            },
+
+            isLoggedIn() {
+                return !!this.accessToken && !!this.user;
+            },
+
+            logout() {
+                // Optionally notify backend
+                if (this.refreshToken) {
+                    fetch(`${API_BASE}/api/auth/logout`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ refresh_token: this.refreshToken })
+                    }).catch(() => {});
+                }
+                this.clearTokens();
+                this.updateUI();
+                toastManager.success('Logged out', 'You have been signed out successfully');
+            },
+
+            updateUI() {
+                const authButtons = document.getElementById('auth-buttons');
+                const userMenu = document.getElementById('user-menu');
+                const notificationsBtn = document.getElementById('notifications-btn');
+
+                if (this.isLoggedIn()) {
+                    // Show user menu, hide auth buttons
+                    authButtons.classList.add('hidden');
+                    userMenu.classList.remove('hidden');
+                    notificationsBtn.classList.remove('hidden');
+
+                    // Update user info
+                    const initial = (this.user.name || this.user.email || 'U')[0].toUpperCase();
+                    document.getElementById('user-avatar').textContent = initial;
+                    document.getElementById('user-name').textContent = this.user.name || this.user.email.split('@')[0];
+                    document.getElementById('dropdown-email').textContent = this.user.email;
+                    document.getElementById('dropdown-tier').textContent = this.user.tier.charAt(0).toUpperCase() + this.user.tier.slice(1) + ' tier';
+
+                    // Update usage
+                    const used = this.user.compute_minutes_used || 0;
+                    const limit = this.user.compute_minutes_limit || 30;
+                    const percentage = Math.min((used / limit) * 100, 100);
+                    document.getElementById('dropdown-usage').textContent = `${used} / ${limit} min`;
+                    document.getElementById('dropdown-usage-bar').style.width = `${percentage}%`;
+                } else {
+                    // Show auth buttons, hide user menu
+                    authButtons.classList.remove('hidden');
+                    userMenu.classList.add('hidden');
+                    notificationsBtn.classList.add('hidden');
+                }
+            },
+
+            // Alias for isLoggedIn
+            isAuthenticated() {
+                return this.isLoggedIn();
+            },
+
+            // Upgrade to a paid tier via Stripe
+            async upgradeTier(tier) {
+                if (!this.isLoggedIn()) {
+                    showAuthModal('signup');
+                    return;
+                }
+
+                try {
+                    const response = await fetch(`${API_BASE}/api/billing/checkout`, {
+                        method: 'POST',
+                        headers: this.getAuthHeaders(),
+                        body: JSON.stringify({ tier })
+                    });
+
+                    const data = await response.json();
+
+                    if (response.ok && data.checkout_url) {
+                        // Redirect to Stripe checkout
+                        window.location.href = data.checkout_url;
+                    } else {
+                        toastManager.error('Upgrade Failed', data.detail || 'Could not start checkout');
+                    }
+                } catch (error) {
+                    console.error('Upgrade error:', error);
+                    toastManager.error('Network Error', 'Please try again later');
+                }
+            }
+        };
+
+        // Expose auth manager globally
+        window.authManager = auth;
+
+        // Modal functions
+        function showLoginModal() {
+            hideAuthModals();
+            document.getElementById('login-modal').classList.remove('hidden');
+            document.getElementById('login-email').focus();
+        }
+
+        function showSignupModal() {
+            hideAuthModals();
+            document.getElementById('signup-modal').classList.remove('hidden');
+            document.getElementById('signup-email').focus();
+        }
+
+        function showAuthModal(type = 'login') {
+            if (type === 'signup') {
+                showSignupModal();
+            } else {
+                showLoginModal();
+            }
+        }
+
+        function hideAuthModals() {
+            document.getElementById('login-modal').classList.add('hidden');
+            document.getElementById('signup-modal').classList.add('hidden');
+            document.getElementById('login-error').classList.add('hidden');
+            document.getElementById('signup-error').classList.add('hidden');
+        }
+
+        function toggleUserDropdown() {
+            const dropdown = document.getElementById('user-dropdown');
+            dropdown.classList.toggle('hidden');
+        }
+
+        // Close dropdown when clicking outside
+        document.addEventListener('click', (e) => {
+            const userMenu = document.getElementById('user-menu');
+            const dropdown = document.getElementById('user-dropdown');
+            if (userMenu && !userMenu.contains(e.target) && !dropdown.classList.contains('hidden')) {
+                dropdown.classList.add('hidden');
+            }
+        });
+
+        async function handleLogin(event) {
+            event.preventDefault();
+            const email = document.getElementById('login-email').value;
+            const password = document.getElementById('login-password').value;
+            const errorEl = document.getElementById('login-error');
+            const submitBtn = document.getElementById('login-submit');
+
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Signing in...';
+            errorEl.classList.add('hidden');
+
+            try {
+                const response = await fetch(`${API_BASE}/api/auth/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    auth.setTokens(data.access_token, data.refresh_token);
+                    await auth.fetchUser();
+                    hideAuthModals();
+                    toastManager.success('Welcome back!', 'You have successfully signed in');
+                } else {
+                    errorEl.textContent = data.detail || 'Invalid email or password';
+                    errorEl.classList.remove('hidden');
+                }
+            } catch (error) {
+                errorEl.textContent = 'Network error. Please try again.';
+                errorEl.classList.remove('hidden');
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Sign in';
+            }
+        }
+
+        async function handleSignup(event) {
+            event.preventDefault();
+            const email = document.getElementById('signup-email').value;
+            const password = document.getElementById('signup-password').value;
+            const name = document.getElementById('signup-name').value || null;
+            const errorEl = document.getElementById('signup-error');
+            const submitBtn = document.getElementById('signup-submit');
+
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Creating account...';
+            errorEl.classList.add('hidden');
+
+            try {
+                const response = await fetch(`${API_BASE}/api/auth/signup`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password, name })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    auth.setTokens(data.access_token, data.refresh_token);
+                    await auth.fetchUser();
+                    hideAuthModals();
+                    toastManager.success('Welcome!', 'Your account has been created. You have 30 free compute minutes.');
+                } else {
+                    errorEl.textContent = data.detail || 'Failed to create account';
+                    errorEl.classList.remove('hidden');
+                }
+            } catch (error) {
+                errorEl.textContent = 'Network error. Please try again.';
+                errorEl.classList.remove('hidden');
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Create account';
+            }
+        }
+
+        function handleLogout() {
+            toggleUserDropdown();
+            auth.logout();
+        }
+
+        // Helper to make authenticated API calls
+        async function authFetch(url, options = {}) {
+            const headers = { ...auth.getAuthHeaders(), ...options.headers };
+            const response = await fetch(url, { ...options, headers });
+
+            // If unauthorized, try refreshing token
+            if (response.status === 401 && auth.refreshToken) {
+                const refreshed = await auth.refreshTokens();
+                if (refreshed) {
+                    // Retry with new token
+                    const retryHeaders = { ...auth.getAuthHeaders(), ...options.headers };
+                    return fetch(url, { ...options, headers: retryHeaders });
+                }
+            }
+
+            return response;
+        }
+
+        // ============================================================================
+        // PREDICTIVE WARMING
+        // ============================================================================
+        let activeWarmSlots = new Map(); // templateId -> slot info
+
+        async function triggerWarming(templateId, signal = 'click') {
+            if (!auth.isLoggedIn()) return;
+
+            try {
+                const response = await authFetch(`${API_BASE}/api/user/warm/${templateId}?signal=${signal}`, {
+                    method: 'POST'
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.slot_id) {
+                        activeWarmSlots.set(templateId, data);
+                        console.log(`Warming triggered for ${templateId}:`, data);
+                    }
+                }
+            } catch (error) {
+                console.log('Warming trigger failed (non-critical):', error);
+            }
+        }
+
+        async function getWarmSlots() {
+            if (!auth.isLoggedIn()) return [];
+
+            try {
+                const response = await authFetch(`${API_BASE}/api/user/warm`);
+                if (response.ok) {
+                    const data = await response.json();
+                    return data.slots || [];
+                }
+            } catch (error) {
+                console.log('Failed to get warm slots:', error);
+            }
+            return [];
+        }
+
+        function getWarmSlotStatus(templateId) {
+            const slot = activeWarmSlots.get(templateId);
+            if (!slot) return null;
+
+            // Check if still valid
+            const expiresAt = new Date(slot.expires_at);
+            if (expiresAt < new Date()) {
+                activeWarmSlots.delete(templateId);
+                return null;
+            }
+
+            return slot.status;
+        }
 
         // ============================================================================
         // TOAST NOTIFICATION SYSTEM
@@ -2898,6 +3371,11 @@
 
             selectedTemplate = template;
 
+            // Trigger predictive warming (only if logged in)
+            if (auth.isLoggedIn()) {
+                triggerWarming(templateId, 'click');
+            }
+
             // Update the configuration form
             document.getElementById('template-deploy-title').textContent = `Deploy ${template.name}`;
             document.getElementById('template-deploy-description').textContent = template.description;
@@ -4142,6 +4620,9 @@
         }
 
         document.addEventListener('DOMContentLoaded', () => {
+            // Initialize authentication first
+            auth.init();
+
             loadStats();
             loadTemplates();
             loadApplicationDeployments();
