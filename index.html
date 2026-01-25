@@ -1458,6 +1458,60 @@
         }
 
         // ============================================================================
+        // PREDICTIVE WARMING
+        // ============================================================================
+        let activeWarmSlots = new Map(); // templateId -> slot info
+
+        async function triggerWarming(templateId, signal = 'click') {
+            if (!auth.isLoggedIn()) return;
+
+            try {
+                const response = await authFetch(`${API_BASE}/api/user/warm/${templateId}?signal=${signal}`, {
+                    method: 'POST'
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.slot_id) {
+                        activeWarmSlots.set(templateId, data);
+                        console.log(`Warming triggered for ${templateId}:`, data);
+                    }
+                }
+            } catch (error) {
+                console.log('Warming trigger failed (non-critical):', error);
+            }
+        }
+
+        async function getWarmSlots() {
+            if (!auth.isLoggedIn()) return [];
+
+            try {
+                const response = await authFetch(`${API_BASE}/api/user/warm`);
+                if (response.ok) {
+                    const data = await response.json();
+                    return data.slots || [];
+                }
+            } catch (error) {
+                console.log('Failed to get warm slots:', error);
+            }
+            return [];
+        }
+
+        function getWarmSlotStatus(templateId) {
+            const slot = activeWarmSlots.get(templateId);
+            if (!slot) return null;
+
+            // Check if still valid
+            const expiresAt = new Date(slot.expires_at);
+            if (expiresAt < new Date()) {
+                activeWarmSlots.delete(templateId);
+                return null;
+            }
+
+            return slot.status;
+        }
+
+        // ============================================================================
         // TOAST NOTIFICATION SYSTEM
         // ============================================================================
         class ToastManager {
@@ -2413,6 +2467,11 @@
             if (!template) return;
 
             selectedTemplate = template;
+
+            // Trigger predictive warming (only if logged in)
+            if (auth.isLoggedIn()) {
+                triggerWarming(templateId, 'click');
+            }
 
             // Update the configuration form
             document.getElementById('template-deploy-title').textContent = `Deploy ${template.name}`;

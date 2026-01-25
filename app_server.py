@@ -31,11 +31,13 @@ try:
     from models import User, Deployment, UsageRecord, DeploymentStatus, ComputeProvider, UserTier
     from auth import router as auth_router, get_current_user, get_optional_user
     from storage import storage_client, get_template_storage_path, TEMPLATE_STORAGE_PATHS
+    from warming import warming_manager, start_warming_manager, stop_warming_manager
     DB_AVAILABLE = True
 except ImportError as e:
     print(f"Database modules not available: {e}")
     DB_AVAILABLE = False
     storage_client = None
+    warming_manager = None
 
 # Docker SDK for local container management
 try:
@@ -68,13 +70,17 @@ async def lifespan(app: FastAPI):
             await init_db()
             if await check_db_connection():
                 print("Database connected successfully")
+                # Start warming manager
+                if warming_manager:
+                    await start_warming_manager()
             else:
                 print("Database connection failed - running in limited mode")
         except Exception as e:
             print(f"Database initialization failed: {e}")
     yield
     # Shutdown
-    pass
+    if DB_AVAILABLE and warming_manager:
+        await stop_warming_manager()
 
 # Initialize FastAPI
 app = FastAPI(
@@ -2848,6 +2854,91 @@ if DB_AVAILABLE:
             raise HTTPException(status_code=400, detail="Invalid action. Use 'backup' or 'restore'")
 
         return sync_result
+
+    # ========================================================================
+    # PREDICTIVE WARMING ENDPOINTS
+    # ========================================================================
+
+    @app.post("/api/user/warm/{template_id}")
+    async def trigger_warming(
+        template_id: str,
+        signal: str = "click",
+        current_user: User = Depends(get_current_user),
+        db: AsyncSession = Depends(get_db)
+    ):
+        """
+        Trigger predictive warming for a template.
+        Called when user shows intent to deploy (clicks app card, opens config, etc.)
+
+        Args:
+            template_id: Template to warm (e.g., "ollama", "jupyter")
+            signal: What triggered the warming ("login", "click", "hover", "config")
+        """
+        if not warming_manager:
+            return {"enabled": False, "message": "Warming not available"}
+
+        if template_id not in TEMPLATE_REGISTRY:
+            raise HTTPException(status_code=404, detail=f"Template '{template_id}' not found")
+
+        result = await warming_manager.trigger_warming(
+            user_id=current_user.id,
+            template_id=template_id,
+            db=db,
+            signal=signal
+        )
+
+        return result
+
+    @app.get("/api/user/warm")
+    async def get_warm_slots(
+        current_user: User = Depends(get_current_user),
+        db: AsyncSession = Depends(get_db)
+    ):
+        """Get all active warm slots for the current user"""
+        if not warming_manager:
+            return {"enabled": False, "slots": []}
+
+        slots = await warming_manager.get_user_warm_slots(current_user.id, db)
+
+        return {
+            "enabled": True,
+            "slots": slots,
+            "max_slots": 2
+        }
+
+    @app.delete("/api/user/warm/{slot_id}")
+    async def cancel_warm_slot(
+        slot_id: str,
+        current_user: User = Depends(get_current_user),
+        db: AsyncSession = Depends(get_db)
+    ):
+        """Cancel/expire a warm slot early"""
+        from models import WarmSlot, WarmSlotStatus
+        from uuid import UUID as PyUUID
+
+        try:
+            slot_uuid = PyUUID(slot_id)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid slot ID")
+
+        result = await db.execute(
+            select(WarmSlot)
+            .where(WarmSlot.id == slot_uuid)
+            .where(WarmSlot.user_id == current_user.id)
+        )
+        slot = result.scalar_one_or_none()
+
+        if not slot:
+            raise HTTPException(status_code=404, detail="Warm slot not found")
+
+        if slot.status in [WarmSlotStatus.CLAIMED, WarmSlotStatus.EXPIRED]:
+            return {"success": False, "message": "Slot already claimed or expired"}
+
+        # Mark as expired (cleanup task will release resources)
+        slot.status = WarmSlotStatus.EXPIRED
+        await db.commit()
+
+        return {"success": True, "message": "Warm slot cancelled"}
 
 # ============================================================================
 # HEALTH CHECK
