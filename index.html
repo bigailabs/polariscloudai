@@ -161,7 +161,7 @@
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex justify-between items-center h-16">
                 <!-- Logo -->
-                <div class="flex items-center space-x-3">
+                <a href="/" class="flex items-center space-x-3 hover:opacity-80 transition">
                     <div class="w-10 h-10 bg-gradient-to-br from-anthropic-600 to-anthropic-700 rounded-lg flex items-center justify-center">
                         <span class="text-xl">💻</span>
                     </div>
@@ -171,7 +171,7 @@
                         </h1>
                         <p class="text-xs text-gray-600 dark:text-gray-400">Cloud Console</p>
                     </div>
-                </div>
+                </a>
 
                 <!-- Navigation Links -->
                 <div class="hidden md:flex items-center space-x-8">
@@ -334,14 +334,15 @@
                 <button onclick="switchTab('applications')" id="tab-applications" class="tab-active pb-4 px-1 text-sm font-medium transition">
                     Applications
                 </button>
-                <button onclick="switchTab('deploy')" id="tab-deploy" class="pb-4 px-1 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition">
-                    Models
-                </button>
-                <button onclick="switchTab('deployments')" id="tab-deployments" class="pb-4 px-1 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition">
-                    Deployments
+                <button onclick="switchTab('compute')" id="tab-compute" class="pb-4 px-1 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition">
+                    Compute
                 </button>
                 <button onclick="switchTab('analytics')" id="tab-analytics" class="pb-4 px-1 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition">
                     Analytics
+                </button>
+                <button onclick="switchTab('dashboard')" id="tab-dashboard" class="pb-4 px-1 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition flex items-center space-x-2">
+                    <span>Dashboard</span>
+                    <span id="dashboard-live-count" class="hidden px-1.5 py-0.5 bg-green-500 text-white text-xs font-bold rounded-full min-w-[20px] text-center">0</span>
                 </button>
                 <button onclick="switchTab('settings')" id="tab-settings" class="pb-4 px-1 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition">
                     Settings
@@ -350,29 +351,105 @@
         </div>
 
         <!-- Tab Content -->
-        <div id="content-deployments" class="tab-content hidden">
+        <!-- Dashboard Tab -->
+        <div id="content-dashboard" class="tab-content hidden">
             <div class="space-y-6">
-                <!-- Header -->
-                <div class="flex items-center justify-between">
+                <!-- Header with Stats -->
+                <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div>
-                        <h3 class="text-2xl font-bold mb-1">Active Deployments</h3>
-                        <p class="text-gray-600 dark:text-gray-400">Your running applications and services</p>
+                        <h3 class="text-2xl font-bold mb-1 dark:text-white">Dashboard</h3>
+                        <p class="text-gray-600 dark:text-gray-400">Your running applications and compute instances</p>
                     </div>
                     <div class="flex items-center space-x-3">
-                        <button onclick="syncDeploymentStatuses()" class="px-4 py-2 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 rounded-lg text-sm font-medium transition flex items-center space-x-2">
-                            <span>🔄</span>
-                            <span>Sync Status</span>
-                        </button>
-                        <button onclick="loadApplicationDeployments()" class="px-4 py-2 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 rounded-lg text-sm font-medium transition flex items-center space-x-2">
+                        <button onclick="refreshDashboard()" class="px-4 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg text-sm font-medium transition flex items-center space-x-2">
                             <span>↻</span>
                             <span>Refresh</span>
                         </button>
                     </div>
                 </div>
 
-                <!-- Deployments Grid -->
-                <div id="template-deployments-list" class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <p class="text-gray-500 col-span-full text-center py-8">No active deployments. Deploy an application to get started.</p>
+                <!-- Summary Cards -->
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div class="bg-white dark:bg-[#1a1a1a] rounded-xl p-4 border border-gray-200 dark:border-gray-700">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">Total Live</p>
+                                <p id="dash-total-live" class="text-2xl font-bold text-gray-900 dark:text-white mt-1">0</p>
+                            </div>
+                            <div class="w-10 h-10 bg-green-100 dark:bg-green-900/30 rounded-lg flex items-center justify-center">
+                                <div class="w-3 h-3 bg-green-500 rounded-full status-dot"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="bg-white dark:bg-[#1a1a1a] rounded-xl p-4 border border-gray-200 dark:border-gray-700">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">Applications</p>
+                                <p id="dash-apps-count" class="text-2xl font-bold text-gray-900 dark:text-white mt-1">0</p>
+                            </div>
+                            <div class="w-10 h-10 bg-blue-100 dark:bg-blue-900/30 rounded-lg flex items-center justify-center">
+                                <span class="text-lg">📦</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="bg-white dark:bg-[#1a1a1a] rounded-xl p-4 border border-gray-200 dark:border-gray-700">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">GPU Instances</p>
+                                <p id="dash-compute-count" class="text-2xl font-bold text-gray-900 dark:text-white mt-1">0</p>
+                            </div>
+                            <div class="w-10 h-10 bg-purple-100 dark:bg-purple-900/30 rounded-lg flex items-center justify-center">
+                                <span class="text-lg">🖥️</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="bg-white dark:bg-[#1a1a1a] rounded-xl p-4 border border-gray-200 dark:border-gray-700">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">Est. Cost/hr</p>
+                                <p id="dash-hourly-cost" class="text-2xl font-bold text-anthropic-600 mt-1">$0.00</p>
+                            </div>
+                            <div class="w-10 h-10 bg-anthropic-100 dark:bg-anthropic-900/30 rounded-lg flex items-center justify-center">
+                                <span class="text-lg">💰</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Filter Tabs -->
+                <div class="flex items-center space-x-2 border-b border-gray-200 dark:border-gray-700 pb-3">
+                    <button onclick="filterDashboard('all')" id="dash-filter-all" class="dash-filter-btn active px-4 py-2 rounded-lg text-sm font-medium transition bg-anthropic-600 text-white">
+                        All
+                    </button>
+                    <button onclick="filterDashboard('applications')" id="dash-filter-applications" class="dash-filter-btn px-4 py-2 rounded-lg text-sm font-medium transition bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700">
+                        Applications
+                    </button>
+                    <button onclick="filterDashboard('compute')" id="dash-filter-compute" class="dash-filter-btn px-4 py-2 rounded-lg text-sm font-medium transition bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700">
+                        GPU Instances
+                    </button>
+                    <button onclick="filterDashboard('running')" id="dash-filter-running" class="dash-filter-btn px-4 py-2 rounded-lg text-sm font-medium transition bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700">
+                        Running
+                    </button>
+                    <button onclick="filterDashboard('starting')" id="dash-filter-starting" class="dash-filter-btn px-4 py-2 rounded-lg text-sm font-medium transition bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700">
+                        Starting
+                    </button>
+                </div>
+
+                <!-- Resources List -->
+                <div id="dashboard-resources" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="col-span-full text-center py-12">
+                        <div class="text-4xl mb-3">🚀</div>
+                        <p class="text-gray-500 dark:text-gray-400">No active resources</p>
+                        <p class="text-sm text-gray-400 dark:text-gray-500 mt-1">Deploy an application or rent a GPU to get started</p>
+                        <div class="flex justify-center space-x-3 mt-4">
+                            <button onclick="switchTab('applications')" class="px-4 py-2 bg-anthropic-600 hover:bg-anthropic-700 text-white rounded-lg text-sm font-medium transition">
+                                Browse Applications
+                            </button>
+                            <button onclick="switchTab('compute')" class="px-4 py-2 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg text-sm font-medium transition">
+                                Rent GPU
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -728,8 +805,193 @@
             </div>
         </div>
 
+        <!-- Compute Tab Content -->
+        <div id="content-compute" class="tab-content hidden">
+            <div class="space-y-6">
+                <!-- Header -->
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h3 class="text-2xl font-bold mb-1 dark:text-white">GPU Compute</h3>
+                        <p class="text-gray-600 dark:text-gray-400">Rent powerful GPUs by the hour with full SSH access</p>
+                    </div>
+                    <button onclick="loadComputeGPUs()" class="px-4 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg text-sm font-medium transition flex items-center space-x-2">
+                        <span>↻</span>
+                        <span>Refresh</span>
+                    </button>
+                </div>
+
+                <!-- Active Compute Instances -->
+                <div id="compute-active-section" class="hidden">
+                    <h4 class="text-lg font-semibold mb-3 dark:text-white">Your Instances</h4>
+                    <div id="compute-active-instances" class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                        <!-- Active instances will be rendered here -->
+                    </div>
+                </div>
+
+                <!-- GPU Catalog -->
+                <div>
+                    <h4 class="text-lg font-semibold mb-3 dark:text-white">Available GPUs</h4>
+                    <div id="compute-gpu-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        <p class="text-gray-500 dark:text-gray-400 col-span-full text-center py-8">Loading GPUs...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Compute Rental Modal -->
+        <div id="compute-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50 flex items-center justify-center p-4">
+            <div class="bg-white dark:bg-[#1a1a1a] rounded-2xl max-w-lg w-full shadow-2xl max-h-[90vh] overflow-y-auto">
+                <div class="p-6 border-b border-gray-200 dark:border-gray-700">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center space-x-3">
+                            <div id="compute-modal-icon" class="w-12 h-12 bg-anthropic-600 bg-opacity-20 rounded-lg flex items-center justify-center text-2xl">🖥️</div>
+                            <div>
+                                <h3 id="compute-modal-title" class="text-xl font-bold dark:text-white">Rent GPU</h3>
+                                <p id="compute-modal-subtitle" class="text-sm text-gray-500 dark:text-gray-400">Configure your instance</p>
+                            </div>
+                        </div>
+                        <button onclick="closeComputeModal()" class="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition">
+                            <svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+                <form id="compute-rental-form" onsubmit="submitComputeRental(event)" class="p-6 space-y-4">
+                    <input type="hidden" id="compute-gpu-name" value="">
+
+                    <div>
+                        <label class="block text-sm font-medium mb-2 dark:text-gray-200">Instance Name</label>
+                        <input id="compute-instance-name" type="text" required class="w-full bg-white dark:bg-gray-800 dark:text-white border-2 border-gray-300 dark:border-gray-600 rounded-lg px-4 py-2 focus:border-anthropic-600 outline-none transition" placeholder="my-gpu-instance">
+                        <p class="text-xs text-gray-500 mt-1">A unique name for your instance</p>
+                    </div>
+
+                    <div>
+                        <div class="flex items-center justify-between mb-2">
+                            <label class="block text-sm font-medium dark:text-gray-200">SSH Public Key</label>
+                            <button type="button" onclick="toggleSSHHelp()" class="text-xs text-anthropic-600 hover:text-anthropic-700 font-medium">How do I get this?</button>
+                        </div>
+                        <textarea id="compute-ssh-key" rows="3" class="w-full bg-white dark:bg-gray-800 dark:text-white border-2 border-gray-300 dark:border-gray-600 rounded-lg px-4 py-2 focus:border-anthropic-600 outline-none transition font-mono text-xs" placeholder="ssh-rsa AAAA... or ssh-ed25519 AAAA..."></textarea>
+                        <p id="ssh-key-error" class="text-xs text-red-500 mt-1 hidden">Please enter a valid SSH public key (must start with ssh-rsa or ssh-ed25519)</p>
+
+                        <!-- SSH Help Panel -->
+                        <div id="ssh-help-panel" class="hidden mt-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
+                            <p class="text-sm font-medium text-blue-800 dark:text-blue-200 mb-2">How to get your SSH public key:</p>
+                            <div class="text-xs text-blue-700 dark:text-blue-300 space-y-2">
+                                <p><strong>Mac/Linux:</strong> Open Terminal and run:</p>
+                                <code class="block bg-blue-100 dark:bg-blue-900/50 px-2 py-1 rounded">cat ~/.ssh/id_ed25519.pub</code>
+                                <p class="text-blue-600 dark:text-blue-400">or if you use RSA:</p>
+                                <code class="block bg-blue-100 dark:bg-blue-900/50 px-2 py-1 rounded">cat ~/.ssh/id_rsa.pub</code>
+                                <p class="mt-2"><strong>Don't have one?</strong> Generate a new key:</p>
+                                <code class="block bg-blue-100 dark:bg-blue-900/50 px-2 py-1 rounded">ssh-keygen -t ed25519</code>
+                                <p class="mt-2 text-blue-600 dark:text-blue-400">Copy the entire output (starts with ssh-ed25519 or ssh-rsa) and paste it above.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium mb-2 dark:text-gray-200">Quantity</label>
+                        <select id="compute-quantity" onchange="updateComputeTotalPrice()" class="w-full bg-white dark:bg-gray-800 dark:text-white border-2 border-gray-300 dark:border-gray-600 rounded-lg px-4 py-2 focus:border-anthropic-600 outline-none transition">
+                            <option value="1">1 instance</option>
+                            <option value="2">2 instances</option>
+                            <option value="3">3 instances</option>
+                            <option value="4">4 instances</option>
+                        </select>
+                        <p class="text-xs text-gray-500 mt-1">Each instance will be named with a suffix (e.g., my-server-1, my-server-2)</p>
+                    </div>
+
+                    <div class="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-4 space-y-2">
+                        <div class="flex justify-between text-sm">
+                            <span class="text-gray-600 dark:text-gray-400">GPU</span>
+                            <span id="compute-modal-gpu" class="font-medium dark:text-white">-</span>
+                        </div>
+                        <div class="flex justify-between text-sm">
+                            <span class="text-gray-600 dark:text-gray-400">Memory</span>
+                            <span id="compute-modal-memory" class="font-medium dark:text-white">-</span>
+                        </div>
+                        <div class="flex justify-between text-sm">
+                            <span class="text-gray-600 dark:text-gray-400">Provider</span>
+                            <span id="compute-modal-provider" class="font-medium dark:text-white">-</span>
+                        </div>
+                        <div class="flex justify-between text-sm">
+                            <span class="text-gray-600 dark:text-gray-400">Price per instance</span>
+                            <span id="compute-modal-price" class="font-medium text-green-600">-</span>
+                        </div>
+                        <div class="flex justify-between text-sm border-t border-gray-200 dark:border-gray-700 pt-2 mt-2">
+                            <span class="text-gray-700 dark:text-gray-300 font-medium">Total</span>
+                            <span id="compute-modal-total" class="font-bold text-anthropic-600">-</span>
+                        </div>
+                    </div>
+
+                    <div class="flex space-x-3 pt-2">
+                        <button type="button" onclick="closeComputeModal()" class="flex-1 px-4 py-2 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg text-sm font-medium transition">
+                            Cancel
+                        </button>
+                        <button type="button" id="compute-submit-btn" onclick="submitComputeRental()" class="flex-1 px-4 py-2 bg-gradient-to-r from-anthropic-600 to-anthropic-700 hover:from-anthropic-700 hover:to-anthropic-800 text-white rounded-lg text-sm font-medium transition">
+                            Start Instance
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
         <div id="content-settings" class="tab-content hidden">
             <div class="space-y-6">
+                <!-- Profile Header -->
+                <div class="card relative overflow-hidden rounded-xl p-8 border border-gray-200 dark:border-gray-700 shadow-lg" style="background: linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%);">
+                    <!-- Animated background orbs -->
+                    <div class="absolute inset-0 overflow-hidden">
+                        <div class="absolute -top-20 -right-20 w-64 h-64 bg-gradient-to-br from-pink-500 to-purple-600 rounded-full opacity-30 blur-3xl"></div>
+                        <div class="absolute -bottom-20 -left-20 w-64 h-64 bg-gradient-to-br from-cyan-400 to-blue-600 rounded-full opacity-30 blur-3xl"></div>
+                        <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-48 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-full opacity-20 blur-3xl"></div>
+                    </div>
+                    <div class="relative flex items-center space-x-6">
+                        <div class="relative">
+                            <div class="w-28 h-28 rounded-full ring-4 ring-white/20 shadow-2xl overflow-hidden">
+                                <svg viewBox="0 0 100 100" class="w-full h-full">
+                                    <defs>
+                                        <linearGradient id="pav1" x1="0%" y1="0%" x2="100%" y2="100%">
+                                            <stop offset="0%" stop-color="#0f0c29"/>
+                                            <stop offset="50%" stop-color="#302b63"/>
+                                            <stop offset="100%" stop-color="#24243e"/>
+                                        </linearGradient>
+                                        <linearGradient id="pav2" x1="0%" y1="100%" x2="100%" y2="0%">
+                                            <stop offset="0%" stop-color="#f953c6"/>
+                                            <stop offset="100%" stop-color="#b91d73"/>
+                                        </linearGradient>
+                                        <linearGradient id="pav3" x1="100%" y1="0%" x2="0%" y2="100%">
+                                            <stop offset="0%" stop-color="#00d2ff"/>
+                                            <stop offset="100%" stop-color="#3a7bd5"/>
+                                        </linearGradient>
+                                        <filter id="glow">
+                                            <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
+                                            <feMerge><feMergeNode in="coloredBlur"/><feMergeNode in="SourceGraphic"/></feMerge>
+                                        </filter>
+                                    </defs>
+                                    <rect fill="url(#pav1)" width="100" height="100"/>
+                                    <circle cx="20" cy="80" r="35" fill="url(#pav2)" opacity="0.8"/>
+                                    <circle cx="80" cy="20" r="30" fill="url(#pav3)" opacity="0.7"/>
+                                    <circle cx="70" cy="70" r="20" fill="#ffd700" opacity="0.6"/>
+                                    <circle cx="30" cy="30" r="15" fill="#ff6b6b" opacity="0.5"/>
+                                    <circle cx="50" cy="50" r="10" fill="white" opacity="0.9" filter="url(#glow)"/>
+                                    <circle cx="50" cy="50" r="4" fill="white"/>
+                                </svg>
+                            </div>
+                            <div class="absolute -bottom-1 -right-1 w-7 h-7 bg-green-500 rounded-full border-3 border-gray-900 flex items-center justify-center">
+                                <div class="w-2 h-2 bg-white rounded-full"></div>
+                            </div>
+                        </div>
+                        <div class="text-white">
+                            <h2 class="text-3xl font-bold tracking-tight">Wizkid</h2>
+                            <p class="text-white/60 text-sm">wizkid@polaris.computer</p>
+                            <div class="flex items-center space-x-3 mt-3">
+                                <span class="px-3 py-1 bg-gradient-to-r from-purple-500/30 to-pink-500/30 backdrop-blur border border-white/10 rounded-full text-sm font-medium">Pro</span>
+                                <span class="px-3 py-1 bg-white/10 backdrop-blur border border-white/10 rounded-full text-sm">3 GPUs Active</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Account Settings -->
                 <div class="card bg-white dark:bg-[#1a1a1a] rounded-xl p-8 border border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-md">
                     <div class="flex items-center justify-between mb-6">
@@ -1187,8 +1449,10 @@
     </div>
 
     <script>
-        // API Base URL
-        const API_BASE = 'https://farm-auctions-factor-boxes.trycloudflare.com';
+        // API Base URL - use current origin for local development, or hardcoded URL for production
+        const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+            ? ''  // Empty string means use current origin
+            : 'https://freedom-recommend-ray-payday.trycloudflare.com';
 
         // ============================================================================
         // AUTHENTICATION SYSTEM
@@ -1848,8 +2112,19 @@
             activeTab.classList.add('tab-active');
             activeTab.classList.remove('text-gray-600');
 
+            // Stop refresh intervals when leaving tabs
+            if (tabName !== 'compute') {
+                stopComputeRefresh();
+            }
+            if (tabName !== 'dashboard') {
+                stopDashboardRefresh();
+            }
+
             // Load data for this tab
-            if (tabName === 'applications') {
+            if (tabName === 'dashboard') {
+                loadDashboard();
+                startDashboardRefresh();
+            } else if (tabName === 'applications') {
                 loadTemplates();
                 loadApplicationDeployments();
             } else if (tabName === 'deployments') {
@@ -1860,6 +2135,9 @@
                 loadAnalytics();
             } else if (tabName === 'deploy') {
                 loadGPUOptions();
+            } else if (tabName === 'compute') {
+                loadComputeGPUs();
+                startComputeRefresh();
             } else if (tabName === 'settings') {
                 loadSettings();
             }
@@ -2335,6 +2613,582 @@
         }
 
         // ============================================================================
+        // COMPUTE TAB - GPU RENTAL
+        // ============================================================================
+        let computeGPUs = [];
+        let selectedComputeGPU = null;
+
+        async function loadComputeGPUs() {
+            const container = document.getElementById('compute-gpu-grid');
+            container.innerHTML = '<p class="text-gray-500 dark:text-gray-400 col-span-full text-center py-8">Loading GPUs...</p>';
+
+            try {
+                const response = await fetch(API_BASE + '/api/compute/gpus');
+                const data = await response.json();
+
+                if (!data.gpus || data.gpus.length === 0) {
+                    container.innerHTML = '<p class="text-gray-500 dark:text-gray-400 col-span-full text-center py-8">No GPUs available at the moment.</p>';
+                    return;
+                }
+
+                computeGPUs = data.gpus;
+
+                container.innerHTML = computeGPUs.map(gpu => createComputeGPUCard(gpu)).join('');
+
+                // Also load active instances
+                loadActiveComputeInstances();
+            } catch (error) {
+                console.error('Error loading compute GPUs:', error);
+                container.innerHTML = '<p class="text-red-500 col-span-full text-center py-8">Failed to load GPUs. Please try again.</p>';
+            }
+        }
+
+        function createComputeGPUCard(gpu) {
+            const price = gpu.spot_price;
+            const availableCount = gpu.available_count;
+            const available = gpu.available !== false && (availableCount === null || availableCount === undefined || availableCount > 0);
+            const availableClass = available ? 'cursor-pointer' : 'opacity-50 cursor-not-allowed';
+
+            // Show stock count or status
+            let availableBadge;
+            if (!available || availableCount === 0) {
+                availableBadge = '<span class="px-2 py-1 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 text-xs rounded-full">Out of stock</span>';
+            } else if (availableCount !== null && availableCount !== undefined) {
+                availableBadge = `<span class="px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 text-xs rounded-full">${availableCount} available</span>`;
+            } else {
+                availableBadge = '<span class="px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 text-xs rounded-full">Available</span>';
+            }
+
+            // Provider badge
+            const provider = gpu.provider || 'unknown';
+            const providerColors = {
+                'verda': 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400',
+                'targon': 'bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400'
+            };
+            const providerColor = providerColors[provider] || 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400';
+            const providerBadge = `<span class="px-2 py-0.5 ${providerColor} text-xs rounded capitalize">${provider}</span>`;
+
+            // Determine GPU tier for icon color
+            let tierColor = 'from-blue-500 to-blue-600';
+            let tierIcon = '🖥️';
+            if (gpu.name.includes('H100') || gpu.name.includes('H200') || gpu.name.includes('B200') || gpu.name.includes('B300')) {
+                tierColor = 'from-purple-500 to-purple-600';
+                tierIcon = '⚡';
+            } else if (gpu.name.includes('A100')) {
+                tierColor = 'from-green-500 to-green-600';
+                tierIcon = '🚀';
+            } else if (gpu.name.includes('L40') || gpu.name.includes('A6000') || gpu.name.includes('RTX')) {
+                tierColor = 'from-orange-500 to-orange-600';
+                tierIcon = '💻';
+            } else if (gpu.name.includes('V100')) {
+                tierColor = 'from-cyan-500 to-cyan-600';
+                tierIcon = '🔷';
+            }
+
+            return `
+                <div class="card bg-white dark:bg-[#1a1a1a] border-2 border-gray-200 dark:border-gray-700 rounded-xl p-6 shadow-sm hover:shadow-md hover:border-anthropic-500 dark:hover:border-anthropic-500 transition-all ${availableClass}" ${available ? `onclick="openComputeModal('${gpu.name}')"` : ''}>
+                    <div class="flex items-start justify-between mb-4">
+                        <div class="w-12 h-12 bg-gradient-to-br ${tierColor} rounded-lg flex items-center justify-center">
+                            <span class="text-2xl">${tierIcon}</span>
+                        </div>
+                        <div class="flex flex-col items-end gap-1">
+                            ${availableBadge}
+                            ${providerBadge}
+                        </div>
+                    </div>
+                    <h4 class="text-lg font-semibold mb-1 dark:text-white">${gpu.display_name || gpu.name}</h4>
+                    <p class="text-sm text-gray-500 dark:text-gray-400 mb-3">${gpu.memory} VRAM</p>
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <span class="text-xl font-bold text-anthropic-600">$${price.toFixed(3)}</span>
+                            <span class="text-sm text-gray-500">/hr</span>
+                        </div>
+                        ${available ? '<span class="text-anthropic-600 text-sm font-medium">Rent →</span>' : ''}
+                    </div>
+                </div>
+            `;
+        }
+
+        async function loadActiveComputeInstances() {
+            try {
+                const response = await fetch(API_BASE + '/api/compute/instances');
+                const data = await response.json();
+
+                const section = document.getElementById('compute-active-section');
+                const container = document.getElementById('compute-active-instances');
+
+                if (!data.instances || data.instances.length === 0) {
+                    section.classList.add('hidden');
+                    return;
+                }
+
+                section.classList.remove('hidden');
+                container.innerHTML = data.instances.map(instance => createActiveInstanceCard(instance)).join('');
+            } catch (error) {
+                console.error('Error loading active instances:', error);
+            }
+        }
+
+        function createActiveInstanceCard(instance) {
+            const statusColors = {
+                'running': 'bg-green-500',
+                'starting': 'bg-yellow-500',
+                'stopping': 'bg-yellow-500',
+                'stopped': 'bg-gray-500',
+                'error': 'bg-red-500'
+            };
+            const statusTextColors = {
+                'running': 'text-green-600 dark:text-green-400',
+                'starting': 'text-yellow-600 dark:text-yellow-400',
+                'stopping': 'text-yellow-600 dark:text-yellow-400',
+                'stopped': 'text-gray-600 dark:text-gray-400',
+                'error': 'text-red-600 dark:text-red-400'
+            };
+            const dotColor = statusColors[instance.status] || 'bg-gray-500';
+            const textColor = statusTextColors[instance.status] || 'text-gray-600 dark:text-gray-400';
+            const isRunning = instance.status === 'running';
+            const isStarting = instance.status === 'starting';
+
+            // Provider badge
+            const provider = instance.provider || 'verda';
+            const providerColors = {
+                'verda': 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400',
+                'targon': 'bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400'
+            };
+            const providerColor = providerColors[provider] || 'bg-gray-100 dark:bg-gray-800 text-gray-600';
+
+            // SSH command - Targon uses gateway, Verda uses direct IP
+            const sshCommand = instance.ssh_command || (instance.ip ? `ssh root@${instance.ip}` : null);
+            const hasConnection = instance.ip || instance.ssh_command;
+
+            return `
+                <div class="card bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-700 rounded-xl p-5 shadow-sm">
+                    <div class="flex items-center justify-between mb-3">
+                        <div class="flex items-center space-x-3">
+                            <div class="w-2 h-2 ${dotColor} rounded-full ${isRunning || isStarting ? 'status-dot' : ''}"></div>
+                            <h4 class="font-semibold dark:text-white">${instance.name}</h4>
+                            <span class="px-2 py-0.5 ${providerColor} text-xs rounded capitalize">${provider}</span>
+                        </div>
+                        <span class="text-xs ${textColor} font-medium uppercase">${instance.status}</span>
+                    </div>
+                    <div class="text-sm text-gray-500 dark:text-gray-400 space-y-1 mb-3">
+                        <p><span class="font-medium text-gray-700 dark:text-gray-300">GPU:</span> ${instance.gpu_type}</p>
+                        ${instance.ip ? `<p><span class="font-medium text-gray-700 dark:text-gray-300">IP:</span> <code class="bg-gray-100 dark:bg-gray-800 px-1 rounded">${instance.ip}</code></p>` : ''}
+                        ${instance.ssh_command && !instance.ip ? `<p><span class="font-medium text-gray-700 dark:text-gray-300">SSH:</span> <code class="bg-gray-100 dark:bg-gray-800 px-1 rounded text-xs">${instance.ssh_command}</code></p>` : ''}
+                        ${!hasConnection ? `<p class="text-yellow-600 dark:text-yellow-400">Waiting for connection...</p>` : ''}
+                        <p><span class="font-medium text-gray-700 dark:text-gray-300">Cost:</span> $${instance.hourly_cost?.toFixed(3) || '0.00'}/hr</p>
+                    </div>
+                    <div class="flex space-x-2">
+                        ${hasConnection ? `
+                            ${instance.ip ? `
+                                <button onclick="copyToClipboard('${instance.ip}')" class="flex-1 px-3 py-1.5 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg text-xs font-medium transition">
+                                    Copy IP
+                                </button>
+                            ` : ''}
+                            <button onclick="copyToClipboard('${sshCommand}')" class="flex-1 px-3 py-1.5 bg-anthropic-100 dark:bg-anthropic-900/30 hover:bg-anthropic-200 dark:hover:bg-anthropic-900/50 text-anthropic-700 dark:text-anthropic-400 rounded-lg text-xs font-medium transition">
+                                Copy SSH
+                            </button>
+                        ` : `
+                            <div class="flex-1 px-3 py-1.5 bg-gray-50 dark:bg-gray-800/50 text-gray-400 rounded-lg text-xs font-medium text-center">
+                                Starting...
+                            </div>
+                        `}
+                        <button onclick="terminateComputeInstance('${instance.id}')" class="px-3 py-1.5 bg-red-100 dark:bg-red-900/30 hover:bg-red-200 dark:hover:bg-red-900/50 text-red-600 dark:text-red-400 rounded-lg text-xs font-medium transition">
+                            Terminate
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Auto-refresh instances while on Compute tab
+        let computeRefreshInterval = null;
+
+        function startComputeRefresh() {
+            if (computeRefreshInterval) return;
+            computeRefreshInterval = setInterval(() => {
+                loadActiveComputeInstances();
+            }, 5000); // Refresh every 5 seconds
+        }
+
+        function stopComputeRefresh() {
+            if (computeRefreshInterval) {
+                clearInterval(computeRefreshInterval);
+                computeRefreshInterval = null;
+            }
+        }
+
+        function openComputeModal(gpuName) {
+            selectedComputeGPU = computeGPUs.find(g => g.name === gpuName);
+            if (!selectedComputeGPU) return;
+
+            const price = selectedComputeGPU.spot_price;
+            const provider = selectedComputeGPU.provider || 'unknown';
+
+            document.getElementById('compute-gpu-name').value = gpuName;
+            document.getElementById('compute-modal-gpu').textContent = selectedComputeGPU.display_name || gpuName;
+            document.getElementById('compute-modal-memory').textContent = selectedComputeGPU.memory;
+            document.getElementById('compute-modal-provider').textContent = provider.charAt(0).toUpperCase() + provider.slice(1);
+            document.getElementById('compute-modal-price').textContent = `$${price.toFixed(3)}/hr`;
+            document.getElementById('compute-quantity').value = '1';
+            document.getElementById('compute-modal-total').textContent = `$${price.toFixed(3)}/hr`;
+            document.getElementById('compute-instance-name').value = '';
+            document.getElementById('compute-ssh-key').value = '';
+
+            document.getElementById('compute-modal').classList.remove('hidden');
+        }
+
+        function updateComputeTotalPrice() {
+            if (!selectedComputeGPU) return;
+            const quantity = parseInt(document.getElementById('compute-quantity').value) || 1;
+            const price = selectedComputeGPU.spot_price;
+            const total = price * quantity;
+            document.getElementById('compute-modal-total').textContent = `$${total.toFixed(3)}/hr`;
+        }
+
+        function closeComputeModal() {
+            document.getElementById('compute-modal').classList.add('hidden');
+            document.getElementById('ssh-help-panel').classList.add('hidden');
+            document.getElementById('ssh-key-error').classList.add('hidden');
+            selectedComputeGPU = null;
+        }
+
+        function toggleSSHHelp() {
+            const panel = document.getElementById('ssh-help-panel');
+            panel.classList.toggle('hidden');
+        }
+
+        async function submitComputeRental(event) {
+            if (event) event.preventDefault();
+
+            const name = document.getElementById('compute-instance-name').value.trim();
+            const gpuName = document.getElementById('compute-gpu-name').value;
+            const sshKey = document.getElementById('compute-ssh-key').value.trim();
+            const quantity = parseInt(document.getElementById('compute-quantity').value) || 1;
+            const sshKeyError = document.getElementById('ssh-key-error');
+
+            // Hide previous error
+            sshKeyError.classList.add('hidden');
+
+            if (!name || name.length < 3) {
+                toastManager.warning('Invalid Name', 'Instance name must be at least 3 characters.');
+                document.getElementById('compute-instance-name').focus();
+                return;
+            }
+
+            if (!sshKey || (!sshKey.startsWith('ssh-rsa') && !sshKey.startsWith('ssh-ed25519'))) {
+                sshKeyError.classList.remove('hidden');
+                document.getElementById('compute-ssh-key').focus();
+                return;
+            }
+
+            const submitBtn = document.getElementById('compute-submit-btn');
+            const originalText = submitBtn.innerHTML;
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = `⏳ Starting ${quantity > 1 ? quantity + ' instances' : ''}...`;
+
+            try {
+                const response = await fetch(API_BASE + '/api/compute/instances', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        name: name,
+                        gpu_type: gpuName,
+                        ssh_public_key: sshKey,
+                        quantity: quantity
+                    })
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.detail || data.message || 'Failed to start instance');
+                }
+
+                // Close modal first, then show success
+                document.getElementById('compute-modal').classList.add('hidden');
+                document.getElementById('ssh-help-panel').classList.add('hidden');
+                selectedComputeGPU = null;
+
+                const instanceText = quantity > 1 ? `${quantity} instances` : name;
+                toastManager.success('Instance Starting', `${instanceText} ${quantity > 1 ? 'are' : 'is'} being provisioned. This may take a few minutes.`);
+                loadActiveComputeInstances();
+
+            } catch (error) {
+                console.error('Error starting instance:', error);
+                toastManager.error('Failed to Start', error.message);
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = originalText;
+            }
+        }
+
+        async function terminateComputeInstance(instanceId) {
+            if (!confirm('Are you sure you want to terminate this instance? You will be charged for the time used.')) {
+                return;
+            }
+
+            try {
+                const response = await fetch(API_BASE + `/api/compute/instances/${instanceId}`, {
+                    method: 'DELETE'
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.detail || 'Failed to terminate instance');
+                }
+
+                toastManager.success('Instance Terminated', 'The instance has been terminated successfully.');
+                loadActiveComputeInstances();
+                loadComputeGPUs(); // Refresh GPU list in case availability changed
+
+            } catch (error) {
+                console.error('Error terminating instance:', error);
+                toastManager.error('Failed to Terminate', error.message);
+            }
+        }
+
+        function copyToClipboard(text) {
+            navigator.clipboard.writeText(text).then(() => {
+                toastManager.success('Copied', 'Copied to clipboard');
+            });
+        }
+
+        // ============================================================================
+        // DASHBOARD - UNIFIED VIEW
+        // ============================================================================
+        let dashboardData = { applications: [], compute: [] };
+        let dashboardFilter = 'all';
+        let dashboardRefreshInterval = null;
+
+        async function loadDashboard() {
+            try {
+                // Fetch both applications and compute instances in parallel
+                const [appsResponse, computeResponse] = await Promise.all([
+                    fetch(API_BASE + '/api/templates/deployments'),
+                    fetch(API_BASE + '/api/compute/instances')
+                ]);
+
+                const appsData = await appsResponse.json();
+                const computeData = await computeResponse.json();
+
+                dashboardData.applications = (appsData.deployments || []).map(d => ({
+                    ...d,
+                    resourceType: 'application'
+                }));
+
+                dashboardData.compute = (computeData.instances || []).map(i => ({
+                    ...i,
+                    resourceType: 'compute'
+                }));
+
+                updateDashboardStats();
+                renderDashboardResources();
+                updateDashboardLiveCount();
+            } catch (error) {
+                console.error('Error loading dashboard:', error);
+            }
+        }
+
+        function updateDashboardStats() {
+            const allResources = [...dashboardData.applications, ...dashboardData.compute];
+            const liveStatuses = ['running', 'starting'];
+            const liveResources = allResources.filter(r => liveStatuses.includes(r.status));
+
+            // Update stat cards
+            document.getElementById('dash-total-live').textContent = liveResources.length;
+            document.getElementById('dash-apps-count').textContent = dashboardData.applications.filter(a => liveStatuses.includes(a.status)).length;
+            document.getElementById('dash-compute-count').textContent = dashboardData.compute.filter(c => liveStatuses.includes(c.status)).length;
+
+            // Calculate hourly cost
+            let hourlyCost = 0;
+            dashboardData.compute.filter(c => liveStatuses.includes(c.status)).forEach(c => {
+                hourlyCost += c.hourly_cost || 0;
+            });
+            // Add app costs if available
+            dashboardData.applications.filter(a => liveStatuses.includes(a.status)).forEach(a => {
+                hourlyCost += a.hourly_cost || 0;
+            });
+            document.getElementById('dash-hourly-cost').textContent = `$${hourlyCost.toFixed(2)}`;
+        }
+
+        function updateDashboardLiveCount() {
+            const liveStatuses = ['running', 'starting'];
+            const allResources = [...dashboardData.applications, ...dashboardData.compute];
+            const liveCount = allResources.filter(r => liveStatuses.includes(r.status)).length;
+
+            const badge = document.getElementById('dashboard-live-count');
+            if (liveCount > 0) {
+                badge.textContent = liveCount;
+                badge.classList.remove('hidden');
+            } else {
+                badge.classList.add('hidden');
+            }
+        }
+
+        function filterDashboard(filter) {
+            dashboardFilter = filter;
+
+            // Update filter button styles
+            document.querySelectorAll('.dash-filter-btn').forEach(btn => {
+                btn.classList.remove('bg-anthropic-600', 'text-white');
+                btn.classList.add('bg-gray-100', 'dark:bg-gray-800', 'text-gray-700', 'dark:text-gray-300');
+            });
+
+            const activeBtn = document.getElementById(`dash-filter-${filter}`);
+            if (activeBtn) {
+                activeBtn.classList.remove('bg-gray-100', 'dark:bg-gray-800', 'text-gray-700', 'dark:text-gray-300');
+                activeBtn.classList.add('bg-anthropic-600', 'text-white');
+            }
+
+            renderDashboardResources();
+        }
+
+        function renderDashboardResources() {
+            const container = document.getElementById('dashboard-resources');
+            let resources = [];
+
+            // Apply filters
+            if (dashboardFilter === 'all') {
+                resources = [...dashboardData.applications, ...dashboardData.compute];
+            } else if (dashboardFilter === 'applications') {
+                resources = [...dashboardData.applications];
+            } else if (dashboardFilter === 'compute') {
+                resources = [...dashboardData.compute];
+            } else if (dashboardFilter === 'running') {
+                resources = [...dashboardData.applications, ...dashboardData.compute].filter(r => r.status === 'running');
+            } else if (dashboardFilter === 'starting') {
+                resources = [...dashboardData.applications, ...dashboardData.compute].filter(r => r.status === 'starting');
+            }
+
+            // Filter to only active/relevant statuses
+            const activeStatuses = ['running', 'starting', 'stopping', 'deploying'];
+            resources = resources.filter(r => activeStatuses.includes(r.status));
+
+            if (resources.length === 0) {
+                container.innerHTML = `
+                    <div class="col-span-full text-center py-12">
+                        <div class="text-4xl mb-3">🚀</div>
+                        <p class="text-gray-500 dark:text-gray-400">No active resources</p>
+                        <p class="text-sm text-gray-400 dark:text-gray-500 mt-1">Deploy an application or rent a GPU to get started</p>
+                        <div class="flex justify-center space-x-3 mt-4">
+                            <button onclick="switchTab('applications')" class="px-4 py-2 bg-anthropic-600 hover:bg-anthropic-700 text-white rounded-lg text-sm font-medium transition">
+                                Browse Applications
+                            </button>
+                            <button onclick="switchTab('compute')" class="px-4 py-2 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg text-sm font-medium transition">
+                                Rent GPU
+                            </button>
+                        </div>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = resources.map(r => createDashboardResourceCard(r)).join('');
+        }
+
+        function createDashboardResourceCard(resource) {
+            const isApp = resource.resourceType === 'application';
+            const typeIcon = isApp ? '📦' : '🖥️';
+            const typeLabel = isApp ? 'Application' : 'GPU Instance';
+            const typeBadgeColor = isApp ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400' : 'bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400';
+
+            const statusColors = {
+                'running': 'bg-green-500',
+                'starting': 'bg-yellow-500',
+                'deploying': 'bg-yellow-500',
+                'stopping': 'bg-orange-500',
+                'stopped': 'bg-gray-500',
+                'error': 'bg-red-500'
+            };
+            const statusTextColors = {
+                'running': 'text-green-600 dark:text-green-400',
+                'starting': 'text-yellow-600 dark:text-yellow-400',
+                'deploying': 'text-yellow-600 dark:text-yellow-400',
+                'stopping': 'text-orange-600 dark:text-orange-400',
+                'stopped': 'text-gray-600 dark:text-gray-400',
+                'error': 'text-red-600 dark:text-red-400'
+            };
+
+            const dotColor = statusColors[resource.status] || 'bg-gray-500';
+            const textColor = statusTextColors[resource.status] || 'text-gray-600 dark:text-gray-400';
+            const isActive = ['running', 'starting', 'deploying'].includes(resource.status);
+
+            // Build actions based on resource type
+            let actions = '';
+            if (isApp) {
+                const accessUrl = resource.access_url || resource.url;
+                actions = `
+                    ${accessUrl ? `<a href="${accessUrl}" target="_blank" class="flex-1 px-3 py-1.5 bg-anthropic-100 dark:bg-anthropic-900/30 hover:bg-anthropic-200 dark:hover:bg-anthropic-900/50 text-anthropic-700 dark:text-anthropic-400 rounded-lg text-xs font-medium transition text-center">Open</a>` : ''}
+                    <button onclick="terminateTemplateDeployment('${resource.id}')" class="px-3 py-1.5 bg-red-100 dark:bg-red-900/30 hover:bg-red-200 dark:hover:bg-red-900/50 text-red-600 dark:text-red-400 rounded-lg text-xs font-medium transition">Stop</button>
+                `;
+            } else {
+                actions = `
+                    ${resource.ip ? `
+                        <button onclick="copyToClipboard('${resource.ip}')" class="flex-1 px-3 py-1.5 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg text-xs font-medium transition">Copy IP</button>
+                        <button onclick="copyToClipboard('ssh root@${resource.ip}')" class="flex-1 px-3 py-1.5 bg-anthropic-100 dark:bg-anthropic-900/30 hover:bg-anthropic-200 dark:hover:bg-anthropic-900/50 text-anthropic-700 dark:text-anthropic-400 rounded-lg text-xs font-medium transition">Copy SSH</button>
+                    ` : `<div class="flex-1 px-3 py-1.5 bg-gray-50 dark:bg-gray-800/50 text-gray-400 rounded-lg text-xs font-medium text-center">Starting...</div>`}
+                    <button onclick="terminateComputeInstance('${resource.id}')" class="px-3 py-1.5 bg-red-100 dark:bg-red-900/30 hover:bg-red-200 dark:hover:bg-red-900/50 text-red-600 dark:text-red-400 rounded-lg text-xs font-medium transition">Terminate</button>
+                `;
+            }
+
+            // Build details section
+            let details = '';
+            if (isApp) {
+                details = `
+                    <p><span class="font-medium text-gray-700 dark:text-gray-300">Template:</span> ${resource.template_name || resource.template || 'Custom'}</p>
+                    ${resource.gpu_type ? `<p><span class="font-medium text-gray-700 dark:text-gray-300">GPU:</span> ${resource.gpu_type}</p>` : ''}
+                `;
+            } else {
+                details = `
+                    <p><span class="font-medium text-gray-700 dark:text-gray-300">GPU:</span> ${resource.gpu_type}</p>
+                    ${resource.ip ? `<p><span class="font-medium text-gray-700 dark:text-gray-300">IP:</span> <code class="bg-gray-100 dark:bg-gray-800 px-1 rounded">${resource.ip}</code></p>` : `<p class="text-yellow-600 dark:text-yellow-400">Waiting for IP...</p>`}
+                    <p><span class="font-medium text-gray-700 dark:text-gray-300">Cost:</span> $${(resource.hourly_cost || 0).toFixed(3)}/hr</p>
+                `;
+            }
+
+            return `
+                <div class="card bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-700 rounded-xl p-5 shadow-sm">
+                    <div class="flex items-center justify-between mb-3">
+                        <div class="flex items-center space-x-3">
+                            <div class="w-2 h-2 ${dotColor} rounded-full ${isActive ? 'status-dot' : ''}"></div>
+                            <h4 class="font-semibold dark:text-white">${resource.name}</h4>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <span class="px-2 py-1 ${typeBadgeColor} text-xs rounded-full font-medium">${typeIcon} ${typeLabel}</span>
+                            <span class="text-xs ${textColor} font-medium uppercase">${resource.status}</span>
+                        </div>
+                    </div>
+                    <div class="text-sm text-gray-500 dark:text-gray-400 space-y-1 mb-3">
+                        ${details}
+                    </div>
+                    <div class="flex space-x-2">
+                        ${actions}
+                    </div>
+                </div>
+            `;
+        }
+
+        function refreshDashboard() {
+            loadDashboard();
+            toastManager.info('Refreshed', 'Dashboard data updated');
+        }
+
+        function startDashboardRefresh() {
+            if (dashboardRefreshInterval) return;
+            dashboardRefreshInterval = setInterval(() => {
+                loadDashboard();
+            }, 5000);
+        }
+
+        function stopDashboardRefresh() {
+            if (dashboardRefreshInterval) {
+                clearInterval(dashboardRefreshInterval);
+                dashboardRefreshInterval = null;
+            }
+        }
+
+        // ============================================================================
         // DEPLOY SERVER
         // ============================================================================
         async function deployServer(event) {
@@ -2394,7 +3248,7 @@
                 document.getElementById('server-name').value = '';
                 selectedGPU = null;
                 backToAppSelect();
-                switchTab('deployments');
+                switchTab('dashboard');
                 loadStats();
 
             } catch (error) {
@@ -3772,6 +4626,8 @@
             loadStats();
             loadTemplates();
             loadApplicationDeployments();
+            loadDashboard();
+            startDashboardRefresh();
 
             // Refresh stats every 30 seconds
             setInterval(loadStats, 30000);
