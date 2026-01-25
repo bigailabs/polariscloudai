@@ -6,6 +6,9 @@ import asyncio
 import os
 from logging.config import fileConfig
 
+from dotenv import load_dotenv
+load_dotenv()
+
 from sqlalchemy import pool
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
@@ -24,7 +27,8 @@ config = context.config
 
 # Override sqlalchemy.url with environment variable if set
 if DATABASE_URL:
-    config.set_main_option("sqlalchemy.url", DATABASE_URL)
+    # Escape % for configparser interpolation
+    config.set_main_option("sqlalchemy.url", DATABASE_URL.replace('%', '%%'))
 
 # Interpret the config file for Python logging
 if config.config_file_name is not None:

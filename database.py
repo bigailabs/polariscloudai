@@ -27,13 +27,19 @@ elif DATABASE_URL.startswith("postgresql://") and "+asyncpg" not in DATABASE_URL
 
 # Create async engine
 # Use NullPool for serverless environments (Neon, Supabase) to avoid connection issues
-engine = create_async_engine(
-    DATABASE_URL,
-    echo=os.getenv("SQL_DEBUG", "false").lower() == "true",
-    poolclass=NullPool if "neon" in DATABASE_URL or "supabase" in DATABASE_URL else None,
-    pool_size=5 if "neon" not in DATABASE_URL and "supabase" not in DATABASE_URL else None,
-    max_overflow=10 if "neon" not in DATABASE_URL and "supabase" not in DATABASE_URL else None,
-)
+is_serverless = "neon" in DATABASE_URL or "supabase" in DATABASE_URL
+
+engine_kwargs = {
+    "echo": os.getenv("SQL_DEBUG", "false").lower() == "true",
+}
+
+if is_serverless:
+    engine_kwargs["poolclass"] = NullPool
+else:
+    engine_kwargs["pool_size"] = 5
+    engine_kwargs["max_overflow"] = 10
+
+engine = create_async_engine(DATABASE_URL, **engine_kwargs)
 
 # Session factory
 async_session_maker = async_sessionmaker(
