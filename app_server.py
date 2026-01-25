@@ -2,9 +2,10 @@
 """
 Computer - Cloud Console Backend
 FastAPI server that serves the app.html frontend and provides REST APIs
+Multi-tenant platform with authentication and billing
 """
 
-from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect, Depends
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
@@ -19,6 +20,22 @@ import sys
 import subprocess
 import secrets
 from datetime import datetime
+from contextlib import asynccontextmanager
+
+# Database and auth imports
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
+
+try:
+    from database import get_db, init_db, check_db_connection, get_db_context
+    from models import User, Deployment, UsageRecord, DeploymentStatus, ComputeProvider, UserTier
+    from auth import router as auth_router, get_current_user, get_optional_user
+    from storage import storage_client, get_template_storage_path, TEMPLATE_STORAGE_PATHS
+    DB_AVAILABLE = True
+except ImportError as e:
+    print(f"Database modules not available: {e}")
+    DB_AVAILABLE = False
+    storage_client = None
 
 # Docker SDK for local container management
 try:
@@ -41,8 +58,31 @@ except ImportError:
 TEMPLATE_SERVER_HOST = os.getenv("TEMPLATE_SERVER_HOST", "65.108.32.148")
 TEMPLATE_SERVER_USER = os.getenv("TEMPLATE_SERVER_USER", "root")
 
+# Lifespan context manager for startup/shutdown
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Startup and shutdown events"""
+    # Startup
+    if DB_AVAILABLE:
+        try:
+            await init_db()
+            if await check_db_connection():
+                print("Database connected successfully")
+            else:
+                print("Database connection failed - running in limited mode")
+        except Exception as e:
+            print(f"Database initialization failed: {e}")
+    yield
+    # Shutdown
+    pass
+
 # Initialize FastAPI
-app = FastAPI(title="Computer Console API", version="1.0.0")
+app = FastAPI(
+    title="Polaris Computer API",
+    version="2.0.0",
+    description="Multi-tenant cloud compute platform",
+    lifespan=lifespan
+)
 
 # Add CORS middleware
 app.add_middleware(
@@ -52,6 +92,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Include auth router
+if DB_AVAILABLE:
+    app.include_router(auth_router, prefix="/api")
 
 # Initialize clients - demo mode if no credentials
 verda_client = None
@@ -2380,13 +2424,454 @@ async def stop_all_deployments():
         return {"success": False, "message": str(e)}
 
 # ============================================================================
+# MULTI-TENANT USER ENDPOINTS (Database-backed)
+# ============================================================================
+
+if DB_AVAILABLE:
+    from decimal import Decimal
+
+    @app.get("/api/user/deployments")
+    async def get_user_deployments(
+        current_user: User = Depends(get_current_user),
+        db: AsyncSession = Depends(get_db)
+    ):
+        """Get deployments for the current authenticated user"""
+        result = await db.execute(
+            select(Deployment)
+            .where(Deployment.user_id == current_user.id)
+            .order_by(Deployment.created_at.desc())
+        )
+        deployments = result.scalars().all()
+
+        return {
+            "deployments": [
+                {
+                    "id": str(d.id),
+                    "template_id": d.template_id,
+                    "name": d.name,
+                    "status": d.status.value,
+                    "provider": d.provider.value,
+                    "machine_type": d.machine_type,
+                    "host": d.host,
+                    "port": d.port,
+                    "access_url": d.access_url,
+                    "config": d.config,
+                    "created_at": d.created_at.isoformat() if d.created_at else None,
+                    "started_at": d.started_at.isoformat() if d.started_at else None,
+                    "last_accessed_at": d.last_accessed_at.isoformat() if d.last_accessed_at else None,
+                }
+                for d in deployments
+            ]
+        }
+
+    @app.post("/api/user/deployments")
+    async def create_user_deployment(
+        request: TemplateDeploymentRequest,
+        current_user: User = Depends(get_current_user),
+        db: AsyncSession = Depends(get_db)
+    ):
+        """
+        Create a new deployment for the authenticated user.
+        Checks tier limits before allowing deployment.
+        """
+        # Check if user has exceeded their compute minutes
+        if current_user.compute_minutes_used >= current_user.compute_minutes_limit:
+            raise HTTPException(
+                status_code=403,
+                detail=f"Compute limit reached ({current_user.compute_minutes_limit} minutes). Please upgrade your plan."
+            )
+
+        if request.template_id not in TEMPLATE_REGISTRY:
+            raise HTTPException(status_code=404, detail=f"Template '{request.template_id}' not found")
+
+        template = TEMPLATE_REGISTRY[request.template_id]
+        port = request.parameters.get("port", template.default_port)
+
+        # Set up access URL
+        access_url = f"http://{TEMPLATE_SERVER_HOST}:{port}"
+        if template.id == "ubuntu-desktop":
+            access_url = f"https://{TEMPLATE_SERVER_HOST}:{port}"
+
+        # Create deployment record in database
+        deployment = Deployment(
+            user_id=current_user.id,
+            template_id=request.template_id,
+            name=request.name,
+            status=DeploymentStatus.PENDING,
+            provider=ComputeProvider.VERDA,
+            host=TEMPLATE_SERVER_HOST,
+            port=port,
+            access_url=access_url,
+            config={
+                "parameters": request.parameters,
+                "template_name": template.name,
+                "icon": template.icon,
+                "color": template.color,
+                "access_type": template.access_type,
+            }
+        )
+        db.add(deployment)
+        await db.flush()
+
+        deployment_id = str(deployment.id)
+
+        # Also save to JSON file for backwards compatibility with existing deployment scripts
+        deployments = load_template_deployments()
+        deployment_record = {
+            "id": deployment_id,
+            "template_id": template.id,
+            "template_name": template.name,
+            "name": request.name,
+            "host": TEMPLATE_SERVER_HOST,
+            "port": port,
+            "parameters": request.parameters,
+            "status": "pending",
+            "created_at": datetime.now().isoformat(),
+            "access_type": template.access_type,
+            "access_url": access_url,
+            "icon": template.icon,
+            "color": template.color,
+            "user_id": str(current_user.id),
+        }
+        deployments[deployment_id] = deployment_record
+        save_template_deployments(deployments)
+
+        # Start deployment in background
+        asyncio.create_task(run_deployment_script(deployment_id, template, request))
+
+        await db.commit()
+
+        return {
+            "success": True,
+            "deployment_id": deployment_id,
+            "message": f"Deployment of {template.name} started",
+            "websocket_url": f"/ws/deployments/{deployment_id}"
+        }
+
+    @app.delete("/api/user/deployments/{deployment_id}")
+    async def delete_user_deployment(
+        deployment_id: str,
+        current_user: User = Depends(get_current_user),
+        db: AsyncSession = Depends(get_db)
+    ):
+        """Delete a deployment owned by the current user"""
+        from uuid import UUID as PyUUID
+
+        try:
+            dep_uuid = PyUUID(deployment_id)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid deployment ID format")
+
+        result = await db.execute(
+            select(Deployment)
+            .where(Deployment.id == dep_uuid)
+            .where(Deployment.user_id == current_user.id)
+        )
+        deployment = result.scalar_one_or_none()
+
+        if not deployment:
+            raise HTTPException(status_code=404, detail="Deployment not found")
+
+        # Stop the actual container (reuse existing logic)
+        # This calls the template deletion logic
+        try:
+            json_deployments = load_template_deployments()
+            if deployment_id in json_deployments:
+                del json_deployments[deployment_id]
+                save_template_deployments(json_deployments)
+        except Exception:
+            pass
+
+        await db.delete(deployment)
+        await db.commit()
+
+        return {"success": True, "message": "Deployment deleted"}
+
+    @app.get("/api/user/usage")
+    async def get_user_usage(
+        current_user: User = Depends(get_current_user),
+        db: AsyncSession = Depends(get_db)
+    ):
+        """Get usage statistics for the current user"""
+        # Get current month's usage records
+        current_month = datetime.now().strftime("%Y-%m")
+
+        result = await db.execute(
+            select(UsageRecord)
+            .where(UsageRecord.user_id == current_user.id)
+            .where(UsageRecord.billing_month == current_month)
+        )
+        records = result.scalars().all()
+
+        total_minutes = sum(r.minutes for r in records)
+        total_cost = sum(r.cost_usd for r in records)
+
+        return {
+            "user_id": str(current_user.id),
+            "tier": current_user.tier.value,
+            "compute_minutes_used": current_user.compute_minutes_used,
+            "compute_minutes_limit": current_user.compute_minutes_limit,
+            "storage_bytes_used": current_user.storage_bytes_used,
+            "storage_bytes_limit": current_user.storage_bytes_limit,
+            "current_month": current_month,
+            "monthly_minutes": total_minutes,
+            "monthly_cost_usd": float(total_cost),
+            "records": [
+                {
+                    "id": str(r.id),
+                    "deployment_id": str(r.deployment_id) if r.deployment_id else None,
+                    "provider": r.provider.value,
+                    "machine_type": r.machine_type,
+                    "started_at": r.started_at.isoformat(),
+                    "ended_at": r.ended_at.isoformat() if r.ended_at else None,
+                    "minutes": r.minutes,
+                    "cost_usd": float(r.cost_usd),
+                }
+                for r in records
+            ]
+        }
+
+    @app.post("/api/user/usage/start")
+    async def start_usage_tracking(
+        deployment_id: str,
+        machine_type: str = "default",
+        current_user: User = Depends(get_current_user),
+        db: AsyncSession = Depends(get_db)
+    ):
+        """Start tracking compute usage for a deployment"""
+        record = UsageRecord(
+            user_id=current_user.id,
+            deployment_id=deployment_id if deployment_id != "none" else None,
+            provider=ComputeProvider.VERDA,
+            machine_type=machine_type,
+            started_at=datetime.utcnow(),
+            billing_month=datetime.now().strftime("%Y-%m"),
+        )
+        db.add(record)
+        await db.commit()
+
+        return {"success": True, "usage_record_id": str(record.id)}
+
+    @app.post("/api/user/usage/stop/{record_id}")
+    async def stop_usage_tracking(
+        record_id: str,
+        current_user: User = Depends(get_current_user),
+        db: AsyncSession = Depends(get_db)
+    ):
+        """Stop tracking compute usage and calculate cost"""
+        from uuid import UUID as PyUUID
+
+        try:
+            rec_uuid = PyUUID(record_id)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid record ID")
+
+        result = await db.execute(
+            select(UsageRecord)
+            .where(UsageRecord.id == rec_uuid)
+            .where(UsageRecord.user_id == current_user.id)
+        )
+        record = result.scalar_one_or_none()
+
+        if not record:
+            raise HTTPException(status_code=404, detail="Usage record not found")
+
+        if record.ended_at:
+            raise HTTPException(status_code=400, detail="Usage already stopped")
+
+        record.ended_at = datetime.utcnow()
+        duration = (record.ended_at - record.started_at).total_seconds() / 60
+        record.minutes = int(duration)
+
+        # Calculate cost (simple rate: $0.10 per minute as placeholder)
+        # In production, this would use actual provider rates
+        rate_per_minute = Decimal("0.10")
+        record.cost_usd = rate_per_minute * record.minutes
+
+        # Update user's total compute minutes
+        current_user.compute_minutes_used += record.minutes
+
+        await db.commit()
+
+        return {
+            "success": True,
+            "minutes": record.minutes,
+            "cost_usd": float(record.cost_usd)
+        }
+
+    # ========================================================================
+    # STORAGE ENDPOINTS
+    # ========================================================================
+
+    @app.get("/api/user/storage")
+    async def get_user_storage(
+        current_user: User = Depends(get_current_user)
+    ):
+        """Get storage usage and info for the current user"""
+        if not storage_client or not storage_client.enabled:
+            return {
+                "enabled": False,
+                "message": "Storage not configured",
+                "size_bytes": 0,
+                "limit_bytes": current_user.storage_bytes_limit
+            }
+
+        usage = await storage_client.get_storage_usage(current_user.id)
+
+        return {
+            "enabled": True,
+            "size_bytes": usage.get("size_bytes", 0),
+            "file_count": usage.get("file_count", 0),
+            "limit_bytes": current_user.storage_bytes_limit,
+            "bucket_name": usage.get("bucket_name"),
+            "usage_percent": round(
+                (usage.get("size_bytes", 0) / max(current_user.storage_bytes_limit, 1)) * 100, 2
+            ) if current_user.storage_bytes_limit > 0 else 0
+        }
+
+    @app.get("/api/user/storage/files")
+    async def list_user_files(
+        template_id: Optional[str] = None,
+        path: str = "",
+        current_user: User = Depends(get_current_user)
+    ):
+        """List files in user's storage"""
+        if not storage_client or not storage_client.enabled:
+            return {"files": [], "error": "Storage not configured"}
+
+        result = await storage_client.list_user_files(
+            current_user.id,
+            template_id=template_id,
+            path=path
+        )
+        return result
+
+    @app.get("/api/user/storage/download-url")
+    async def get_download_url(
+        file_path: str,
+        current_user: User = Depends(get_current_user)
+    ):
+        """Get a presigned URL for downloading a file"""
+        if not storage_client or not storage_client.enabled:
+            raise HTTPException(status_code=503, detail="Storage not configured")
+
+        url = await storage_client.get_download_url(current_user.id, file_path)
+        if not url:
+            raise HTTPException(status_code=404, detail="File not found")
+
+        return {"url": url, "expires_in": 3600}
+
+    @app.get("/api/user/storage/upload-url")
+    async def get_upload_url(
+        file_path: str,
+        current_user: User = Depends(get_current_user)
+    ):
+        """Get a presigned URL for uploading a file"""
+        if not storage_client or not storage_client.enabled:
+            raise HTTPException(status_code=503, detail="Storage not configured")
+
+        # Check storage limit
+        if current_user.tier == UserTier.FREE:
+            raise HTTPException(
+                status_code=403,
+                detail="Storage not available on free tier. Please upgrade."
+            )
+
+        url = await storage_client.get_upload_url(current_user.id, file_path)
+        if not url:
+            raise HTTPException(status_code=500, detail="Failed to generate upload URL")
+
+        return {"url": url, "expires_in": 3600}
+
+    @app.post("/api/user/storage/sync/{deployment_id}")
+    async def sync_deployment_storage(
+        deployment_id: str,
+        action: str = "backup",  # "backup" or "restore"
+        current_user: User = Depends(get_current_user),
+        db: AsyncSession = Depends(get_db)
+    ):
+        """
+        Sync storage for a deployment.
+        - backup: Save deployment data to Storj
+        - restore: Load data from Storj to deployment
+        """
+        if not storage_client or not storage_client.enabled:
+            raise HTTPException(status_code=503, detail="Storage not configured")
+
+        if current_user.tier == UserTier.FREE:
+            raise HTTPException(
+                status_code=403,
+                detail="Storage sync not available on free tier"
+            )
+
+        from uuid import UUID as PyUUID
+        try:
+            dep_uuid = PyUUID(deployment_id)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid deployment ID")
+
+        result = await db.execute(
+            select(Deployment)
+            .where(Deployment.id == dep_uuid)
+            .where(Deployment.user_id == current_user.id)
+        )
+        deployment = result.scalar_one_or_none()
+
+        if not deployment:
+            raise HTTPException(status_code=404, detail="Deployment not found")
+
+        # Get storage path for template
+        storage_path = get_template_storage_path(deployment.template_id)
+        if not storage_path:
+            raise HTTPException(
+                status_code=400,
+                detail=f"No storage configuration for template: {deployment.template_id}"
+            )
+
+        if action == "backup":
+            sync_result = await storage_client.sync_to_storage(
+                user_id=current_user.id,
+                template_id=deployment.template_id,
+                local_path=storage_path,
+                host=deployment.host,
+                ssh_user=TEMPLATE_SERVER_USER
+            )
+        elif action == "restore":
+            sync_result = await storage_client.restore_from_storage(
+                user_id=current_user.id,
+                template_id=deployment.template_id,
+                local_path=storage_path,
+                host=deployment.host,
+                ssh_user=TEMPLATE_SERVER_USER
+            )
+        else:
+            raise HTTPException(status_code=400, detail="Invalid action. Use 'backup' or 'restore'")
+
+        return sync_result
+
+# ============================================================================
 # HEALTH CHECK
 # ============================================================================
 
 @app.get("/health")
 async def health_check():
     """Health check endpoint"""
-    return {"status": "healthy", "service": "Computer Console", "demo_mode": DEMO_MODE}
+    db_status = "unavailable"
+    if DB_AVAILABLE:
+        try:
+            from database import check_db_connection
+            db_status = "connected" if await check_db_connection() else "disconnected"
+        except Exception:
+            db_status = "error"
+
+    return {
+        "status": "healthy",
+        "service": "Polaris Computer",
+        "version": "2.0.0",
+        "demo_mode": DEMO_MODE,
+        "database": db_status,
+        "auth_enabled": DB_AVAILABLE
+    }
 
 # ============================================================================
 # MAIN
