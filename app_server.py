@@ -32,12 +32,14 @@ try:
     from auth import router as auth_router, get_current_user, get_optional_user
     from storage import storage_client, get_template_storage_path, TEMPLATE_STORAGE_PATHS
     from warming import warming_manager, start_warming_manager, stop_warming_manager
+    from billing import router as billing_router, STRIPE_ENABLED
     DB_AVAILABLE = True
 except ImportError as e:
     print(f"Database modules not available: {e}")
     DB_AVAILABLE = False
     storage_client = None
     warming_manager = None
+    STRIPE_ENABLED = False
 
 # Docker SDK for local container management
 try:
@@ -99,9 +101,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Include auth router
+# Include auth and billing routers
 if DB_AVAILABLE:
     app.include_router(auth_router, prefix="/api")
+    app.include_router(billing_router, prefix="/api")
 
 # Initialize clients - demo mode if no credentials
 verda_client = None

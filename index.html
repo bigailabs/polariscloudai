@@ -1001,47 +1001,54 @@
                         Your computer in the cloud. No hidden fees.
                     </p>
                     <p class="text-gray-500 dark:text-gray-500">
-                        Pay only for what you use. Scale up or down anytime.
+                        Start free. Upgrade when you need more compute power.
                     </p>
                 </div>
 
                 <!-- Pricing Cards -->
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-5xl mx-auto">
-                    <!-- Starter -->
+                    <!-- Free -->
                     <div class="card bg-white dark:bg-[#1a1a1a] rounded-2xl p-8 border border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-lg transition-all">
                         <div class="mb-6">
-                            <h3 class="text-lg font-semibold dark:text-white mb-2">Starter</h3>
+                            <h3 class="text-lg font-semibold dark:text-white mb-2">Free</h3>
                             <p class="text-gray-500 dark:text-gray-400 text-sm">Perfect for trying things out</p>
                         </div>
                         <div class="mb-6">
-                            <span class="text-4xl font-bold dark:text-white">Free</span>
+                            <span class="text-4xl font-bold dark:text-white">$0</span>
+                            <span class="text-gray-400">/month</span>
                         </div>
                         <ul class="space-y-3 mb-8">
                             <li class="flex items-center text-sm text-gray-600 dark:text-gray-400">
                                 <svg class="w-5 h-5 text-green-500 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
                                 </svg>
-                                1 deployment
+                                30 compute minutes/month
                             </li>
                             <li class="flex items-center text-sm text-gray-600 dark:text-gray-400">
                                 <svg class="w-5 h-5 text-green-500 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
                                 </svg>
-                                Community support
+                                All templates available
                             </li>
                             <li class="flex items-center text-sm text-gray-600 dark:text-gray-400">
-                                <svg class="w-5 h-5 text-green-500 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                                <svg class="w-5 h-5 text-gray-300 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
                                 </svg>
-                                Basic analytics
+                                <span class="text-gray-400">No persistent storage</span>
+                            </li>
+                            <li class="flex items-center text-sm text-gray-600 dark:text-gray-400">
+                                <svg class="w-5 h-5 text-gray-300 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                                </svg>
+                                <span class="text-gray-400">Community support</span>
                             </li>
                         </ul>
-                        <button class="w-full py-3 px-4 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-900 dark:text-white rounded-xl font-medium transition">
-                            Get Started
+                        <button onclick="window.authManager?.isAuthenticated() ? null : showAuthModal('signup')" class="w-full py-3 px-4 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-900 dark:text-white rounded-xl font-medium transition">
+                            Get Started Free
                         </button>
                     </div>
 
-                    <!-- Pro - Featured -->
+                    <!-- Basic - Featured -->
                     <div class="card bg-gradient-to-br from-anthropic-600 to-anthropic-700 rounded-2xl p-8 shadow-xl hover:shadow-2xl transition-all transform hover:-translate-y-1 relative">
                         <div class="absolute -top-3 left-1/2 -translate-x-1/2">
                             <span class="px-4 py-1 bg-white dark:bg-gray-900 text-anthropic-600 text-xs font-bold rounded-full shadow-md">
@@ -1049,11 +1056,11 @@
                             </span>
                         </div>
                         <div class="mb-6">
-                            <h3 class="text-lg font-semibold text-white mb-2">Pro</h3>
-                            <p class="text-anthropic-100 text-sm">For individuals & small teams</p>
+                            <h3 class="text-lg font-semibold text-white mb-2">Basic</h3>
+                            <p class="text-anthropic-100 text-sm">For students & hobbyists</p>
                         </div>
                         <div class="mb-6">
-                            <span class="text-4xl font-bold text-white">$29</span>
+                            <span class="text-4xl font-bold text-white">$10</span>
                             <span class="text-anthropic-200">/month</span>
                         </div>
                         <ul class="space-y-3 mb-8">
@@ -1061,112 +1068,110 @@
                                 <svg class="w-5 h-5 text-anthropic-200 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
                                 </svg>
-                                10 deployments
+                                300 compute minutes/month
                             </li>
                             <li class="flex items-center text-sm text-white">
                                 <svg class="w-5 h-5 text-anthropic-200 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
                                 </svg>
-                                Priority support
+                                10 GB persistent storage
                             </li>
                             <li class="flex items-center text-sm text-white">
                                 <svg class="w-5 h-5 text-anthropic-200 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
                                 </svg>
-                                Advanced analytics
+                                Data persists across restarts
                             </li>
                             <li class="flex items-center text-sm text-white">
                                 <svg class="w-5 h-5 text-anthropic-200 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
                                 </svg>
-                                Custom domains
+                                Shared GPU machines
                             </li>
                             <li class="flex items-center text-sm text-white">
                                 <svg class="w-5 h-5 text-anthropic-200 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
                                 </svg>
-                                API access
+                                Email support
                             </li>
                         </ul>
-                        <button class="w-full py-3 px-4 bg-white hover:bg-gray-100 text-anthropic-700 rounded-xl font-bold transition shadow-lg">
-                            Start Free Trial
+                        <button onclick="window.authManager?.isAuthenticated() ? window.authManager.upgradeTier('basic') : showAuthModal('signup')" class="w-full py-3 px-4 bg-white hover:bg-gray-100 text-anthropic-700 rounded-xl font-bold transition shadow-lg">
+                            Upgrade to Basic
                         </button>
                     </div>
 
-                    <!-- Enterprise -->
+                    <!-- Premium -->
                     <div class="card bg-white dark:bg-[#1a1a1a] rounded-2xl p-8 border border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-lg transition-all">
                         <div class="mb-6">
-                            <h3 class="text-lg font-semibold dark:text-white mb-2">Enterprise</h3>
-                            <p class="text-gray-500 dark:text-gray-400 text-sm">For organizations at scale</p>
+                            <h3 class="text-lg font-semibold dark:text-white mb-2">Premium</h3>
+                            <p class="text-gray-500 dark:text-gray-400 text-sm">For power users and teams</p>
                         </div>
                         <div class="mb-6">
-                            <span class="text-4xl font-bold dark:text-white">Custom</span>
+                            <span class="text-4xl font-bold dark:text-white">$20</span>
+                            <span class="text-gray-500 dark:text-gray-400">/month</span>
                         </div>
                         <ul class="space-y-3 mb-8">
                             <li class="flex items-center text-sm text-gray-600 dark:text-gray-400">
                                 <svg class="w-5 h-5 text-green-500 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
                                 </svg>
-                                Unlimited deployments
+                                1,000 compute minutes/month
                             </li>
                             <li class="flex items-center text-sm text-gray-600 dark:text-gray-400">
                                 <svg class="w-5 h-5 text-green-500 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
                                 </svg>
-                                24/7 dedicated support
+                                100 GB persistent storage
                             </li>
                             <li class="flex items-center text-sm text-gray-600 dark:text-gray-400">
                                 <svg class="w-5 h-5 text-green-500 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
                                 </svg>
-                                SSO & SAML
+                                Priority queue access
                             </li>
                             <li class="flex items-center text-sm text-gray-600 dark:text-gray-400">
                                 <svg class="w-5 h-5 text-green-500 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
                                 </svg>
-                                SLA guarantees
+                                Dedicated GPU option
                             </li>
                             <li class="flex items-center text-sm text-gray-600 dark:text-gray-400">
                                 <svg class="w-5 h-5 text-green-500 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
                                 </svg>
-                                On-premise option
+                                Priority email support
                             </li>
                         </ul>
-                        <button class="w-full py-3 px-4 bg-gray-900 dark:bg-white hover:bg-gray-800 dark:hover:bg-gray-100 text-white dark:text-gray-900 rounded-xl font-medium transition">
-                            Contact Sales
+                        <button onclick="window.authManager?.isAuthenticated() ? window.authManager.upgradeTier('premium') : showAuthModal('signup')" class="w-full py-3 px-4 bg-gray-900 dark:bg-white hover:bg-gray-800 dark:hover:bg-gray-100 text-white dark:text-gray-900 rounded-xl font-medium transition">
+                            Upgrade to Premium
                         </button>
                     </div>
                 </div>
 
-                <!-- Usage-based pricing -->
+                <!-- Overage pricing -->
                 <div class="max-w-3xl mx-auto">
                     <div class="card bg-white dark:bg-[#1a1a1a] rounded-2xl p-8 border border-gray-200 dark:border-gray-700">
                         <div class="text-center mb-8">
-                            <h3 class="text-2xl font-bold dark:text-white mb-2">Pay-as-you-go compute</h3>
-                            <p class="text-gray-500 dark:text-gray-400">All plans include usage-based compute pricing</p>
+                            <h3 class="text-2xl font-bold dark:text-white mb-2">Need more compute?</h3>
+                            <p class="text-gray-500 dark:text-gray-400">Pay only for what you use beyond your plan limits</p>
                         </div>
-                        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                            <div class="text-center p-4 bg-gray-50 dark:bg-gray-800/50 rounded-xl">
-                                <div class="text-3xl mb-2">🖥️</div>
-                                <p class="text-sm font-medium dark:text-white mb-1">Standard</p>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div class="text-center p-6 bg-gray-50 dark:bg-gray-800/50 rounded-xl">
+                                <div class="text-3xl mb-2">⏱️</div>
+                                <p class="text-sm font-medium dark:text-white mb-1">Overage Compute</p>
+                                <p class="text-2xl font-bold text-anthropic-600">$0.10</p>
+                                <p class="text-xs text-gray-500">per minute beyond plan limit</p>
+                            </div>
+                            <div class="text-center p-6 bg-gray-50 dark:bg-gray-800/50 rounded-xl">
+                                <div class="text-3xl mb-2">💾</div>
+                                <p class="text-sm font-medium dark:text-white mb-1">Extra Storage</p>
                                 <p class="text-2xl font-bold text-anthropic-600">$0.05</p>
-                                <p class="text-xs text-gray-500">per hour</p>
-                            </div>
-                            <div class="text-center p-4 bg-gray-50 dark:bg-gray-800/50 rounded-xl">
-                                <div class="text-3xl mb-2">⚡</div>
-                                <p class="text-sm font-medium dark:text-white mb-1">GPU (RTX 4090)</p>
-                                <p class="text-2xl font-bold text-anthropic-600">$0.50</p>
-                                <p class="text-xs text-gray-500">per hour</p>
-                            </div>
-                            <div class="text-center p-4 bg-gray-50 dark:bg-gray-800/50 rounded-xl">
-                                <div class="text-3xl mb-2">🚀</div>
-                                <p class="text-sm font-medium dark:text-white mb-1">GPU (A100)</p>
-                                <p class="text-2xl font-bold text-anthropic-600">$2.00</p>
-                                <p class="text-xs text-gray-500">per hour</p>
+                                <p class="text-xs text-gray-500">per GB/month beyond plan limit</p>
                             </div>
                         </div>
+                        <p class="text-center text-sm text-gray-500 dark:text-gray-400 mt-6">
+                            Your data persists across sessions. Stop deployments to pause billing.
+                        </p>
                     </div>
                 </div>
 
@@ -1320,8 +1325,44 @@
                     userMenu.classList.add('hidden');
                     notificationsBtn.classList.add('hidden');
                 }
+            },
+
+            // Alias for isLoggedIn
+            isAuthenticated() {
+                return this.isLoggedIn();
+            },
+
+            // Upgrade to a paid tier via Stripe
+            async upgradeTier(tier) {
+                if (!this.isLoggedIn()) {
+                    showAuthModal('signup');
+                    return;
+                }
+
+                try {
+                    const response = await fetch(`${API_BASE}/api/billing/checkout`, {
+                        method: 'POST',
+                        headers: this.getAuthHeaders(),
+                        body: JSON.stringify({ tier })
+                    });
+
+                    const data = await response.json();
+
+                    if (response.ok && data.checkout_url) {
+                        // Redirect to Stripe checkout
+                        window.location.href = data.checkout_url;
+                    } else {
+                        toastManager.error('Upgrade Failed', data.detail || 'Could not start checkout');
+                    }
+                } catch (error) {
+                    console.error('Upgrade error:', error);
+                    toastManager.error('Network Error', 'Please try again later');
+                }
             }
         };
+
+        // Expose auth manager globally
+        window.authManager = auth;
 
         // Modal functions
         function showLoginModal() {
@@ -1334,6 +1375,14 @@
             hideAuthModals();
             document.getElementById('signup-modal').classList.remove('hidden');
             document.getElementById('signup-email').focus();
+        }
+
+        function showAuthModal(type = 'login') {
+            if (type === 'signup') {
+                showSignupModal();
+            } else {
+                showLoginModal();
+            }
         }
 
         function hideAuthModals() {
