@@ -16,7 +16,22 @@
     "access_url": "http://65.108.32.148:3000",
     "icon": "\ud83e\udd99",
     "color": "purple",
-    "completed_at": "2026-01-21T04:49:55.555544"
+    "completed_at": "2026-01-21T04:49:55.555544",
+    "pause_config": {
+      "containers": [
+        "ollama",
+        "open-webui"
+      ],
+      "stopped_containers": [],
+      "parameters": {
+        "model": "llama3.2",
+        "port": 3000
+      },
+      "port": 3000,
+      "host": "65.108.32.148"
+    },
+    "paused_at": null,
+    "started_at": "2026-02-02T02:20:38.972810"
   },
   "td_bCRLFBpAEpk": {
     "id": "td_bCRLFBpAEpk",

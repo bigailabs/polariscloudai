@@ -9,7 +9,7 @@ from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconn
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, validator
 from typing import Optional, List, Dict, Any
 from enum import Enum
 import uvicorn
@@ -117,14 +117,39 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# Add CORS middleware
+# Get allowed origins from environment, with safe defaults
+ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000,http://localhost:8000").split(",")
+if os.getenv("ENVIRONMENT") == "production":
+    ALLOWED_ORIGINS = [
+        "https://polaris.computer",
+        "https://www.polaris.computer",
+        "https://api.polariscomputer.com",
+    ]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "X-CSRF-Token"],
 )
+
+# Security headers middleware
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request as StarletteRequest
+
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: StarletteRequest, call_next):
+        response = await call_next(request)
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-XSS-Protection"] = "1; mode=block"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        if os.getenv("ENVIRONMENT") == "production":
+            response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+        return response
+
+app.add_middleware(SecurityHeadersMiddleware)
 
 # Include auth and billing routers
 if DB_AVAILABLE:
@@ -620,8 +645,26 @@ def save_template_deployments(deployments):
 
 class TemplateDeploymentRequest(BaseModel):
     template_id: str
-    name: str
+    name: str = Field(..., min_length=1, max_length=100, pattern=r'^[a-zA-Z0-9_-]+$')
     parameters: Dict[str, Any] = Field(default_factory=dict)
+
+    @validator('template_id')
+    def validate_template_id(cls, v):
+        if v not in TEMPLATE_REGISTRY:
+            raise ValueError(f"Unknown template: {v}")
+        return v
+
+    @validator('parameters')
+    def validate_parameters(cls, v, values):
+        # Sanitize parameter values to prevent injection
+        sanitized = {}
+        for key, value in v.items():
+            if isinstance(value, str):
+                # Remove potentially dangerous characters for shell commands
+                sanitized[key] = value.replace(';', '').replace('|', '').replace('&', '').replace('`', '').replace('$', '')
+            else:
+                sanitized[key] = value
+        return sanitized
 
 
 class TemplateDeploymentStatus(str, Enum):
@@ -1212,12 +1255,16 @@ async def run_template_deployment(deployment_id: str, template: TemplateConfig, 
 @app.get("/")
 async def serve_landing():
     """Serve the landing page"""
-    return FileResponse("landing.html")
+    response = FileResponse("landing.html")
+    response.headers["Cache-Control"] = "public, max-age=3600"
+    return response
 
 @app.get("/waterfall.mp4")
 async def serve_waterfall_video():
     """Serve the background video"""
-    return FileResponse("waterfall.mp4", media_type="video/mp4")
+    response = FileResponse("waterfall.mp4", media_type="video/mp4")
+    response.headers["Cache-Control"] = "public, max-age=86400"
+    return response
 
 @app.get("/app")
 @app.get("/app.html")

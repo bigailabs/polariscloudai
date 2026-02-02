@@ -18,16 +18,32 @@ from passlib.context import CryptContext
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+
 from database import get_db
 from models import User, UserTier, RefreshToken
+
+limiter = Limiter(key_func=get_remote_address)
 
 # ============================================================================
 # CONFIGURATION
 # ============================================================================
 
-# JWT settings - use strong secrets in production
-SECRET_KEY = os.getenv("JWT_SECRET_KEY", secrets.token_urlsafe(32))
-REFRESH_SECRET_KEY = os.getenv("JWT_REFRESH_SECRET_KEY", secrets.token_urlsafe(32))
+# JWT settings - MUST be set in production
+def get_jwt_secret():
+    secret = os.getenv("JWT_SECRET_KEY")
+    if not secret:
+        if os.getenv("ENVIRONMENT") == "production":
+            raise RuntimeError("JWT_SECRET_KEY must be set in production")
+        # Only allow random secret in development
+        import warnings
+        warnings.warn("Using random JWT_SECRET_KEY - sessions will not persist across restarts")
+        return secrets.token_urlsafe(32)
+    return secret
+
+SECRET_KEY = get_jwt_secret()
+REFRESH_SECRET_KEY = os.getenv("JWT_REFRESH_SECRET_KEY") or (SECRET_KEY + "_refresh")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 REFRESH_TOKEN_EXPIRE_DAYS = 30
@@ -81,6 +97,17 @@ class ChangePasswordRequest(BaseModel):
     """Change password request"""
     current_password: str
     new_password: str = Field(min_length=8, description="Minimum 8 characters")
+
+
+class PasswordResetRequest(BaseModel):
+    """Request password reset"""
+    email: EmailStr
+
+
+class PasswordResetConfirm(BaseModel):
+    """Confirm password reset with token"""
+    token: str
+    new_password: str = Field(min_length=8)
 
 
 class UserResponse(BaseModel):
@@ -317,6 +344,7 @@ async def get_optional_user(
 # ============================================================================
 
 @router.post("/signup", response_model=TokenResponse)
+@limiter.limit("5/minute")
 async def signup(
     request: SignupRequest,
     req: Request,
@@ -371,6 +399,7 @@ async def signup(
 
 
 @router.post("/login", response_model=TokenResponse)
+@limiter.limit("10/minute")
 async def login(
     request: LoginRequest,
     req: Request,
@@ -417,6 +446,7 @@ async def login(
 
 
 @router.post("/refresh", response_model=TokenResponse)
+@limiter.limit("30/minute")
 async def refresh_tokens(
     request: RefreshRequest,
     req: Request,
@@ -543,8 +573,10 @@ async def update_me(
 
 
 @router.post("/change-password")
+@limiter.limit("3/minute")
 async def change_password(
     request: ChangePasswordRequest,
+    req: Request,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
@@ -645,3 +677,76 @@ async def oauth_callback(
         refresh_token=refresh_token,
         expires_in=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
     )
+
+
+@router.post("/forgot-password")
+@limiter.limit("3/minute")
+async def forgot_password(
+    request: PasswordResetRequest,
+    req: Request,
+    db: AsyncSession = Depends(get_db)
+):
+    """Request a password reset email"""
+    # Find user by email
+    result = await db.execute(select(User).where(User.email == request.email.lower()))
+    user = result.scalar_one_or_none()
+
+    # Always return success to prevent email enumeration
+    if not user:
+        return {"success": True, "message": "If the email exists, a reset link will be sent"}
+
+    # Generate reset token (expires in 1 hour)
+    reset_token = secrets.token_urlsafe(32)
+    reset_expires = datetime.utcnow() + timedelta(hours=1)
+
+    # Store hashed token in user record
+    user.password_reset_token = hash_token(reset_token)
+    user.password_reset_expires = reset_expires
+    await db.commit()
+
+    # TODO: Send email with reset link
+    # For now, log the token (remove in production)
+    print(f"Password reset token for {user.email}: {reset_token}")
+
+    return {"success": True, "message": "If the email exists, a reset link will be sent"}
+
+
+@router.post("/reset-password")
+@limiter.limit("5/minute")
+async def reset_password(
+    request: PasswordResetConfirm,
+    req: Request,
+    db: AsyncSession = Depends(get_db)
+):
+    """Reset password using token"""
+    token_hash = hash_token(request.token)
+
+    # Find user with valid reset token
+    result = await db.execute(
+        select(User)
+        .where(User.password_reset_token == token_hash)
+        .where(User.password_reset_expires > datetime.utcnow())
+    )
+    user = result.scalar_one_or_none()
+
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired reset token"
+        )
+
+    # Update password and clear reset token
+    user.password_hash = hash_password(request.new_password)
+    user.password_reset_token = None
+    user.password_reset_expires = None
+
+    # Revoke all refresh tokens
+    await db.execute(
+        RefreshToken.__table__.update()
+        .where(RefreshToken.user_id == user.id)
+        .values(is_revoked=True)
+    )
+
+    await db.commit()
+
+    return {"success": True, "message": "Password reset successfully"}

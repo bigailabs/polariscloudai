@@ -20,12 +20,51 @@ storj://polaris-users/{user_id}/
 import os
 import asyncio
 import hashlib
+import ipaddress
 from datetime import datetime
 from typing import Optional, List, Dict, Any
 from pathlib import Path
+from urllib.parse import urlparse
 from uuid import UUID
 
 import boto3
+
+
+def validate_external_url(url: str) -> bool:
+    """
+    Validate that a URL is external and not pointing to internal resources.
+    Prevents SSRF attacks by blocking internal IPs and localhost.
+    """
+    try:
+        parsed = urlparse(url)
+        hostname = parsed.hostname
+
+        if not hostname:
+            return False
+
+        # Block localhost
+        if hostname in ("localhost", "127.0.0.1", "::1"):
+            return False
+
+        # Block internal IP ranges
+        try:
+            ip = ipaddress.ip_address(hostname)
+            if ip.is_private or ip.is_loopback or ip.is_link_local:
+                return False
+        except ValueError:
+            # hostname is not an IP, that's fine
+            pass
+
+        # Block internal hostnames
+        internal_patterns = [".internal", ".local", ".localhost", ".corp"]
+        if any(hostname.endswith(p) for p in internal_patterns):
+            return False
+
+        return True
+    except Exception:
+        return False
+
+
 from botocore.config import Config
 from botocore.exceptions import ClientError
 
@@ -183,10 +222,12 @@ class StorageClient:
             cache_dir.mkdir(parents=True, exist_ok=True)
 
             # Sync from remote host to local cache via rsync over SSH
-            rsync_cmd = f"rsync -avz --delete -e 'ssh -o StrictHostKeyChecking=no' {ssh_user}@{host}:{local_path}/ {cache_dir}/"
-
-            process = await asyncio.create_subprocess_shell(
-                rsync_cmd,
+            # Use subprocess_exec to prevent command injection
+            process = await asyncio.create_subprocess_exec(
+                "rsync", "-avz", "--delete",
+                "-e", "ssh -o StrictHostKeyChecking=no",
+                f"{ssh_user}@{host}:{local_path}/",
+                f"{cache_dir}/",
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE
             )
@@ -287,10 +328,12 @@ class StorageClient:
                 }
 
             # Sync from local cache to remote host
-            rsync_cmd = f"rsync -avz -e 'ssh -o StrictHostKeyChecking=no' {cache_dir}/ {ssh_user}@{host}:{local_path}/"
-
-            process = await asyncio.create_subprocess_shell(
-                rsync_cmd,
+            # Use subprocess_exec to prevent command injection
+            process = await asyncio.create_subprocess_exec(
+                "rsync", "-avz",
+                "-e", "ssh -o StrictHostKeyChecking=no",
+                f"{cache_dir}/",
+                f"{ssh_user}@{host}:{local_path}/",
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE
             )

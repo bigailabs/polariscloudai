@@ -20,7 +20,7 @@
                            ▼
 ┌─────────────────────────────────────────────────────────┐
 │              Backend Server (Currently Hetzner)         │
-│  - IP: 65.108.32.148                                   │
+│  - IP: 65.109.75.29                                   │
 │  - FastAPI app (app_server.py) on port 8081            │
 │  - Template containers (Docker)                        │
 │  - SSH user: root                                      │
@@ -42,7 +42,7 @@
 |------|-------|
 | Frontend URL | `https://polaris.computer` |
 | API URL | `https://api.polaris.computer` |
-| Backend Server IP | `65.108.32.148` |
+| Backend Server IP | `65.109.75.29` |
 | DNS Management | Cloudflare Dashboard → polaris.computer → DNS |
 | Frontend Deployment | Cloudflare Dashboard → Workers & Pages → polariscomputer |
 | API URL in code | `index.html` line ~1498: `API_BASE` variable |
@@ -208,7 +208,7 @@ wrangler pages deploy public --project-name=polariscomputer
 
 **SSH to server:**
 ```bash
-ssh root@65.108.32.148
+ssh root@65.109.75.29
 ```
 
 **Update and restart:**
@@ -300,7 +300,7 @@ nslookup api.polaris.computer
 curl https://api.polaris.computer/health
 
 # SSH to server and check locally
-ssh root@65.108.32.148 "curl http://localhost:8081/health"
+ssh root@65.109.75.29 "curl http://localhost:8081/health"
 ```
 
 **Fix:**
@@ -312,22 +312,22 @@ ssh root@65.108.32.148 "curl http://localhost:8081/health"
 
 ```bash
 # Check if running
-ssh root@65.108.32.148 "ps aux | grep app_server"
+ssh root@65.109.75.29 "ps aux | grep app_server"
 
 # Check logs
-ssh root@65.108.32.148 "tail -100 server.log"
+ssh root@65.109.75.29 "tail -100 server.log"
 
 # Check port
-ssh root@65.108.32.148 "netstat -tlnp | grep 8081"
+ssh root@65.109.75.29 "netstat -tlnp | grep 8081"
 
 # Restart
-ssh root@65.108.32.148 "pkill -f app_server.py; cd /root/polariscomputer && nohup python3 app_server.py > server.log 2>&1 &"
+ssh root@65.109.75.29 "pkill -f app_server.py; cd /root/polariscomputer && nohup python3 app_server.py > server.log 2>&1 &"
 ```
 
 ### Template container issues
 
 ```bash
-ssh root@65.108.32.148
+ssh root@65.109.75.29
 
 # List containers
 docker ps -a
@@ -370,7 +370,7 @@ curl https://api.polaris.computer/health
 curl https://xuxtkpixggpmzjjogkmt.supabase.co/rest/v1/
 
 # Template server containers
-ssh root@65.108.32.148 "docker ps"
+ssh root@65.109.75.29 "docker ps"
 ```
 
 ### Logs
@@ -394,7 +394,7 @@ ssh root@65.108.32.148 "docker ps"
 **Option 2: Local encrypted backup**
 ```bash
 # Backup from server
-scp root@65.108.32.148:/root/polariscomputer/.env ~/Documents/TOOLS/.credentials/polaris-env-backup
+scp root@65.109.75.29:/root/polariscomputer/.env ~/Documents/TOOLS/.credentials/polaris-env-backup
 
 # Encrypt it
 gpg -c ~/Documents/TOOLS/.credentials/polaris-env-backup
@@ -428,7 +428,7 @@ supabase db dump -f backup.sql
 
 ```bash
 # Backup deployment records (lost = users see empty dashboard, can redeploy)
-scp root@65.108.32.148:/root/polariscomputer/template_deployments.json ./backup/
+scp root@65.109.75.29:/root/polariscomputer/template_deployments.json ./backup/
 ```
 
 ### Full server backup script
@@ -441,10 +441,10 @@ BACKUP_DIR=~/Documents/PROJECTS/polariscomputer/backups/$(date +%Y%m%d)
 mkdir -p $BACKUP_DIR
 
 # Backup .env (CRITICAL)
-scp root@65.108.32.148:/root/polariscomputer/.env $BACKUP_DIR/
+scp root@65.109.75.29:/root/polariscomputer/.env $BACKUP_DIR/
 
 # Backup deployment state
-scp root@65.108.32.148:/root/polariscomputer/template_deployments.json $BACKUP_DIR/
+scp root@65.109.75.29:/root/polariscomputer/template_deployments.json $BACKUP_DIR/
 
 # Backup database
 supabase db dump -f $BACKUP_DIR/database.sql
@@ -463,3 +463,122 @@ echo "Backup complete: $BACKUP_DIR"
 | Database | Supabase | Upgrade Supabase plan |
 | Templates | Single server | Multiple servers with load balancer |
 | GPU | Verda | Add Targon as backup provider |
+
+---
+
+## API Domain Configuration (api.polaris.computer)
+
+### Current Setup (as of 2026-02-02)
+
+The API is accessible via:
+1. **Direct IP:** `http://65.109.75.29:8081` (no SSL)
+2. **Quick Tunnel:** `https://accepting-fishing-testing-enough.trycloudflare.com` (temporary)
+3. **Custom Domain:** `https://api.polaris.computer` (requires Cloudflare DNS fix)
+
+### Fix api.polaris.computer (521 Error)
+
+The 521 error means Cloudflare cannot reach the origin server. This happens when:
+- The DNS A record points to the wrong IP
+- The server firewall blocks Cloudflare IPs
+
+**To fix:**
+
+1. Login to Cloudflare Dashboard: https://dash.cloudflare.com
+   - Account: Fredesere@gmail.com
+
+2. Go to **polaris.computer** → **DNS**
+
+3. Find the `api` A record and update it:
+   ```
+   Type: A
+   Name: api
+   Content: 65.109.75.29
+   Proxy status: Proxied (orange cloud)
+   TTL: Auto
+   ```
+
+4. Wait 1-2 minutes for propagation
+
+5. Test: `curl https://api.polaris.computer/health`
+
+### Server-Side Nginx Configuration
+
+The server has nginx configured to route `api.polaris.computer` traffic:
+
+```
+Location: /etc/nginx/sites-enabled/polaris-api
+Proxies to: http://127.0.0.1:8081
+```
+
+To verify/update nginx:
+```bash
+ssh root@65.109.75.29
+cat /etc/nginx/sites-enabled/polaris-api
+nginx -t && systemctl reload nginx
+```
+
+### Cloudflare Quick Tunnel (Temporary Fallback)
+
+When the custom domain is not working, use a quick tunnel:
+
+```bash
+# SSH to server
+ssh root@65.109.75.29
+
+# Start quick tunnel (runs in foreground)
+cloudflared tunnel --url http://localhost:8081
+
+# Or run in background with nohup
+nohup cloudflared tunnel --url http://localhost:8081 > /root/tunnel.log 2>&1 &
+```
+
+The tunnel will output a URL like: `https://something-random.trycloudflare.com`
+
+**Important:** Update `app.html` API_BASE with the new tunnel URL:
+```javascript
+const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+    ? ''
+    : 'https://NEW-TUNNEL-URL.trycloudflare.com';
+```
+
+### Named Tunnel Setup (Production - Not Yet Configured)
+
+For a permanent tunnel that survives reboots:
+
+1. **Authenticate cloudflared:**
+   ```bash
+   ssh root@65.109.75.29
+   cloudflared tunnel login
+   # Opens browser URL - login with Cloudflare account
+   ```
+
+2. **Create named tunnel:**
+   ```bash
+   cloudflared tunnel create polaris-api
+   # Note the tunnel ID (UUID)
+   ```
+
+3. **Create config file:**
+   ```bash
+   cat > ~/.cloudflared/config.yml << EOF
+   tunnel: <TUNNEL-ID>
+   credentials-file: /root/.cloudflared/<TUNNEL-ID>.json
+   
+   ingress:
+     - hostname: api.polaris.computer
+       service: http://localhost:8081
+     - service: http_status:404
+   EOF
+   ```
+
+4. **Create DNS record:**
+   ```bash
+   cloudflared tunnel route dns polaris-api api.polaris.computer
+   ```
+
+5. **Install as service:**
+   ```bash
+   cloudflared service install
+   systemctl enable cloudflared
+   systemctl start cloudflared
+   ```
