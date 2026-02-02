@@ -1769,6 +1769,10 @@
         }
 
         function hideAuthModals() {
+            // Don't allow closing modals if not logged in (auth required)
+            if (!auth.isLoggedIn()) {
+                return;
+            }
             document.getElementById('login-modal').classList.add('hidden');
             document.getElementById('signup-modal').classList.add('hidden');
             document.getElementById('login-error').classList.add('hidden');
