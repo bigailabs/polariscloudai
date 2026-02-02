@@ -1236,8 +1236,8 @@ async def serve_index():
 # ============================================================================
 
 @app.get("/api/stats")
-async def get_stats():
-    """Get dashboard statistics"""
+async def get_stats(current_user: User = Depends(get_current_user)):
+    """Get dashboard statistics for the current user"""
     try:
         # Get deployments (both containers and instances)
         if DEMO_MODE or verda_client is None:
