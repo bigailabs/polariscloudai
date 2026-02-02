@@ -5,15 +5,21 @@
 ```
 ┌─────────────────────────────────────────────────────────┐
 │              Cloudflare Pages (Frontend)                │
-│  - index.html, landing.html                            │
-│  - Free tier, global CDN                               │
+│  - polaris.computer (custom domain)                    │
+│  - polariscomputer.pages.dev (default)                 │
 │  - Auto-deploys on push to main                        │
-│  - URL: polariscomputer-d6j.pages.dev                  │
 └─────────────────────────────────────────────────────────┘
                            │
                            ▼
 ┌─────────────────────────────────────────────────────────┐
-│              Hetzner Server (Backend)                   │
+│              Cloudflare DNS Proxy                       │
+│  - api.polaris.computer → Backend server               │
+│  - Provides SSL termination                            │
+└─────────────────────────────────────────────────────────┘
+                           │
+                           ▼
+┌─────────────────────────────────────────────────────────┐
+│              Backend Server (Currently Hetzner)         │
 │  - IP: 65.108.32.148                                   │
 │  - FastAPI app (app_server.py) on port 8081            │
 │  - Template containers (Docker)                        │
@@ -28,16 +34,152 @@
 └─────────────┘  └─────────────┘
 ```
 
+---
+
+## Quick Reference - Key Locations
+
+| What | Where |
+|------|-------|
+| Frontend URL | `https://polaris.computer` |
+| API URL | `https://api.polaris.computer` |
+| Backend Server IP | `65.108.32.148` |
+| DNS Management | Cloudflare Dashboard → polaris.computer → DNS |
+| Frontend Deployment | Cloudflare Dashboard → Workers & Pages → polariscomputer |
+| API URL in code | `index.html` line ~1498: `API_BASE` variable |
+
+---
+
+## Disaster Recovery - Start from Zero
+
+### Step 1: Get a New Server
+
+Provision a server (Hetzner, DigitalOcean, AWS, etc.) with:
+- Ubuntu 22.04+
+- Docker installed
+- Python 3.10+
+- At least 4GB RAM, 2 CPU cores
+
+Note the new server's **IP address**.
+
+### Step 2: Deploy Backend to New Server
+
+```bash
+# SSH to new server
+ssh root@NEW_IP_ADDRESS
+
+# Install dependencies
+apt update && apt install -y python3 python3-pip python3-venv docker.io git
+
+# Clone repo
+git clone https://github.com/bigailabs/polariscomputer.git
+cd polariscomputer
+
+# Create virtual environment
+python3 -m venv venv
+source venv/bin/activate
+
+# Install Python dependencies
+pip install -r requirements.txt
+
+# Create .env file (copy from password manager or .env.example)
+cp .env.example .env
+nano .env  # Fill in all values
+
+# Run database migrations
+alembic upgrade head
+
+# Start the server
+nohup python3 app_server.py > server.log 2>&1 &
+
+# Verify it's running
+curl http://localhost:8081/health
+```
+
+### Step 3: Update DNS to Point to New Server
+
+1. Go to **Cloudflare Dashboard** → **polaris.computer** → **DNS**
+2. Find the `A` record for `api`
+3. Click **Edit**
+4. Change the IP address to your **new server IP**
+5. Click **Save**
+6. Wait 1-5 minutes for propagation
+
+```
+Type: A
+Name: api
+Content: NEW_IP_ADDRESS  ← Change this
+Proxy: Proxied (orange cloud)
+```
+
+### Step 4: Verify Everything Works
+
+```bash
+# Test API directly
+curl https://api.polaris.computer/health
+
+# Test frontend
+# Visit https://polaris.computer in browser
+```
+
+---
+
 ## Services & Credentials
 
-| Service | Purpose | Credentials Location |
-|---------|---------|---------------------|
-| Cloudflare Pages | Frontend hosting | GitHub Secrets: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` |
-| Hetzner | Backend + templates | SSH key, `.env` on server |
-| Supabase | Auth + Database | `.env`: `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_JWT_SECRET` |
-| Verda | GPU compute | `.env`: `VERDA_CLIENT_ID`, `VERDA_CLIENT_SECRET` |
-| Backblaze B2 | Storage | `.env`: `B2_*` variables |
-| Stripe | Billing | `.env`: `STRIPE_*` variables |
+| Service | Purpose | Where to Find Credentials |
+|---------|---------|---------------------------|
+| Cloudflare | DNS + Frontend hosting | Cloudflare dashboard (login: Fredesere@gmail.com) |
+| Hetzner | Backend server | SSH key on local machine |
+| Supabase | Auth + Database | Supabase dashboard → Settings → API |
+| Verda | GPU compute | Verda dashboard |
+| Backblaze B2 | Storage | Backblaze dashboard → App Keys |
+| Stripe | Billing | Stripe dashboard → Developers → API keys |
+| GitHub | Code repo | GitHub Settings → Developer settings → Tokens |
+
+### Required Environment Variables (.env)
+
+```bash
+# Database (Supabase)
+DATABASE_URL=postgresql+asyncpg://postgres:PASSWORD@HOST:5432/postgres
+SUPABASE_URL=https://PROJECT.supabase.co
+SUPABASE_ANON_KEY=eyJ...
+SUPABASE_JWT_SECRET=your-jwt-secret
+
+# GPU Provider
+VERDA_CLIENT_ID=your-client-id
+VERDA_CLIENT_SECRET=your-client-secret
+
+# Storage
+B2_KEY_ID=your-key-id
+B2_APPLICATION_KEY=your-app-key
+B2_BUCKET_NAME=your-bucket
+
+# Payments
+STRIPE_SECRET_KEY=sk_...
+STRIPE_PUBLISHABLE_KEY=pk_...
+STRIPE_WEBHOOK_SECRET=whsec_...
+
+# Auth
+JWT_SECRET_KEY=random-secret-key
+JWT_REFRESH_SECRET_KEY=another-random-secret
+```
+
+---
+
+## Changing the Backend Server IP
+
+When you move to a new server, you need to update **one place**:
+
+### Cloudflare DNS
+
+1. Go to: https://dash.cloudflare.com
+2. Click **polaris.computer**
+3. Click **DNS** in sidebar
+4. Find: `A | api | OLD_IP`
+5. Click **Edit**
+6. Change IP to new server IP
+7. **Save**
+
+That's it. The frontend code (`index.html`) uses `https://api.polaris.computer` which Cloudflare routes to whatever IP you configure.
 
 ---
 
@@ -59,10 +201,10 @@ wrangler login
 mkdir -p public
 cp index.html landing.html public/
 cp index.html public/app.html
-wrangler pages deploy public --project-name=polaris-computer
+wrangler pages deploy public --project-name=polariscomputer
 ```
 
-### Backend (Hetzner)
+### Backend (Current Hetzner Server)
 
 **SSH to server:**
 ```bash
@@ -71,19 +213,19 @@ ssh root@65.108.32.148
 
 **Update and restart:**
 ```bash
-cd /path/to/polariscomputer
+cd /root/polariscomputer  # or wherever it's installed
+source venv/bin/activate
 git pull origin main
 pip install -r requirements.txt
-# Restart service (depends on how it's running)
-systemctl restart polaris  # if using systemd
-# OR
-pkill -f app_server.py && nohup python3 app_server.py > server.log 2>&1 &
+pkill -f app_server.py
+nohup python3 app_server.py > server.log 2>&1 &
 ```
 
 **Check status:**
 ```bash
 curl http://localhost:8081/health
 docker ps  # Check template containers
+tail -50 server.log  # Check logs
 ```
 
 ---
@@ -107,15 +249,10 @@ COPY alembic.ini .
 EXPOSE 8081
 CMD ["python3", "app_server.py"]
 ```
-5. Create `railway.json`:
-```json
-{
-  "build": {"builder": "DOCKERFILE", "dockerfilePath": "Dockerfile.api"},
-  "deploy": {"startCommand": "python3 app_server.py"}
-}
-```
-6. Add GitHub secret: `RAILWAY_TOKEN`
-7. Update frontend `API_BASE` to Railway URL
+5. Deploy and get Railway URL
+6. Update Cloudflare DNS:
+   - Delete the `A` record for `api`
+   - Add `CNAME | api | your-app.railway.app`
 
 **Cost:** ~$5-10/month
 
@@ -125,14 +262,16 @@ CMD ["python3", "app_server.py"]
 2. `fly launch` in project directory
 3. Set secrets: `fly secrets set KEY=value`
 4. Deploy: `fly deploy`
+5. Update Cloudflare DNS to point `api` to Fly.io URL
 
-**Cost:** ~$5-10/month (similar to Railway)
+**Cost:** ~$5-10/month
 
 ### Move Frontend to Vercel
 
 1. Connect repo to Vercel
 2. Set output directory to `/`
 3. No build command needed (static)
+4. Update domain in Vercel dashboard
 
 **Cost:** Free tier available
 
@@ -148,6 +287,27 @@ CMD ["python3", "app_server.py"]
 
 ## Troubleshooting
 
+### "Failed to load applications" on frontend
+
+**Cause:** Frontend can't reach backend API
+
+**Check:**
+```bash
+# Is DNS resolving?
+nslookup api.polaris.computer
+
+# Is backend responding?
+curl https://api.polaris.computer/health
+
+# SSH to server and check locally
+ssh root@65.108.32.148 "curl http://localhost:8081/health"
+```
+
+**Fix:**
+- If DNS wrong → Update Cloudflare DNS A record
+- If backend down → SSH and restart: `nohup python3 app_server.py > server.log 2>&1 &`
+- If port blocked → Check firewall: `ufw allow 8081`
+
 ### Backend not responding
 
 ```bash
@@ -155,10 +315,13 @@ CMD ["python3", "app_server.py"]
 ssh root@65.108.32.148 "ps aux | grep app_server"
 
 # Check logs
-ssh root@65.108.32.148 "tail -100 /path/to/server.log"
+ssh root@65.108.32.148 "tail -100 server.log"
 
 # Check port
 ssh root@65.108.32.148 "netstat -tlnp | grep 8081"
+
+# Restart
+ssh root@65.108.32.148 "pkill -f app_server.py; cd /root/polariscomputer && nohup python3 app_server.py > server.log 2>&1 &"
 ```
 
 ### Template container issues
@@ -184,7 +347,7 @@ docker restart container-name
 python3 -c "from database import check_db_connection; import asyncio; print(asyncio.run(check_db_connection()))"
 
 # Check Supabase status
-curl https://your-project.supabase.co/rest/v1/ -H "apikey: YOUR_ANON_KEY"
+curl https://xuxtkpixggpmzjjogkmt.supabase.co/rest/v1/ -H "apikey: YOUR_ANON_KEY"
 ```
 
 ### Auth issues
@@ -201,10 +364,10 @@ curl https://your-project.supabase.co/rest/v1/ -H "apikey: YOUR_ANON_KEY"
 
 ```bash
 # Backend health
-curl https://your-api-domain/health
+curl https://api.polaris.computer/health
 
 # Supabase health
-curl https://your-project.supabase.co/rest/v1/
+curl https://xuxtkpixggpmzjjogkmt.supabase.co/rest/v1/
 
 # Template server containers
 ssh root@65.108.32.148 "docker ps"
@@ -212,7 +375,7 @@ ssh root@65.108.32.148 "docker ps"
 
 ### Logs
 
-- Backend: `server.log` on Hetzner
+- Backend: `server.log` on server
 - Cloudflare: Pages dashboard → Deployments
 - Supabase: Dashboard → Logs
 
@@ -232,12 +395,12 @@ supabase db dump -f backup.sql
 
 ```bash
 # Backup deployment records
-scp root@65.108.32.148:/path/to/template_deployments.json ./backup/
+scp root@65.108.32.148:/root/polariscomputer/template_deployments.json ./backup/
 ```
 
 ### Environment variables
 
-Keep a secure copy of `.env` in a password manager or encrypted storage.
+Keep a secure copy of `.env` in a password manager.
 
 ---
 
@@ -248,5 +411,5 @@ Keep a secure copy of `.env` in a password manager or encrypted storage.
 | Frontend | Cloudflare Pages | Already global CDN |
 | Backend | Single Hetzner | Railway/Fly.io with auto-scale |
 | Database | Supabase | Upgrade Supabase plan |
-| Templates | Single server | Multiple Hetzner servers with load balancer |
+| Templates | Single server | Multiple servers with load balancer |
 | GPU | Verda | Add Targon as backup provider |
