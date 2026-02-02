@@ -1,0 +1,49 @@
+name: Deploy Frontend to Cloudflare Pages
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '*.html'
+      - 'public/**'
+      - '.github/workflows/deploy-frontend.yml'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Prepare public directory
+        env:
+          API_URL: ${{ vars.API_URL || 'https://api.polariscomputer.com' }}
+        run: |
+          mkdir -p public
+
+          # Update API_BASE in index.html to point to production backend
+          sed "s|'https://freedom-recommend-ray-payday.trycloudflare.com'|'$API_URL'|g" index.html > public/index.html
+
+          cp landing.html public/
+          # app.html mirrors index.html
+          cp public/index.html public/app.html
+
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy public --project-name=polaris-computer
+
+      - name: Notify deployment status
+        if: always()
+        run: |
+          if [ "${{ job.status }}" == "success" ]; then
+            echo "Frontend deployed successfully to Cloudflare Pages"
+          else
+            echo "Frontend deployment failed"
+            exit 1
+          fi

@@ -1449,8 +1449,12 @@ async def get_templates():
 
 
 @app.post("/api/templates/deploy")
-async def deploy_template(request: TemplateDeploymentRequest):
-    """Deploy a template to a remote server"""
+async def deploy_template(
+    request: TemplateDeploymentRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Deploy a template to a remote server (requires authentication)"""
     if request.template_id not in TEMPLATE_REGISTRY:
         raise HTTPException(status_code=404, detail=f"Template '{request.template_id}' not found")
 
@@ -1491,6 +1495,7 @@ async def deploy_template(request: TemplateDeploymentRequest):
         "access_url": access_url,
         "icon": template.icon,
         "color": template.color,
+        "user_id": str(current_user.id),  # Track ownership
     }
 
     if credentials:
@@ -1511,24 +1516,45 @@ async def deploy_template(request: TemplateDeploymentRequest):
 
 
 @app.get("/api/templates/deployments")
-async def get_template_deployments():
-    """Get all template deployments"""
+async def get_template_deployments(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Get template deployments for the current user"""
     deployments = load_template_deployments()
-    return {"deployments": list(deployments.values())}
+    # Filter deployments by user_id
+    user_deployments = [
+        d for d in deployments.values()
+        if d.get("user_id") == str(current_user.id)
+    ]
+    return {"deployments": user_deployments}
 
 
 @app.get("/api/templates/deployments/{deployment_id}")
-async def get_template_deployment(deployment_id: str):
-    """Get a specific template deployment"""
+async def get_template_deployment(
+    deployment_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Get a specific template deployment (requires ownership)"""
     deployments = load_template_deployments()
     if deployment_id not in deployments:
         raise HTTPException(status_code=404, detail=f"Deployment '{deployment_id}' not found")
-    return deployments[deployment_id]
+
+    deployment = deployments[deployment_id]
+    # Check ownership
+    if deployment.get("user_id") != str(current_user.id):
+        raise HTTPException(status_code=403, detail="Not authorized to access this deployment")
+
+    return deployment
 
 
 @app.post("/api/templates/deployments/sync")
-async def sync_deployment_statuses():
-    """Sync deployment statuses with actual container states on the server"""
+async def sync_deployment_statuses(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Sync deployment statuses for current user's deployments"""
     deployments = load_template_deployments()
     updated = 0
 
@@ -1564,8 +1590,13 @@ async def sync_deployment_statuses():
             "dev-terminal": "dev-terminal",
         }
 
-        # Update each deployment's status
+        # Update each deployment's status (only for current user's deployments)
+        user_id = str(current_user.id)
         for dep_id, dep in deployments.items():
+            # Only sync user's own deployments
+            if dep.get("user_id") != user_id:
+                continue
+
             template_id = dep.get("template_id")
             container_name = dep.get("parameters", {}).get("container_name")
 
@@ -1590,20 +1621,30 @@ async def sync_deployment_statuses():
 
         save_template_deployments(deployments)
 
-        return {"success": True, "updated": updated, "running_containers": list(running_containers)}
+        return {"success": True, "updated": updated}
 
     except Exception as e:
         return {"success": False, "error": str(e), "updated": 0}
 
 
 @app.delete("/api/templates/deployments/{deployment_id}")
-async def delete_template_deployment(deployment_id: str, cleanup: bool = True):
-    """Stop container and delete a template deployment record"""
+async def delete_template_deployment(
+    deployment_id: str,
+    cleanup: bool = True,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Stop container and delete a template deployment record (requires ownership)"""
     deployments = load_template_deployments()
     if deployment_id not in deployments:
         raise HTTPException(status_code=404, detail=f"Deployment '{deployment_id}' not found")
 
     deployment = deployments[deployment_id]
+
+    # Check ownership
+    if deployment.get("user_id") != str(current_user.id):
+        raise HTTPException(status_code=403, detail="Not authorized to delete this deployment")
+
     cleanup_result = None
 
     # Stop and remove the container if cleanup requested

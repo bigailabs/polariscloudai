@@ -22,8 +22,10 @@ Thumbs.db
 # Project specific
 api_keys.json
 verda_deployment.json
+template_deployments.json
 *.wav
 *.mp3
+server.log
 
 # Test artifacts
 .pytest_cache/
