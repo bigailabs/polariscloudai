@@ -29,7 +29,9 @@ from sqlalchemy import select
 try:
     from database import get_db, init_db, check_db_connection, get_db_context
     from models import User, Deployment, UsageRecord, DeploymentStatus, ComputeProvider, UserTier
-    from auth import router as auth_router, get_current_user, get_optional_user
+    from auth import router as auth_router, get_current_user, get_optional_user, limiter
+    from slowapi import _rate_limit_exceeded_handler
+    from slowapi.errors import RateLimitExceeded
     from storage import storage_client, get_template_storage_path, TEMPLATE_STORAGE_PATHS
     from warming import warming_manager, start_warming_manager, stop_warming_manager
     from billing import router as billing_router, STRIPE_ENABLED
@@ -150,6 +152,11 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         return response
 
 app.add_middleware(SecurityHeadersMiddleware)
+
+# Configure rate limiting
+if DB_AVAILABLE:
+    app.state.limiter = limiter
+    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # Include auth and billing routers
 if DB_AVAILABLE:
