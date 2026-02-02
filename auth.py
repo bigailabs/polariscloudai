@@ -32,6 +32,11 @@ ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 REFRESH_TOKEN_EXPIRE_DAYS = 30
 
+# Supabase settings (for OAuth)
+SUPABASE_URL = os.getenv("SUPABASE_URL", "")
+SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY", "")
+SUPABASE_JWT_SECRET = os.getenv("SUPABASE_JWT_SECRET", "")
+
 # Password hashing
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -72,6 +77,12 @@ class RefreshRequest(BaseModel):
     refresh_token: str
 
 
+class ChangePasswordRequest(BaseModel):
+    """Change password request"""
+    current_password: str
+    new_password: str = Field(min_length=8, description="Minimum 8 characters")
+
+
 class UserResponse(BaseModel):
     """User info response"""
     id: str
@@ -83,9 +94,16 @@ class UserResponse(BaseModel):
     storage_bytes_used: int
     storage_bytes_limit: int
     created_at: datetime
+    auth_provider: Optional[str] = None
+    avatar_url: Optional[str] = None
 
     class Config:
         from_attributes = True
+
+
+class OAuthCallbackRequest(BaseModel):
+    """OAuth callback request from frontend"""
+    access_token: str  # Supabase access token
 
 
 # ============================================================================
@@ -139,6 +157,78 @@ def decode_access_token(token: str) -> Optional[dict]:
         return None
 
 
+def decode_supabase_token(token: str) -> Optional[dict]:
+    """Decode and validate a Supabase JWT token"""
+    if not SUPABASE_JWT_SECRET:
+        return None
+    try:
+        payload = jwt.decode(
+            token,
+            SUPABASE_JWT_SECRET,
+            algorithms=["HS256"],
+            audience="authenticated"
+        )
+        return payload
+    except JWTError:
+        return None
+
+
+async def create_or_link_oauth_user(
+    db: AsyncSession,
+    supabase_user_id: str,
+    email: str,
+    name: Optional[str] = None,
+    avatar_url: Optional[str] = None,
+    provider: str = "google"
+) -> User:
+    """
+    Create a new user from OAuth or link to existing user with same email.
+    """
+    # First, check if user already exists with this supabase_user_id
+    result = await db.execute(
+        select(User).where(User.supabase_user_id == supabase_user_id)
+    )
+    user = result.scalar_one_or_none()
+
+    if user:
+        # Update user info from OAuth provider
+        if avatar_url and not user.avatar_url:
+            user.avatar_url = avatar_url
+        if name and not user.name:
+            user.name = name
+        user.last_active_at = datetime.utcnow()
+        return user
+
+    # Check if user exists with same email (link accounts)
+    result = await db.execute(
+        select(User).where(User.email == email.lower())
+    )
+    user = result.scalar_one_or_none()
+
+    if user:
+        # Link existing account to Supabase
+        user.supabase_user_id = supabase_user_id
+        user.auth_provider = user.auth_provider or provider  # Keep original if set
+        if avatar_url and not user.avatar_url:
+            user.avatar_url = avatar_url
+        user.last_active_at = datetime.utcnow()
+        return user
+
+    # Create new user
+    user = User(
+        email=email.lower(),
+        supabase_user_id=supabase_user_id,
+        auth_provider=provider,
+        name=name,
+        avatar_url=avatar_url,
+        tier=UserTier.FREE,
+    )
+    db.add(user)
+    await db.flush()
+
+    return user
+
+
 # ============================================================================
 # DEPENDENCIES
 # ============================================================================
@@ -149,6 +239,7 @@ async def get_current_user(
 ) -> User:
     """
     Dependency to get the current authenticated user.
+    Supports both custom JWT and Supabase JWT tokens.
     Raises 401 if not authenticated.
     """
     if not credentials:
@@ -158,30 +249,32 @@ async def get_current_user(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    payload = decode_access_token(credentials.credentials)
-    if not payload:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired token",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+    token = credentials.credentials
+    user = None
 
-    user_id = payload.get("sub")
-    if not user_id:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token payload",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+    # Try custom JWT first
+    payload = decode_access_token(token)
+    if payload:
+        user_id = payload.get("sub")
+        if user_id:
+            result = await db.execute(select(User).where(User.id == UUID(user_id)))
+            user = result.scalar_one_or_none()
 
-    # Fetch user from database
-    result = await db.execute(select(User).where(User.id == UUID(user_id)))
-    user = result.scalar_one_or_none()
+    # Try Supabase JWT if custom JWT didn't work
+    if not user:
+        supabase_payload = decode_supabase_token(token)
+        if supabase_payload:
+            supabase_user_id = supabase_payload.get("sub")
+            if supabase_user_id:
+                result = await db.execute(
+                    select(User).where(User.supabase_user_id == supabase_user_id)
+                )
+                user = result.scalar_one_or_none()
 
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User not found",
+            detail="Invalid or expired token",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
@@ -249,6 +342,7 @@ async def signup(
         password_hash=hash_password(request.password),
         name=request.name,
         tier=UserTier.FREE,
+        auth_provider="email",
     )
     db.add(user)
     await db.flush()  # Get the user ID
@@ -289,7 +383,8 @@ async def login(
     result = await db.execute(select(User).where(User.email == request.email.lower()))
     user = result.scalar_one_or_none()
 
-    if not user or not verify_password(request.password, user.password_hash):
+    # Check if user exists and has a password (OAuth-only users can't login with password)
+    if not user or not user.password_hash or not verify_password(request.password, user.password_hash):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid email or password"
@@ -425,6 +520,8 @@ async def get_me(user: User = Depends(get_current_user)):
         storage_bytes_used=user.storage_bytes_used,
         storage_bytes_limit=user.storage_bytes_limit,
         created_at=user.created_at,
+        auth_provider=user.auth_provider,
+        avatar_url=user.avatar_url,
     )
 
 
@@ -447,21 +544,27 @@ async def update_me(
 
 @router.post("/change-password")
 async def change_password(
-    current_password: str,
-    new_password: str = Field(min_length=8),
+    request: ChangePasswordRequest,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """
     Change the current user's password.
     """
-    if not verify_password(current_password, user.password_hash):
+    # OAuth-only users don't have a password
+    if not user.password_hash:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot change password for OAuth-only accounts"
+        )
+
+    if not verify_password(request.current_password, user.password_hash):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Current password is incorrect"
         )
 
-    user.password_hash = hash_password(new_password)
+    user.password_hash = hash_password(request.new_password)
 
     # Revoke all refresh tokens (force re-login on all devices)
     await db.execute(
@@ -473,3 +576,72 @@ async def change_password(
     await db.commit()
 
     return {"success": True, "message": "Password changed successfully"}
+
+
+@router.post("/oauth/callback", response_model=TokenResponse)
+async def oauth_callback(
+    request: OAuthCallbackRequest,
+    req: Request,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Exchange a Supabase token for local JWT tokens.
+    Called by frontend after successful OAuth login.
+    """
+    # Decode the Supabase token
+    payload = decode_supabase_token(request.access_token)
+    if not payload:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid Supabase token"
+        )
+
+    supabase_user_id = payload.get("sub")
+    email = payload.get("email")
+
+    if not supabase_user_id or not email:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token payload"
+        )
+
+    # Extract user metadata from Supabase token
+    user_metadata = payload.get("user_metadata", {})
+    name = user_metadata.get("full_name") or user_metadata.get("name")
+    avatar_url = user_metadata.get("avatar_url") or user_metadata.get("picture")
+
+    # Determine provider from app_metadata
+    app_metadata = payload.get("app_metadata", {})
+    provider = app_metadata.get("provider", "google")
+
+    # Create or link user
+    user = await create_or_link_oauth_user(
+        db=db,
+        supabase_user_id=supabase_user_id,
+        email=email,
+        name=name,
+        avatar_url=avatar_url,
+        provider=provider
+    )
+
+    # Create local JWT tokens
+    access_token, access_expires = create_access_token(user.id, user.email)
+    refresh_token, refresh_expires = create_refresh_token(user.id)
+
+    # Store refresh token
+    refresh_token_record = RefreshToken(
+        user_id=user.id,
+        token_hash=hash_token(refresh_token),
+        device_info=req.headers.get("User-Agent", "")[:255],
+        ip_address=req.client.host if req.client else None,
+        expires_at=refresh_expires,
+    )
+    db.add(refresh_token_record)
+
+    await db.commit()
+
+    return TokenResponse(
+        access_token=access_token,
+        refresh_token=refresh_token,
+        expires_in=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+    )

@@ -4,6 +4,9 @@ Supports PostgreSQL via asyncpg with SQLAlchemy async
 """
 
 import os
+from dotenv import load_dotenv
+load_dotenv()
+
 from datetime import datetime
 from typing import AsyncGenerator
 from contextlib import asynccontextmanager
@@ -95,9 +98,10 @@ async def init_db():
 
 async def check_db_connection() -> bool:
     """Check if database is accessible"""
+    from sqlalchemy import text
     try:
         async with async_session_maker() as session:
-            await session.execute("SELECT 1")
+            await session.execute(text("SELECT 1"))
             return True
     except Exception as e:
         print(f"Database connection failed: {e}")
