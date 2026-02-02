@@ -383,6 +383,39 @@ ssh root@65.108.32.148 "docker ps"
 
 ## Backup Procedures
 
+### CRITICAL: Environment Variables (.env)
+
+**If you lose the server, you lose `.env`. Back it up NOW.**
+
+**Option 1: Password Manager (Recommended)**
+- Copy entire `.env` file contents to 1Password/Bitwarden
+- Create entry named "Polaris Computer - Production Env"
+
+**Option 2: Local encrypted backup**
+```bash
+# Backup from server
+scp root@65.108.32.148:/root/polariscomputer/.env ~/Documents/TOOLS/.credentials/polaris-env-backup
+
+# Encrypt it
+gpg -c ~/Documents/TOOLS/.credentials/polaris-env-backup
+```
+
+**What you CAN recover without .env:**
+- Code: GitHub repo
+- Database: Supabase (external service, has own login)
+- DNS: Cloudflare (external service, has own login)
+
+**What you CANNOT recover without .env:**
+- `JWT_SECRET_KEY` / `JWT_REFRESH_SECRET_KEY` - All user sessions invalidated
+- `VERDA_CLIENT_ID` / `VERDA_CLIENT_SECRET` - Get from Verda dashboard
+- `STRIPE_*` keys - Get from Stripe dashboard
+- `STORJ_*` keys - Get from Storj dashboard
+
+**Recovery if .env is lost:**
+1. Regenerate JWT secrets (all users must re-login)
+2. Get API keys from respective dashboards (Verda, Stripe, Storj, Supabase)
+3. Rebuild `.env` from `.env.example` template
+
 ### Database
 
 Supabase handles backups automatically. For manual:
@@ -394,13 +427,30 @@ supabase db dump -f backup.sql
 ### Template deployments state
 
 ```bash
-# Backup deployment records
+# Backup deployment records (lost = users see empty dashboard, can redeploy)
 scp root@65.108.32.148:/root/polariscomputer/template_deployments.json ./backup/
 ```
 
-### Environment variables
+### Full server backup script
 
-Keep a secure copy of `.env` in a password manager.
+Run this periodically or before server changes:
+```bash
+#!/bin/bash
+# backup-polaris.sh
+BACKUP_DIR=~/Documents/PROJECTS/polariscomputer/backups/$(date +%Y%m%d)
+mkdir -p $BACKUP_DIR
+
+# Backup .env (CRITICAL)
+scp root@65.108.32.148:/root/polariscomputer/.env $BACKUP_DIR/
+
+# Backup deployment state
+scp root@65.108.32.148:/root/polariscomputer/template_deployments.json $BACKUP_DIR/
+
+# Backup database
+supabase db dump -f $BACKUP_DIR/database.sql
+
+echo "Backup complete: $BACKUP_DIR"
+```
 
 ---
 
