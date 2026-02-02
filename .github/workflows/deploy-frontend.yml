@@ -5,7 +5,8 @@ on:
     branches:
       - main
     paths:
-      - '*.html'
+      - 'index.html'
+      - 'app.html'
       - 'public/**'
       - '.github/workflows/deploy-frontend.yml'
   workflow_dispatch:
@@ -24,12 +25,11 @@ jobs:
         run: |
           mkdir -p public
 
-          # Update API_BASE in index.html to point to production backend
-          sed "s|'https://freedom-recommend-ray-payday.trycloudflare.com'|'$API_URL'|g" index.html > public/index.html
+          # index.html is the landing page (no API calls needed)
+          cp index.html public/index.html
 
-          cp landing.html public/
-          # app.html mirrors index.html
-          cp public/index.html public/app.html
+          # app.html is the main app - update API_BASE to point to production backend
+          sed "s|'https://freedom-recommend-ray-payday.trycloudflare.com'|'$API_URL'|g" app.html > public/app.html
 
       - name: Deploy to Cloudflare Pages
         uses: cloudflare/wrangler-action@v3
