@@ -1769,10 +1769,6 @@
         }
 
         function hideAuthModals() {
-            // Don't allow closing modals if not logged in (auth required)
-            if (!auth.isLoggedIn()) {
-                return;
-            }
             document.getElementById('login-modal').classList.add('hidden');
             document.getElementById('signup-modal').classList.add('hidden');
             document.getElementById('login-error').classList.add('hidden');
@@ -4746,9 +4742,10 @@
             // Initialize authentication first
             auth.init();
 
-            // Auth guard: show login modal if not logged in
+            // Auth guard: redirect to landing page if not logged in
             if (!auth.isLoggedIn()) {
-                showLoginModal();
+                window.location.href = '/';
+                return; // Stop all further execution
             }
 
             loadStats();
