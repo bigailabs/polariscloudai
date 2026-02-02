@@ -582,3 +582,93 @@ For a permanent tunnel that survives reboots:
    systemctl enable cloudflared
    systemctl start cloudflared
    ```
+
+---
+
+## Emergency Recovery - SSH Locked Out
+
+### Problem: WARP Broke SSH Access
+
+If Cloudflare WARP was installed on the server and enabled in tunnel mode, it routes ALL traffic (including SSH) through Cloudflare, breaking SSH access.
+
+**Symptoms:**
+- `ssh root@65.109.75.29` times out
+- Server is technically "running" but unreachable
+- This happened on 2026-02-02 when attempting to fix IPv6 connectivity
+
+### Solution: Use Hetzner Cloud Console
+
+1. **Login to Hetzner Cloud Console:**
+   - Go to: https://console.hetzner.cloud
+   - Login with your Hetzner credentials
+
+2. **Access the server via VNC Console:**
+   - Click on your server (65.109.75.29)
+   - Click **"Console"** button (top right) or **Actions → Console**
+   - This opens a VNC session directly to the server (bypasses network)
+
+3. **Disable WARP:**
+   ```bash
+   # Disconnect WARP tunnel
+   warp-cli disconnect
+
+   # Set WARP to proxy mode (only proxies browser traffic, not SSH)
+   warp-cli mode proxy
+
+   # Or completely disable WARP
+   systemctl stop warp-svc
+   systemctl disable warp-svc
+   ```
+
+4. **Verify SSH works again:**
+   - From your local machine: `ssh root@65.109.75.29`
+
+5. **If WARP is needed for IPv6:**
+   - Use proxy mode instead of tunnel mode
+   - Or configure WARP to exclude SSH port: `warp-cli add-excluded-route 0.0.0.0/0`
+
+### Prevention
+
+**Never enable WARP tunnel mode on a server you need SSH access to!**
+
+If you need IPv6 connectivity for Supabase:
+- Use Supabase connection pooler instead (pgbouncer - supports IPv4)
+- Or enable native IPv6 on the server through Hetzner settings
+
+---
+
+## Current Issues (as of 2026-02-02)
+
+### Issue 1: SSH Access Locked Out (CRITICAL)
+
+**Status:** Server 65.109.75.29 is unreachable via SSH due to WARP tunnel mode
+
+**Fix:** Use Hetzner Console (see above section)
+
+### Issue 2: Database Connection (IPv6)
+
+**Status:** Supabase database only has IPv6 address, server needs IPv6 connectivity
+
+**Options:**
+1. Use Supabase connection pooler (pgbouncer) which has IPv4 support
+2. Enable IPv6 on server through Hetzner network settings
+3. Do NOT use WARP tunnel mode (breaks SSH)
+
+### Issue 3: Template Server SSH
+
+**Status:** API server (65.109.75.29) cannot SSH to template server (65.108.32.148)
+
+**Fix:** Add API server's SSH public key to template server's authorized_keys:
+```bash
+# On API server
+cat ~/.ssh/id_ed25519.pub  # or id_rsa.pub
+
+# On template server (65.108.32.148)
+echo "PUBLIC_KEY_HERE" >> ~/.ssh/authorized_keys
+```
+
+### Issue 4: api.polaris.computer DNS
+
+**Status:** Domain returning 521 error (Cloudflare can't reach origin)
+
+**Fix:** Update Cloudflare DNS A record to point to 65.109.75.29 (see API Domain Configuration section above)
