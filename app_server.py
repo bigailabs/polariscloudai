@@ -1286,8 +1286,8 @@ async def get_stats():
 # ============================================================================
 
 @app.get("/api/deployments")
-async def get_deployments():
-    """Get all deployments"""
+async def get_deployments(current_user: User = Depends(get_current_user)):
+    """Get all deployments for the current user"""
     try:
         if DEMO_MODE or verda_client is None:
             return {"deployments": [], "demo_mode": True}
@@ -1332,8 +1332,8 @@ async def get_deployments():
         return {"deployments": []}
 
 @app.post("/api/deployments/deploy")
-async def deploy_server(request: DeploymentRequest):
-    """Deploy a new TTS server"""
+async def deploy_server(request: DeploymentRequest, current_user: User = Depends(get_current_user)):
+    """Deploy a new server - requires authentication"""
     if DEMO_MODE or verda_client is None:
         raise HTTPException(status_code=503, detail="Deployments disabled in demo mode. Configure Verda credentials to enable.")
 
@@ -1377,8 +1377,8 @@ async def deploy_server(request: DeploymentRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/deployments/stop")
-async def stop_deployment(request: StopDeploymentRequest):
-    """Stop a deployment"""
+async def stop_deployment(request: StopDeploymentRequest, current_user: User = Depends(get_current_user)):
+    """Stop a deployment - requires authentication"""
     if DEMO_MODE or verda_client is None:
         raise HTTPException(status_code=503, detail="Deployments disabled in demo mode.")
 
@@ -1410,8 +1410,8 @@ async def stop_deployment(request: StopDeploymentRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/deployments/{deployment_id}/logs")
-async def get_deployment_logs(deployment_id: str):
-    """Get logs for a deployment"""
+async def get_deployment_logs(deployment_id: str, current_user: User = Depends(get_current_user)):
+    """Get logs for a deployment - requires authentication"""
     if DEMO_MODE or verda_client is None:
         return {"logs": "Logs unavailable in demo mode."}
 
@@ -1927,8 +1927,8 @@ async def get_compute_gpus():
 
 
 @app.get("/api/compute/instances")
-async def list_compute_instances():
-    """List active compute instances from all providers"""
+async def list_compute_instances(current_user: User = Depends(get_current_user)):
+    """List active compute instances from all providers - requires authentication"""
     all_instances = []
 
     try:
@@ -1975,8 +1975,8 @@ async def list_compute_instances():
 
 
 @app.post("/api/compute/instances")
-async def create_compute_instance(request: ComputeInstanceRequest):
-    """Create one or more compute instances"""
+async def create_compute_instance(request: ComputeInstanceRequest, current_user: User = Depends(get_current_user)):
+    """Create one or more compute instances - requires authentication"""
     try:
         # Validate SSH key
         if not request.ssh_public_key or not request.ssh_public_key.strip().startswith('ssh-'):
@@ -2058,8 +2058,8 @@ async def create_compute_instance(request: ComputeInstanceRequest):
 
 
 @app.delete("/api/compute/instances/{instance_id}")
-async def terminate_compute_instance(instance_id: str):
-    """Terminate a compute instance"""
+async def terminate_compute_instance(instance_id: str, current_user: User = Depends(get_current_user)):
+    """Terminate a compute instance - requires authentication"""
     try:
         if DEMO_MODE or verda_client is None:
             # Demo mode - remove from in-memory store
@@ -2163,8 +2163,8 @@ def record_api_usage(key_id: str, deployment_id: str = None):
     save_api_keys(keys)
 
 @app.get("/api/keys")
-async def get_api_keys():
-    """Get all API keys"""
+async def get_api_keys(current_user: User = Depends(get_current_user)):
+    """Get all API keys for the current user"""
     try:
         keys = load_api_keys()
         return {"keys": keys}
@@ -2173,8 +2173,8 @@ async def get_api_keys():
         return {"keys": []}
 
 @app.post("/api/keys/generate")
-async def generate_api_key(request: APIKeyRequest):
-    """Generate a new API key"""
+async def generate_api_key(request: APIKeyRequest, current_user: User = Depends(get_current_user)):
+    """Generate a new API key for the current user"""
     try:
         import secrets
 
@@ -2207,7 +2207,7 @@ async def generate_api_key(request: APIKeyRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.delete("/api/keys/{key_id}")
-async def revoke_api_key(key_id: str):
+async def revoke_api_key(key_id: str, current_user: User = Depends(get_current_user)):
     """Revoke an API key"""
     try:
         keys = load_api_keys()
@@ -2224,8 +2224,8 @@ async def revoke_api_key(key_id: str):
 # ============================================================================
 
 @app.get("/api/usage")
-async def get_usage_analytics():
-    """Get detailed usage analytics"""
+async def get_usage_analytics(current_user: User = Depends(get_current_user)):
+    """Get detailed usage analytics for the current user"""
     try:
         stats = load_usage_stats()
         keys = load_api_keys()
@@ -2291,7 +2291,7 @@ async def get_usage_analytics():
         }
 
 @app.post("/api/usage/record")
-async def record_usage(key_id: str, deployment_id: Optional[str] = None):
+async def record_usage(key_id: str, deployment_id: Optional[str] = None, current_user: User = Depends(get_current_user)):
     """Record an API usage event (for testing/manual recording)"""
     try:
         record_api_usage(key_id, deployment_id)
@@ -2348,8 +2348,8 @@ def save_settings(settings):
         json.dump(settings, f, indent=2)
 
 @app.get("/api/settings")
-async def get_settings():
-    """Get account settings"""
+async def get_settings(current_user: User = Depends(get_current_user)):
+    """Get account settings for the current user"""
     return load_settings()
 
 class AccountUpdateRequest(BaseModel):
@@ -2358,8 +2358,8 @@ class AccountUpdateRequest(BaseModel):
     company: Optional[str] = None
 
 @app.put("/api/settings/account")
-async def update_account(request: AccountUpdateRequest):
-    """Update account settings"""
+async def update_account(request: AccountUpdateRequest, current_user: User = Depends(get_current_user)):
+    """Update account settings for the current user"""
     settings = load_settings()
     if request.email:
         settings["account"]["email"] = request.email
@@ -2379,8 +2379,8 @@ class NotificationUpdateRequest(BaseModel):
     email_notifications: Optional[bool] = None
 
 @app.put("/api/settings/notifications")
-async def update_notifications(request: NotificationUpdateRequest):
-    """Update notification preferences"""
+async def update_notifications(request: NotificationUpdateRequest, current_user: User = Depends(get_current_user)):
+    """Update notification preferences for the current user"""
     settings = load_settings()
     updates = request.model_dump(exclude_none=True)
     for key, value in updates.items():
@@ -2394,14 +2394,14 @@ class WebhookRequest(BaseModel):
     name: Optional[str] = None
 
 @app.get("/api/settings/webhooks")
-async def get_webhooks():
-    """Get all webhooks"""
+async def get_webhooks(current_user: User = Depends(get_current_user)):
+    """Get all webhooks for the current user"""
     settings = load_settings()
     return {"webhooks": settings.get("webhooks", [])}
 
 @app.post("/api/settings/webhooks")
-async def create_webhook(request: WebhookRequest):
-    """Create a new webhook"""
+async def create_webhook(request: WebhookRequest, current_user: User = Depends(get_current_user)):
+    """Create a new webhook for the current user"""
     import secrets
     settings = load_settings()
     webhook = {
@@ -2420,7 +2420,7 @@ async def create_webhook(request: WebhookRequest):
     return {"success": True, "webhook": webhook}
 
 @app.delete("/api/settings/webhooks/{webhook_id}")
-async def delete_webhook(webhook_id: str):
+async def delete_webhook(webhook_id: str, current_user: User = Depends(get_current_user)):
     """Delete a webhook"""
     settings = load_settings()
     settings["webhooks"] = [w for w in settings.get("webhooks", []) if w["id"] != webhook_id]
@@ -2428,7 +2428,7 @@ async def delete_webhook(webhook_id: str):
     return {"success": True, "message": "Webhook deleted"}
 
 @app.put("/api/settings/webhooks/{webhook_id}/toggle")
-async def toggle_webhook(webhook_id: str):
+async def toggle_webhook(webhook_id: str, current_user: User = Depends(get_current_user)):
     """Toggle webhook active status"""
     settings = load_settings()
     for webhook in settings.get("webhooks", []):
@@ -2489,8 +2489,8 @@ def generate_mock_metrics(deployment_id: str):
     }
 
 @app.get("/api/deployments/{deployment_id}/metrics")
-async def get_deployment_metrics(deployment_id: str):
-    """Get real-time metrics for a deployment"""
+async def get_deployment_metrics(deployment_id: str, current_user: User = Depends(get_current_user)):
+    """Get real-time metrics for a deployment - requires authentication"""
     try:
         # In production, this would query actual monitoring systems
         # For now, generate realistic mock data
@@ -2520,8 +2520,8 @@ async def get_deployment_metrics(deployment_id: str):
         return {"error": str(e)}
 
 @app.get("/api/deployments/{deployment_id}/metrics/history")
-async def get_deployment_metrics_history(deployment_id: str, period: str = "1h"):
-    """Get historical metrics for a deployment"""
+async def get_deployment_metrics_history(deployment_id: str, period: str = "1h", current_user: User = Depends(get_current_user)):
+    """Get historical metrics for a deployment - requires authentication"""
     try:
         all_metrics = load_metrics()
 
@@ -2576,8 +2576,8 @@ def save_limits(limits):
         json.dump(limits, f, indent=2)
 
 @app.get("/api/limits")
-async def get_limits():
-    """Get current usage limits"""
+async def get_limits(current_user: User = Depends(get_current_user)):
+    """Get current usage limits for the current user"""
     limits = load_limits()
 
     # Add current usage stats
@@ -2609,8 +2609,8 @@ class LimitsUpdateRequest(BaseModel):
     enabled: Optional[bool] = None
 
 @app.put("/api/limits")
-async def update_limits(request: LimitsUpdateRequest):
-    """Update usage limits"""
+async def update_limits(request: LimitsUpdateRequest, current_user: User = Depends(get_current_user)):
+    """Update usage limits for the current user"""
     limits = load_limits()
     updates = request.model_dump(exclude_none=True)
     for key, value in updates.items():
@@ -2685,8 +2685,8 @@ def record_deployment_cost(deployment_id: str, gpu_type: str, hours: float = 1.0
     return cost
 
 @app.get("/api/costs")
-async def get_cost_breakdown():
-    """Get detailed cost breakdown"""
+async def get_cost_breakdown(current_user: User = Depends(get_current_user)):
+    """Get detailed cost breakdown for the current user"""
     data = load_cost_data()
     today = datetime.now()
     current_month = today.strftime("%Y-%m")
@@ -2721,7 +2721,7 @@ async def get_cost_breakdown():
     }
 
 @app.post("/api/costs/simulate")
-async def simulate_cost(hours: float = 1.0, deployment_id: str = "demo", gpu_type: str = "A100-40GB"):
+async def simulate_cost(hours: float = 1.0, deployment_id: str = "demo", gpu_type: str = "A100-40GB", current_user: User = Depends(get_current_user)):
     """Simulate recording a cost (for testing)"""
     cost = record_deployment_cost(deployment_id, gpu_type, hours)
     return {"success": True, "cost_recorded": round(cost, 4), "deployment_id": deployment_id}
@@ -2731,8 +2731,8 @@ async def simulate_cost(hours: float = 1.0, deployment_id: str = "demo", gpu_typ
 # ============================================================================
 
 @app.post("/api/danger/reset-usage")
-async def reset_usage_stats():
-    """Reset all usage statistics (danger zone)"""
+async def reset_usage_stats(current_user: User = Depends(get_current_user)):
+    """Reset all usage statistics (danger zone) - requires authentication"""
     default_stats = {
         "total_requests": 0,
         "requests_by_key": {},
@@ -2744,14 +2744,14 @@ async def reset_usage_stats():
     return {"success": True, "message": "Usage statistics have been reset"}
 
 @app.post("/api/danger/revoke-all-keys")
-async def revoke_all_api_keys():
-    """Revoke all API keys (danger zone)"""
+async def revoke_all_api_keys(current_user: User = Depends(get_current_user)):
+    """Revoke all API keys (danger zone) - requires authentication"""
     save_api_keys([])
     return {"success": True, "message": "All API keys have been revoked"}
 
 @app.post("/api/danger/stop-all-deployments")
-async def stop_all_deployments():
-    """Stop all active deployments (danger zone)"""
+async def stop_all_deployments(current_user: User = Depends(get_current_user)):
+    """Stop all active deployments (danger zone) - requires authentication"""
     if DEMO_MODE or verda_client is None:
         return {"success": False, "message": "Cannot stop deployments in demo mode"}
 
