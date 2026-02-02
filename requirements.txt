@@ -140,3 +140,4 @@ boto3==1.35.0
 
 # Payments (future)
 stripe==11.0.0
+slowapi==0.1.9
