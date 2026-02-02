@@ -1497,7 +1497,7 @@
         // API Base URL - use current origin for local development, or Cloudflare tunnel for production
         const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
             ? ''  // Empty string means use current origin
-            : 'https://spelling-dial-contractor-accessing.trycloudflare.com';
+            : 'https://accepting-fishing-testing-enough.trycloudflare.com';
 
         // ============================================================================
         // SUPABASE CLIENT (for OAuth)
@@ -1550,8 +1550,10 @@
                 if (response.ok) {
                     auth.setTokens(data.access_token, data.refresh_token);
                     await auth.fetchUser();
-                    hideAuthModals();
+                    document.getElementById('login-modal').classList.add('hidden');
+                    document.getElementById('signup-modal').classList.add('hidden');
                     toastManager.success('Welcome!', 'You have successfully signed in with Google');
+                    initializeApp(); // Load app data after successful login
                 } else {
                     console.error('OAuth callback error:', data);
                     toastManager.error('Sign In Failed', data.detail || 'Could not complete sign in');
@@ -1769,6 +1771,10 @@
         }
 
         function hideAuthModals() {
+            // Don't allow closing modals if not logged in
+            if (!auth.isLoggedIn()) {
+                return;
+            }
             document.getElementById('login-modal').classList.add('hidden');
             document.getElementById('signup-modal').classList.add('hidden');
             document.getElementById('login-error').classList.add('hidden');
@@ -1812,8 +1818,9 @@
                 if (response.ok) {
                     auth.setTokens(data.access_token, data.refresh_token);
                     await auth.fetchUser();
-                    hideAuthModals();
+                    document.getElementById('login-modal').classList.add('hidden');
                     toastManager.success('Welcome back!', 'You have successfully signed in');
+                    initializeApp(); // Load app data after successful login
                 } else {
                     errorEl.textContent = data.detail || 'Invalid email or password';
                     errorEl.classList.remove('hidden');
@@ -1851,8 +1858,9 @@
                 if (response.ok) {
                     auth.setTokens(data.access_token, data.refresh_token);
                     await auth.fetchUser();
-                    hideAuthModals();
+                    document.getElementById('signup-modal').classList.add('hidden');
                     toastManager.success('Welcome!', 'Your account has been created. You have 30 free compute minutes.');
+                    initializeApp(); // Load app data after successful signup
                 } else {
                     errorEl.textContent = data.detail || 'Failed to create account';
                     errorEl.classList.remove('hidden');
@@ -4738,16 +4746,8 @@
             }
         }
 
-        document.addEventListener('DOMContentLoaded', () => {
-            // Initialize authentication first
-            auth.init();
-
-            // Auth guard: redirect to landing page if not logged in
-            if (!auth.isLoggedIn()) {
-                window.location.href = '/';
-                return; // Stop all further execution
-            }
-
+        // Function to initialize the app after successful login
+        function initializeApp() {
             loadStats();
             loadTemplates();
             loadApplicationDeployments();
@@ -4778,6 +4778,20 @@
                     }
                 } catch (e) {}
             }, 30000);
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            // Initialize authentication first
+            auth.init();
+
+            // Auth guard: show login modal if not logged in
+            if (!auth.isLoggedIn()) {
+                showLoginModal();
+                return; // Stop loading app data until logged in
+            }
+
+            // User is logged in, initialize the app
+            initializeApp();
         });
     </script>
 
