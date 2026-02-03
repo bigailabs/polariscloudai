@@ -637,38 +637,30 @@ If you need IPv6 connectivity for Supabase:
 
 ---
 
-## Current Issues (as of 2026-02-02)
+## Current Server (as of 2026-02-03)
 
-### Issue 1: SSH Access Locked Out (CRITICAL)
+**API Server:** 135.181.8.213 (Hetzner)
+- Ubuntu 24.04, 16GB RAM, 4 vCPU
+- Cloudflare tunnel: `vendor-athletic-helpful-latitude.trycloudflare.com`
+- Database: Using Supavisor session pooler (IPv4 compatible)
 
-**Status:** Server 65.109.75.29 is unreachable via SSH due to WARP tunnel mode
+**Old Server:** 65.109.75.29 (ABANDONED - WARP locked out SSH)
 
-**Fix:** Use Hetzner Console (see above section)
+### Quick Reference
 
-### Issue 2: Database Connection (IPv6)
-
-**Status:** Supabase database only has IPv6 address, server needs IPv6 connectivity
-
-**Options:**
-1. Use Supabase connection pooler (pgbouncer) which has IPv4 support
-2. Enable IPv6 on server through Hetzner network settings
-3. Do NOT use WARP tunnel mode (breaks SSH)
-
-### Issue 3: Template Server SSH
-
-**Status:** API server (65.109.75.29) cannot SSH to template server (65.108.32.148)
-
-**Fix:** Add API server's SSH public key to template server's authorized_keys:
 ```bash
-# On API server
-cat ~/.ssh/id_ed25519.pub  # or id_rsa.pub
+# SSH to API server
+ssh root@135.181.8.213
 
-# On template server (65.108.32.148)
-echo "PUBLIC_KEY_HERE" >> ~/.ssh/authorized_keys
+# Check API server status
+ssh root@135.181.8.213 "curl localhost:8081/health"
+
+# Restart API server
+ssh root@135.181.8.213 "cd /root/polariscomputer && source venv/bin/activate && pkill -f app_server.py && nohup python3 app_server.py > server.log 2>&1 &"
+
+# Check tunnel
+ssh root@135.181.8.213 "grep trycloudflare /root/tunnel.log"
+
+# Restart tunnel
+ssh root@135.181.8.213 "pkill cloudflared && nohup cloudflared tunnel --url http://localhost:8081 > /root/tunnel.log 2>&1 &"
 ```
-
-### Issue 4: api.polaris.computer DNS
-
-**Status:** Domain returning 521 error (Cloudflare can't reach origin)
-
-**Fix:** Update Cloudflare DNS A record to point to 65.109.75.29 (see API Domain Configuration section above)
