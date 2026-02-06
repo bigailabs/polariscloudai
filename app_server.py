@@ -16,9 +16,11 @@ import uvicorn
 import asyncio
 import json
 import os
+import re
 import sys
 import subprocess
 import secrets
+from collections import defaultdict
 from datetime import datetime
 from contextlib import asynccontextmanager
 
@@ -719,7 +721,6 @@ async def get_container_access_info(template_id: str, container_name: str, host:
 
             # Parse token from output like: http://hostname:8888/?token=abc123 :: /path
             if "token=" in output:
-                import re
                 match = re.search(r'token=([a-f0-9]+)', output)
                 if match:
                     token = match.group(1)
@@ -1864,7 +1865,6 @@ async def get_gpus():
 COMPUTE_INSTANCES = {}
 
 # Simple in-memory rate limiter for compute endpoints
-from collections import defaultdict
 import time as _time
 
 _compute_rate_limits: Dict[str, list] = defaultdict(list)
@@ -1967,39 +1967,44 @@ async def get_compute_gpus():
     except Exception as e:
         print(f"Error getting Targon GPUs: {e}")
 
-    # Deduplicate by GPU type - keep only the cheapest option for each
-    # Normalize GPU names for comparison (e.g., "H100 SXM5 80GB" and "H100 SXM5 80GB (Targon)" -> "H100 80GB")
+    # Merge GPUs from all providers:
+    # - Duplicates (same GPU model from multiple providers): keep the cheapest
+    # - Unique GPUs (only one provider has it): always include for diversity
+    # The user sees a unified catalog sorted by price.
     def normalize_gpu_name(name):
         """Extract core GPU identifier for deduplication"""
         name = name.upper()
-        # Remove provider suffixes
         for suffix in ['(VERDA)', '(TARGON)', 'VERDA', 'TARGON']:
             name = name.replace(suffix, '')
-        # Extract key identifiers
         for gpu_type in ['B300', 'B200', 'H200', 'H100', 'A100', 'L40S', 'L40', 'A6000', 'RTX 6000', 'V100', 'RTX']:
             if gpu_type in name:
-                # Include memory size if present
-                import re
                 mem_match = re.search(r'(\d+)\s*GB', name)
                 mem = mem_match.group(1) + 'GB' if mem_match else ''
                 return f"{gpu_type} {mem}".strip()
         return name.strip()
 
-    # Group by normalized name and keep cheapest
-    gpu_map = {}
+    # Group all GPUs by normalized name
+    gpu_groups = defaultdict(list)
     for gpu in all_gpus:
         key = normalize_gpu_name(gpu['name'])
-        if key not in gpu_map or gpu['spot_price'] < gpu_map[key]['spot_price']:
-            # Update display name to remove provider suffix since we're showing the best price
-            gpu_copy = gpu.copy()
-            gpu_copy['display_name'] = gpu_copy['display_name'].replace(' (Verda)', '').replace(' (Targon)', '')
-            gpu_map[key] = gpu_copy
+        gpu_groups[key].append(gpu)
 
-    # Convert back to list and sort by price
-    deduplicated_gpus = list(gpu_map.values())
-    deduplicated_gpus.sort(key=lambda x: x['spot_price'])
+    merged_gpus = []
+    for key, group in gpu_groups.items():
+        # Sort group by spot_price ascending — cheapest first
+        group.sort(key=lambda g: g['spot_price'])
+        winner = group[0].copy()
+        # Clean up display name
+        winner['display_name'] = winner['display_name'].replace(' (Verda)', '').replace(' (Targon)', '')
+        # If multiple providers carry this GPU, note the cheapest provider
+        if len(group) > 1:
+            winner['alt_provider'] = group[1]['provider']
+            winner['alt_price'] = group[1]['spot_price']
+        merged_gpus.append(winner)
 
-    return {"gpus": deduplicated_gpus}
+    merged_gpus.sort(key=lambda x: x['spot_price'])
+
+    return {"gpus": merged_gpus}
 
 
 @app.get("/api/compute/instances")
