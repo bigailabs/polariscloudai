@@ -1298,7 +1298,7 @@ async def get_stats(current_user: User = Depends(get_current_user)):
             containers = verda_client.list_deployments()
             instances = verda_client.list_instances()
             active_count = sum(1 for c in containers if c.get('id') in user_deps)
-            active_count += sum(1 for i in instances if i.get('id') in user_deps)
+            active_count += sum(1 for i in instances if instance_belongs_to_user(i, user_id) or i.get('id') in user_deps)
 
         total_deployments = active_count
         monthly_cost = active_count * 100
@@ -1352,6 +1352,7 @@ async def get_deployments(current_user: User = Depends(get_current_user)):
 
         for d in containers:
             dep_id = d.get('id', 'unknown')
+            # Containers: registry-based (no description field in container API)
             if dep_id in user_deps:
                 formatted.append({
                     "id": dep_id,
@@ -1366,17 +1367,23 @@ async def get_deployments(current_user: User = Depends(get_current_user)):
 
         for i in instances:
             inst_id = i.get('id', 'unknown')
-            if inst_id in user_deps:
-                formatted.append({
-                    "id": inst_id,
-                    "name": i.get('hostname', 'Unknown'),
-                    "status": i.get('status', 'unknown'),
-                    "endpoint": i.get('ip', 'N/A'),
-                    "gpu": i.get('gpu_type', 'N/A'),
-                    "cost": "$0.000/hr",
-                    "created": i.get('created_at', 'N/A'),
-                    "type": "raw_compute"
-                })
+            # Primary: description tag. Fallback: registry
+            owns = instance_belongs_to_user(i, user_id) or inst_id in user_deps
+            if not owns:
+                continue
+            # Self-heal registry from description
+            if inst_id and inst_id not in user_deps and instance_belongs_to_user(i, user_id):
+                register_deployment_owner(inst_id, user_id)
+            formatted.append({
+                "id": inst_id,
+                "name": i.get('hostname', 'Unknown'),
+                "status": i.get('status', 'unknown'),
+                "endpoint": i.get('ip', 'N/A'),
+                "gpu": i.get('gpu_type', 'N/A'),
+                "cost": "$0.000/hr",
+                "created": i.get('created_at', 'N/A'),
+                "type": "raw_compute"
+            })
 
         return {"deployments": formatted}
     except Exception as e:
@@ -1395,7 +1402,7 @@ async def stop_deployment(request: StopDeploymentRequest, current_user: User = D
         deployment_id = request.deployment_id
         user_id = str(current_user.id)
 
-        # Ownership check
+        # Ownership check: registry first, then provider description
         owner = get_deployment_owner(deployment_id)
         if owner and owner != user_id:
             raise HTTPException(status_code=403, detail="You do not own this deployment")
@@ -1412,6 +1419,19 @@ async def stop_deployment(request: StopDeploymentRequest, current_user: User = D
                 "message": f"Container deployment stopped successfully"
             }
         else:
+            # For instances: verify ownership via description if registry is empty
+            if not owner:
+                try:
+                    inst_detail = verda_client.get_instance(deployment_id)
+                    if inst_detail:
+                        desc_owner = parse_owner_from_description(inst_detail.get("description", ""))
+                        if desc_owner and desc_owner != user_id:
+                            raise HTTPException(status_code=403, detail="You do not own this deployment")
+                except HTTPException:
+                    raise
+                except Exception:
+                    pass
+
             result = verda_client.delete_instance(deployment_id)
             unregister_deployment(deployment_id)
             return {
@@ -2007,8 +2027,14 @@ async def list_compute_instances(current_user: User = Depends(get_current_user))
                 verda_instances = []
             for inst in verda_instances:
                 inst_id = inst.get('id')
-                if inst_id not in user_deps:
+                # Primary: check provider-level description tag
+                # Fallback: check local registry (for instances created before tagging)
+                owns = instance_belongs_to_user(inst, user_id) or inst_id in user_deps
+                if not owns:
                     continue
+                # Rebuild registry from provider data (self-healing)
+                if inst_id and inst_id not in user_deps and instance_belongs_to_user(inst, user_id):
+                    register_deployment_owner(inst_id, user_id)
                 all_instances.append({
                     "id": inst_id,
                     "name": inst.get('hostname', inst.get('name', 'Unknown')),
@@ -2023,7 +2049,7 @@ async def list_compute_instances(current_user: User = Depends(get_current_user))
     except Exception as e:
         pass
 
-    # Get Targon instances (with timeout) — only user's own
+    # Get Targon instances (with timeout) — only user's own (registry-based, no description support)
     try:
         if targon_client and targon_client.authenticated:
             try:
@@ -2139,15 +2165,17 @@ async def create_compute_instance(request: ComputeInstanceRequest, current_user:
         # Create real instances via Verda (with timeout)
         for i in range(quantity):
             instance_name = f"{request.name}-{i+1}" if quantity > 1 else request.name
+            owner_desc = make_instance_description(str(current_user.id), request.gpu_type)
             try:
                 result = await asyncio.wait_for(
                     asyncio.get_event_loop().run_in_executor(
                         None,
-                        lambda: verda_client.create_instance(
-                            name=instance_name,
+                        lambda name=instance_name, desc=owner_desc: verda_client.create_instance(
+                            name=name,
                             gpu_name=request.gpu_type,
                             use_spot=request.use_spot,
-                            ssh_public_key=ssh_key
+                            ssh_public_key=ssh_key,
+                            description=desc
                         )
                     ),
                     timeout=60.0
@@ -2203,10 +2231,29 @@ async def terminate_compute_instance(instance_id: str, current_user: User = Depe
             else:
                 raise HTTPException(status_code=404, detail="Instance not found")
 
-        # Ownership check for production instances
+        # Ownership check: registry first, then provider description
+        user_id = str(current_user.id)
         owner = get_deployment_owner(instance_id)
-        if owner and owner != str(current_user.id):
+        if owner and owner != user_id:
             raise HTTPException(status_code=403, detail="You do not own this instance")
+
+        if not owner:
+            # Registry missing — verify via provider description
+            try:
+                inst_detail = await asyncio.wait_for(
+                    asyncio.get_event_loop().run_in_executor(None, lambda: verda_client.get_instance(instance_id)),
+                    timeout=15.0
+                )
+                if inst_detail:
+                    desc_owner = parse_owner_from_description(inst_detail.get("description", ""))
+                    if desc_owner and desc_owner != user_id:
+                        raise HTTPException(status_code=403, detail="You do not own this instance")
+                    if desc_owner == user_id:
+                        register_deployment_owner(instance_id, user_id)
+            except HTTPException:
+                raise
+            except Exception:
+                pass  # Can't verify — allow if not explicitly owned by someone else
 
         # Terminate real instance via Verda (with timeout)
         try:
@@ -2242,38 +2289,57 @@ def _user_file(user_id: str, filename: str) -> str:
     os.makedirs(user_dir, exist_ok=True)
     return os.path.join(user_dir, filename)
 
-# Deployment ownership registry: maps deployment/instance IDs to user IDs
+# Deployment ownership: uses provider-level description tag for durable ownership
+# Format: "polaris:uid:{user_uuid}|{human_readable_info}"
+# This survives server restarts and registry file loss.
+POLARIS_OWNER_PREFIX = "polaris:uid:"
+
+def make_instance_description(user_id: str, gpu_name: str) -> str:
+    """Build a description string that embeds user ownership"""
+    return f"{POLARIS_OWNER_PREFIX}{user_id}|{gpu_name}"
+
+def parse_owner_from_description(description: str) -> str:
+    """Extract user_id from a Polaris-tagged instance description, or None"""
+    if not description or not description.startswith(POLARIS_OWNER_PREFIX):
+        return None
+    # "polaris:uid:{uuid}|{info}" -> extract uuid
+    tag_part = description[len(POLARIS_OWNER_PREFIX):]
+    return tag_part.split("|")[0] if tag_part else None
+
+def instance_belongs_to_user(instance: dict, user_id: str) -> bool:
+    """Check if an instance belongs to a user by reading its description"""
+    return parse_owner_from_description(instance.get("description", "")) == user_id
+
+# File-based cache (backup — rebuilt from provider if lost)
 DEPLOYMENT_OWNERS_FILE = os.path.join(USER_DATA_DIR, "_deployment_owners.json")
 
 def _load_deployment_owners() -> dict:
-    """Load the deployment-to-user ownership map"""
     if os.path.exists(DEPLOYMENT_OWNERS_FILE):
         with open(DEPLOYMENT_OWNERS_FILE, 'r') as f:
             return json.load(f)
     return {}
 
 def _save_deployment_owners(owners: dict):
-    """Save the deployment-to-user ownership map"""
     with open(DEPLOYMENT_OWNERS_FILE, 'w') as f:
         json.dump(owners, f, indent=2)
 
 def register_deployment_owner(deployment_id: str, user_id: str):
-    """Record that a deployment belongs to a user"""
+    """Cache ownership locally (provider description is the source of truth)"""
     owners = _load_deployment_owners()
     owners[deployment_id] = user_id
     _save_deployment_owners(owners)
 
 def get_deployment_owner(deployment_id: str) -> str:
-    """Get the user_id that owns a deployment, or None"""
+    """Get the user_id that owns a deployment from local cache"""
     return _load_deployment_owners().get(deployment_id)
 
 def get_user_deployment_ids(user_id: str) -> set:
-    """Get all deployment IDs owned by a user"""
+    """Get all deployment IDs owned by a user from local cache"""
     owners = _load_deployment_owners()
     return {did for did, uid in owners.items() if uid == user_id}
 
 def unregister_deployment(deployment_id: str):
-    """Remove a deployment from the ownership map"""
+    """Remove a deployment from the local cache"""
     owners = _load_deployment_owners()
     owners.pop(deployment_id, None)
     _save_deployment_owners(owners)
@@ -3036,7 +3102,9 @@ async def stop_all_deployments(current_user: User = Depends(get_current_user)):
 
         for i in instances:
             iid = i.get('id')
-            if iid not in user_deps:
+            # Use description tag or registry to determine ownership
+            owns = instance_belongs_to_user(i, user_id) or iid in user_deps
+            if not owns:
                 continue
             try:
                 verda_client.delete_instance(iid)

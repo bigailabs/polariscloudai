@@ -408,7 +408,8 @@ class VerdaClient:
         name="tts-server-compute",
         gpu_name="Tesla V100 16GB",
         use_spot=True,
-        ssh_public_key=None
+        ssh_public_key=None,
+        description=None
     ):
         """
         Create a raw compute instance with SSH access.
@@ -418,6 +419,7 @@ class VerdaClient:
             gpu_name: GPU display name (e.g., "Tesla V100 16GB")
             use_spot: Use spot instances
             ssh_public_key: User's SSH public key (optional, uses account keys if not provided)
+            description: Instance description (used for ownership tagging)
 
         Returns:
             Instance details including SSH connection info
@@ -478,7 +480,7 @@ class VerdaClient:
             "instance_type": instance_type,  # Use instance_type like "1V100.6V"
             "is_spot": use_spot,
             "image": os_image,  # Use supported OS image
-            "description": f"TTS server on {gpu_name}",
+            "description": description or f"Polaris instance on {gpu_name}",
             "startup_script": f"""#!/bin/bash
 # Set up environment
 export HF_TOKEN={hf_token}
