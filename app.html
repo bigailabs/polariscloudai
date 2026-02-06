@@ -4933,7 +4933,7 @@
                     url += `&deployment_id=${deploymentId}`;
                 }
 
-                const response = await fetch(url, { method: 'POST' });
+                const response = await authFetch(url, { method: 'POST' });
                 const data = await response.json();
 
                 if (data.success) {
