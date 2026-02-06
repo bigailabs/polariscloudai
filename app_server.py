@@ -1403,7 +1403,7 @@ async def stop_deployment(request: StopDeploymentRequest, current_user: User = D
         deployment_id = request.deployment_id
         user_id = str(current_user.id)
 
-        # Ownership check: registry first, then provider description
+        # Ownership check — deny by default
         owner = get_deployment_owner(deployment_id)
         if owner and owner != user_id:
             raise HTTPException(status_code=403, detail="You do not own this deployment")
@@ -1413,6 +1413,9 @@ async def stop_deployment(request: StopDeploymentRequest, current_user: User = D
         is_container = any(c.get('id') == deployment_id or c.get('name') == deployment_id for c in containers)
 
         if is_container:
+            # Containers have no description tag — require registry match
+            if not owner:
+                raise HTTPException(status_code=403, detail="Cannot verify ownership of this container deployment")
             result = verda_client.delete_deployment(deployment_id)
             unregister_deployment(deployment_id)
             return {
@@ -1420,18 +1423,24 @@ async def stop_deployment(request: StopDeploymentRequest, current_user: User = D
                 "message": f"Container deployment stopped successfully"
             }
         else:
-            # For instances: verify ownership via description if registry is empty
+            # Instances: verify ownership via description if registry is empty
             if not owner:
+                verified = False
                 try:
                     inst_detail = verda_client.get_instance(deployment_id)
                     if inst_detail:
                         desc_owner = parse_owner_from_description(inst_detail.get("description", ""))
                         if desc_owner and desc_owner != user_id:
                             raise HTTPException(status_code=403, detail="You do not own this deployment")
+                        if desc_owner == user_id:
+                            verified = True
+                            register_deployment_owner(deployment_id, user_id)
                 except HTTPException:
                     raise
                 except Exception:
                     pass
+                if not verified:
+                    raise HTTPException(status_code=403, detail="Cannot verify ownership of this instance")
 
             result = verda_client.delete_instance(deployment_id)
             unregister_deployment(deployment_id)
@@ -1448,9 +1457,14 @@ async def stop_deployment(request: StopDeploymentRequest, current_user: User = D
 @app.get("/api/deployments/{deployment_id}/logs")
 async def get_deployment_logs(deployment_id: str, current_user: User = Depends(get_current_user)):
     """Get logs for a deployment - requires authentication and ownership"""
+    user_id = str(current_user.id)
     owner = get_deployment_owner(deployment_id)
-    if owner and owner != str(current_user.id):
-        raise HTTPException(status_code=403, detail="You do not own this deployment")
+    if owner != user_id:
+        # Also check template deployments for ownership
+        deployments = load_template_deployments()
+        dep = deployments.get(deployment_id)
+        if not dep or dep.get("user_id") != user_id:
+            raise HTTPException(status_code=403, detail="You do not own this deployment")
 
     if DEMO_MODE or verda_client is None:
         return {"logs": "Logs unavailable in demo mode."}
@@ -1777,19 +1791,54 @@ async def get_template(template_id: str):
 
 
 @app.websocket("/ws/deployments/{deployment_id}")
-async def deployment_websocket(websocket: WebSocket, deployment_id: str):
-    """WebSocket endpoint for real-time deployment progress"""
+async def deployment_websocket(websocket: WebSocket, deployment_id: str, token: str = None):
+    """WebSocket endpoint for real-time deployment progress — requires auth via ?token= query param"""
+    # Authenticate via JWT token in query parameter
+    if not token:
+        await websocket.close(code=4001, reason="Authentication required")
+        return
+
+    user_id = None
+    try:
+        from auth import decode_access_token, decode_supabase_token
+        payload = decode_access_token(token)
+        if payload:
+            user_id = payload.get("sub")
+        else:
+            supabase_payload = decode_supabase_token(token)
+            if supabase_payload:
+                # Look up user by supabase_user_id
+                async with get_db_context() as db:
+                    result = await db.execute(
+                        select(User).where(User.supabase_user_id == supabase_payload.get("sub"))
+                    )
+                    user = result.scalar_one_or_none()
+                    if user:
+                        user_id = str(user.id)
+    except Exception:
+        pass
+
+    if not user_id:
+        await websocket.close(code=4001, reason="Invalid or expired token")
+        return
+
+    # Verify deployment ownership
+    deployments = load_template_deployments()
+    deployment = deployments.get(deployment_id)
+    if deployment and deployment.get("user_id") != user_id:
+        await websocket.close(code=4003, reason="Not authorized for this deployment")
+        return
+
     await websocket.accept()
     active_connections[deployment_id] = websocket
 
     try:
         # Send initial status
-        deployments = load_template_deployments()
-        if deployment_id in deployments:
+        if deployment:
             await websocket.send_json({
                 "deployment_id": deployment_id,
                 "message": "Connected to deployment progress stream",
-                "status": deployments[deployment_id].get("status", "unknown"),
+                "status": deployment.get("status", "unknown"),
                 "timestamp": datetime.now().isoformat()
             })
 
@@ -2236,14 +2285,15 @@ async def terminate_compute_instance(instance_id: str, current_user: User = Depe
             else:
                 raise HTTPException(status_code=404, detail="Instance not found")
 
-        # Ownership check: registry first, then provider description
+        # Ownership check — deny by default
         user_id = str(current_user.id)
         owner = get_deployment_owner(instance_id)
         if owner and owner != user_id:
             raise HTTPException(status_code=403, detail="You do not own this instance")
 
         if not owner:
-            # Registry missing — verify via provider description
+            # Registry missing — verify via provider description, deny on failure
+            verified = False
             try:
                 inst_detail = await asyncio.wait_for(
                     asyncio.get_event_loop().run_in_executor(None, lambda: verda_client.get_instance(instance_id)),
@@ -2254,11 +2304,14 @@ async def terminate_compute_instance(instance_id: str, current_user: User = Depe
                     if desc_owner and desc_owner != user_id:
                         raise HTTPException(status_code=403, detail="You do not own this instance")
                     if desc_owner == user_id:
+                        verified = True
                         register_deployment_owner(instance_id, user_id)
             except HTTPException:
                 raise
             except Exception:
-                pass  # Can't verify — allow if not explicitly owned by someone else
+                pass
+            if not verified:
+                raise HTTPException(status_code=403, detail="Cannot verify ownership of this instance")
 
         # Terminate real instance via Verda (with timeout)
         try:
@@ -2811,9 +2864,13 @@ def generate_mock_metrics(deployment_id: str):
 @app.get("/api/deployments/{deployment_id}/metrics")
 async def get_deployment_metrics(deployment_id: str, current_user: User = Depends(get_current_user)):
     """Get real-time metrics for a deployment - requires authentication and ownership"""
+    user_id = str(current_user.id)
     owner = get_deployment_owner(deployment_id)
-    if owner and owner != str(current_user.id):
-        raise HTTPException(status_code=403, detail="You do not own this deployment")
+    if owner != user_id:
+        deployments = load_template_deployments()
+        dep = deployments.get(deployment_id)
+        if not dep or dep.get("user_id") != user_id:
+            raise HTTPException(status_code=403, detail="You do not own this deployment")
     try:
         # In production, this would query actual monitoring systems
         # For now, generate realistic mock data
@@ -2845,9 +2902,13 @@ async def get_deployment_metrics(deployment_id: str, current_user: User = Depend
 @app.get("/api/deployments/{deployment_id}/metrics/history")
 async def get_deployment_metrics_history(deployment_id: str, period: str = "1h", current_user: User = Depends(get_current_user)):
     """Get historical metrics for a deployment - requires authentication and ownership"""
+    user_id = str(current_user.id)
     owner = get_deployment_owner(deployment_id)
-    if owner and owner != str(current_user.id):
-        raise HTTPException(status_code=403, detail="You do not own this deployment")
+    if owner != user_id:
+        deployments = load_template_deployments()
+        dep = deployments.get(deployment_id)
+        if not dep or dep.get("user_id") != user_id:
+            raise HTTPException(status_code=403, detail="You do not own this deployment")
     try:
         all_metrics = load_metrics()
 

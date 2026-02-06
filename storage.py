@@ -449,14 +449,25 @@ class StorageClient:
         if not self.enabled:
             return None
 
+        # Reject path traversal attempts
+        if '..' in file_path:
+            return None
+
         bucket_name = self.get_bucket_name(user_id)
+        user_prefix = self.get_user_prefix(user_id)
+
+        # Scope to user's prefix (match get_upload_url pattern)
+        if file_path.startswith(user_prefix):
+            full_path = file_path
+        else:
+            full_path = f"{user_prefix}{file_path}"
 
         try:
             url = self.client.generate_presigned_url(
                 'get_object',
                 Params={
                     'Bucket': bucket_name,
-                    'Key': file_path
+                    'Key': full_path
                 },
                 ExpiresIn=expires_in
             )

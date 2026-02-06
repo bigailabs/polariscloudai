@@ -3810,7 +3810,8 @@
             // Use API_BASE for WebSocket connection
             const apiHost = API_BASE.replace('https://', '').replace('http://', '');
             const wsProtocol = API_BASE.startsWith('https:') ? 'wss:' : 'ws:';
-            const wsUrl = `${wsProtocol}//${apiHost}/ws/deployments/${deploymentId}`;
+            const token = auth.accessToken || localStorage.getItem('access_token') || '';
+            const wsUrl = `${wsProtocol}//${apiHost}/ws/deployments/${deploymentId}?token=${encodeURIComponent(token)}`;
 
             deploymentWebSocket = new WebSocket(wsUrl);
 
