@@ -2450,22 +2450,22 @@
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                         <div>
                             <p class="text-xs text-gray-700 mb-1">Endpoint</p>
-                            <p class="text-sm font-mono text-gray-800">${deployment.endpoint}</p>
+                            <p class="text-sm font-mono text-gray-800">${escapeHtml(deployment.endpoint)}</p>
                         </div>
                         <div>
                             <p class="text-xs text-gray-700 mb-1">GPU</p>
-                            <p class="text-sm text-gray-800">${deployment.gpu}</p>
+                            <p class="text-sm text-gray-800">${escapeHtml(deployment.gpu)}</p>
                         </div>
                         <div>
                             <p class="text-xs text-gray-700 mb-1">Cost</p>
-                            <p class="text-sm text-green-400">${deployment.cost}</p>
+                            <p class="text-sm text-green-400">${escapeHtml(deployment.cost)}</p>
                         </div>
                     </div>
 
                     ${deployment.endpoint !== 'N/A' ? `
                     <div class="bg-gray-50 rounded-lg p-4 font-mono text-xs">
                         <p class="text-gray-600 mb-2">API Usage:</p>
-                        <code class="text-gray-800">curl -X POST https://${deployment.endpoint}/generate \\
+                        <code class="text-gray-800">curl -X POST https://${escapeHtml(deployment.endpoint)}/generate \\
   -H "X-API-Key: YOUR_API_KEY" \\
   -F "text=Hello world" \\
   --output speech.wav</code>
@@ -2478,7 +2478,7 @@
         // Load quick metrics for all deployments
         async function loadQuickMetrics(deploymentId) {
             try {
-                const response = await fetch(API_BASE + `/api/deployments/${deploymentId}/metrics`);
+                const response = await authFetch(API_BASE + `/api/deployments/${deploymentId}/metrics`);
                 const metrics = await response.json();
 
                 const container = document.getElementById(`quick-metrics-${deploymentId}`);
@@ -2532,7 +2532,7 @@
 
         async function viewLogs(deploymentId) {
             try {
-                const response = await fetch(API_BASE + `/api/deployments/${deploymentId}/logs`);
+                const response = await authFetch(API_BASE + `/api/deployments/${deploymentId}/logs`);
                 const data = await response.json();
                 showLogsModal(data.logs);
             } catch (error) {
@@ -2607,7 +2607,7 @@
                             <span class="px-2 py-1 bg-anthropic-100 text-anthropic-700 rounded text-xs font-medium">${formatNumber(requestCount)} requests</span>
                         </div>
                     </div>
-                    ${key.description ? `<p class="text-xs text-gray-500 mt-2 italic">${key.description}</p>` : ''}
+                    ${key.description ? `<p class="text-xs text-gray-500 mt-2 italic">${escapeHtml(key.description)}</p>` : ''}
                 </div>
             `;
         }
@@ -2698,7 +2698,7 @@
             const container = document.getElementById('gpu-cards');
 
             try {
-                const response = await fetch(API_BASE + '/api/gpus');
+                const response = await authFetch(API_BASE + '/api/gpus');
 
                 if (!response.ok) {
                     throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -2741,18 +2741,18 @@
             }
 
             return `
-                <div onclick="selectGPU('${gpu.name}')" class="card cursor-pointer bg-gray-50 border-2 ${borderClass} rounded-lg p-4 transition">
+                <div onclick="selectGPU('${escapeHtml(gpu.name)}')" class="card cursor-pointer bg-gray-50 border-2 ${borderClass} rounded-lg p-4 transition">
                     <div class="flex items-center justify-between mb-3">
                         <span class="px-2 py-1 ${tierColor} bg-opacity-20 text-xs rounded-full">${tierBadge}</span>
                         ${isSelected ? '<span class="text-anthropic-600">✓</span>' : ''}
                     </div>
 
-                    <h4 class="font-semibold mb-2">${gpu.display_name}</h4>
+                    <h4 class="font-semibold mb-2">${escapeHtml(gpu.display_name)}</h4>
 
                     <div class="space-y-2 mb-4">
                         <div class="flex items-center justify-between text-xs">
                             <span class="text-gray-700">Memory</span>
-                            <span class="text-gray-800">${gpu.memory}</span>
+                            <span class="text-gray-800">${escapeHtml(gpu.memory)}</span>
                         </div>
                         <div class="flex items-center justify-between text-xs">
                             <span class="text-gray-700">Spot Price</span>
@@ -2838,7 +2838,7 @@
             container.innerHTML = '<div class="animate-pulse bg-gray-200 dark:bg-gray-700 rounded-xl h-32"></div><div class="animate-pulse bg-gray-200 dark:bg-gray-700 rounded-xl h-32"></div><div class="animate-pulse bg-gray-200 dark:bg-gray-700 rounded-xl h-32"></div>';
 
             try {
-                const response = await fetch(API_BASE + '/api/compute/gpus');
+                const response = await authFetch(API_BASE + '/api/compute/gpus');
                 const data = await response.json();
 
                 if (!data.gpus || data.gpus.length === 0) {
@@ -3348,16 +3348,17 @@
             if (isApp) {
                 const accessUrl = resource.access_url || resource.url;
                 actions = `
-                    ${accessUrl ? `<a href="${accessUrl}" target="_blank" class="flex-1 px-3 py-1.5 bg-anthropic-100 dark:bg-anthropic-900/30 hover:bg-anthropic-200 dark:hover:bg-anthropic-900/50 text-anthropic-700 dark:text-anthropic-400 rounded-lg text-xs font-medium transition text-center">Open</a>` : ''}
-                    <button onclick="terminateTemplateDeployment('${resource.id}')" class="px-3 py-1.5 bg-red-100 dark:bg-red-900/30 hover:bg-red-200 dark:hover:bg-red-900/50 text-red-600 dark:text-red-400 rounded-lg text-xs font-medium transition">Stop</button>
+                    ${accessUrl ? `<a href="${escapeHtml(accessUrl)}" target="_blank" class="flex-1 px-3 py-1.5 bg-anthropic-100 dark:bg-anthropic-900/30 hover:bg-anthropic-200 dark:hover:bg-anthropic-900/50 text-anthropic-700 dark:text-anthropic-400 rounded-lg text-xs font-medium transition text-center">Open</a>` : ''}
+                    <button onclick="terminateTemplateDeployment('${escapeHtml(resource.id)}')" class="px-3 py-1.5 bg-red-100 dark:bg-red-900/30 hover:bg-red-200 dark:hover:bg-red-900/50 text-red-600 dark:text-red-400 rounded-lg text-xs font-medium transition">Stop</button>
                 `;
             } else {
+                const sshUser = resource.ssh_user || 'root';
                 actions = `
                     ${resource.ip ? `
-                        <button onclick="copyToClipboard('${resource.ip}')" class="flex-1 px-3 py-1.5 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg text-xs font-medium transition">Copy IP</button>
-                        <button onclick="copyToClipboard('ssh root@${resource.ip}')" class="flex-1 px-3 py-1.5 bg-anthropic-100 dark:bg-anthropic-900/30 hover:bg-anthropic-200 dark:hover:bg-anthropic-900/50 text-anthropic-700 dark:text-anthropic-400 rounded-lg text-xs font-medium transition">Copy SSH</button>
+                        <button onclick="copyToClipboard('${escapeHtml(resource.ip)}')" class="flex-1 px-3 py-1.5 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg text-xs font-medium transition">Copy IP</button>
+                        <button onclick="copyToClipboard('ssh ${escapeHtml(sshUser)}@${escapeHtml(resource.ip)}')" class="flex-1 px-3 py-1.5 bg-anthropic-100 dark:bg-anthropic-900/30 hover:bg-anthropic-200 dark:hover:bg-anthropic-900/50 text-anthropic-700 dark:text-anthropic-400 rounded-lg text-xs font-medium transition">Copy SSH</button>
                     ` : `<div class="flex-1 px-3 py-1.5 bg-gray-50 dark:bg-gray-800/50 text-gray-400 rounded-lg text-xs font-medium text-center">Starting...</div>`}
-                    <button onclick="terminateComputeInstance('${resource.id}')" class="px-3 py-1.5 bg-red-100 dark:bg-red-900/30 hover:bg-red-200 dark:hover:bg-red-900/50 text-red-600 dark:text-red-400 rounded-lg text-xs font-medium transition">Terminate</button>
+                    <button onclick="terminateComputeInstance('${escapeHtml(resource.id)}')" class="px-3 py-1.5 bg-red-100 dark:bg-red-900/30 hover:bg-red-200 dark:hover:bg-red-900/50 text-red-600 dark:text-red-400 rounded-lg text-xs font-medium transition">Terminate</button>
                 `;
             }
 
@@ -3365,13 +3366,13 @@
             let details = '';
             if (isApp) {
                 details = `
-                    <p><span class="font-medium text-gray-700 dark:text-gray-300">Template:</span> ${resource.template_name || resource.template || 'Custom'}</p>
-                    ${resource.gpu_type ? `<p><span class="font-medium text-gray-700 dark:text-gray-300">GPU:</span> ${resource.gpu_type}</p>` : ''}
+                    <p><span class="font-medium text-gray-700 dark:text-gray-300">Template:</span> ${escapeHtml(resource.template_name || resource.template || 'Custom')}</p>
+                    ${resource.gpu_type ? `<p><span class="font-medium text-gray-700 dark:text-gray-300">GPU:</span> ${escapeHtml(resource.gpu_type)}</p>` : ''}
                 `;
             } else {
                 details = `
-                    <p><span class="font-medium text-gray-700 dark:text-gray-300">GPU:</span> ${resource.gpu_type}</p>
-                    ${resource.ip ? `<p><span class="font-medium text-gray-700 dark:text-gray-300">IP:</span> <code class="bg-gray-100 dark:bg-gray-800 px-1 rounded">${resource.ip}</code></p>` : `<p class="text-yellow-600 dark:text-yellow-400">Waiting for IP...</p>`}
+                    <p><span class="font-medium text-gray-700 dark:text-gray-300">GPU:</span> ${escapeHtml(resource.gpu_type)}</p>
+                    ${resource.ip ? `<p><span class="font-medium text-gray-700 dark:text-gray-300">IP:</span> <code class="bg-gray-100 dark:bg-gray-800 px-1 rounded">${escapeHtml(resource.ip)}</code></p>` : `<p class="text-yellow-600 dark:text-yellow-400">Waiting for IP...</p>`}
                     <p><span class="font-medium text-gray-700 dark:text-gray-300">Cost:</span> $${(resource.hourly_cost || 0).toFixed(3)}/hr</p>
                 `;
             }
@@ -3381,11 +3382,11 @@
                     <div class="flex items-center justify-between mb-3">
                         <div class="flex items-center space-x-3">
                             <div class="w-2 h-2 ${dotColor} rounded-full ${isActive ? 'status-dot' : ''}"></div>
-                            <h4 class="font-semibold dark:text-white">${resource.name}</h4>
+                            <h4 class="font-semibold dark:text-white">${escapeHtml(resource.name)}</h4>
                         </div>
                         <div class="flex items-center space-x-2">
                             <span class="px-2 py-1 ${typeBadgeColor} text-xs rounded-full font-medium">${typeIcon} ${typeLabel}</span>
-                            <span class="text-xs ${textColor} font-medium uppercase">${resource.status}</span>
+                            <span class="text-xs ${textColor} font-medium uppercase">${escapeHtml(resource.status)}</span>
                         </div>
                     </div>
                     <div class="text-sm text-gray-500 dark:text-gray-400 space-y-1 mb-3">
@@ -3510,7 +3511,7 @@
 
         async function loadTemplates() {
             try {
-                const response = await fetch(API_BASE + '/api/templates');
+                const response = await authFetch(API_BASE + '/api/templates');
                 const data = await response.json();
                 applicationsData = data.templates || [];
                 renderApplicationGrid(applicationsData);
@@ -3550,7 +3551,7 @@
             const container = document.getElementById('applications-grid');
 
             if (!templates || templates.length === 0) {
-                container.innerHTML = '<p class="text-gray-600 col-span-full">No applications available.</p>';
+                container.innerHTML = '<div class="col-span-full text-center py-8"><p class="text-gray-500 dark:text-gray-400">No applications available yet.</p><p class="text-sm text-gray-400 dark:text-gray-500 mt-1">Check back soon for deployable templates.</p></div>';
                 return;
             }
 
@@ -3578,22 +3579,22 @@
             const bgClass = bgColorClasses[template.color] || 'bg-gray-50 dark:bg-gray-800';
 
             return `
-                <div onclick="selectTemplate('${template.id}')" class="card cursor-pointer bg-white dark:bg-[#1a1a1a] border-2 ${borderClass} rounded-xl p-6 shadow-sm hover:shadow-md transition-all">
+                <div onclick="selectTemplate('${escapeHtml(template.id)}')" class="card cursor-pointer bg-white dark:bg-[#1a1a1a] border-2 ${borderClass} rounded-xl p-6 shadow-sm hover:shadow-md transition-all">
                     <div class="flex items-center justify-between mb-4">
                         <div class="w-12 h-12 ${bgClass} rounded-lg flex items-center justify-center">
-                            <span class="text-2xl">${template.icon}</span>
+                            <span class="text-2xl">${template.icon || '📦'}</span>
                         </div>
-                        <span class="px-2 py-1 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 text-xs rounded-full">${template.category.replace('_', '/')}</span>
+                        <span class="px-2 py-1 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 text-xs rounded-full">${escapeHtml((template.category || '').replace('_', '/'))}</span>
                     </div>
-                    <h4 class="text-lg font-semibold mb-2 dark:text-white">${template.name}</h4>
-                    <p class="text-sm text-gray-600 dark:text-gray-400 mb-4 line-clamp-2">${template.description}</p>
+                    <h4 class="text-lg font-semibold mb-2 dark:text-white">${escapeHtml(template.name)}</h4>
+                    <p class="text-sm text-gray-600 dark:text-gray-400 mb-4 line-clamp-2">${escapeHtml(template.description)}</p>
                     <div class="flex flex-wrap gap-1 mb-4">
-                        ${template.features.slice(0, 3).map(f => `<span class="px-2 py-0.5 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 text-xs rounded">${f}</span>`).join('')}
-                        ${template.features.length > 3 ? `<span class="px-2 py-0.5 bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-500 text-xs rounded">+${template.features.length - 3} more</span>` : ''}
+                        ${(template.features || []).slice(0, 3).map(f => `<span class="px-2 py-0.5 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 text-xs rounded">${escapeHtml(f)}</span>`).join('')}
+                        ${(template.features || []).length > 3 ? `<span class="px-2 py-0.5 bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-500 text-xs rounded">+${template.features.length - 3} more</span>` : ''}
                     </div>
                     <div class="flex items-center justify-between text-xs text-gray-500 dark:text-gray-500">
-                        <span>⏱️ ${template.estimated_deploy_time}</span>
-                        <span>Port: ${template.default_port}</span>
+                        <span>${escapeHtml(template.estimated_deploy_time || '')}</span>
+                        <span>Port: ${escapeHtml(String(template.default_port || ''))}</span>
                     </div>
                 </div>
             `;
@@ -3619,8 +3620,8 @@
 
             // Render features
             const featuresContainer = document.getElementById('template-deploy-features');
-            featuresContainer.innerHTML = template.features.map(f =>
-                `<span class="px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded">${f}</span>`
+            featuresContainer.innerHTML = (template.features || []).map(f =>
+                `<span class="px-2 py-1 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 text-xs rounded">${escapeHtml(f)}</span>`
             ).join('');
 
             // Render parameters
@@ -3854,7 +3855,7 @@
 
             const pollDeployment = async () => {
                 try {
-                    const response = await fetch(`${API_BASE}/api/templates/deployments/${deploymentId}`);
+                    const response = await authFetch(`${API_BASE}/api/templates/deployments/${deploymentId}`);
                     if (!response.ok) return;
 
                     const data = await response.json();
@@ -4061,9 +4062,9 @@
             // Build connection string based on access type
             let connectionInfo = '';
             if (deployment.access_type === 'game') {
-                connectionInfo = `<p class="font-mono text-sm text-gray-700 dark:text-gray-300">${deployment.host}:${deployment.port}</p>`;
+                connectionInfo = `<p class="font-mono text-sm text-gray-700 dark:text-gray-300">${escapeHtml(deployment.host)}:${escapeHtml(String(deployment.port))}</p>`;
             } else {
-                connectionInfo = `<p class="font-mono text-sm text-gray-700 dark:text-gray-300 truncate">${deployment.access_url}</p>`;
+                connectionInfo = `<p class="font-mono text-sm text-gray-700 dark:text-gray-300 truncate">${escapeHtml(deployment.access_url)}</p>`;
             }
 
             return `
@@ -4097,10 +4098,10 @@
 
                     <!-- Actions -->
                     <div class="flex items-center gap-2">
-                        <a href="${deployment.access_url}" target="_blank" class="flex-1 px-4 py-2 bg-anthropic-600 hover:bg-anthropic-700 text-white rounded-lg text-sm font-medium transition text-center">
+                        <a href="${escapeHtml(deployment.access_url)}" target="_blank" class="flex-1 px-4 py-2 bg-anthropic-600 hover:bg-anthropic-700 text-white rounded-lg text-sm font-medium transition text-center">
                             Launch
                         </a>
-                        <button onclick="copyToClipboard('${deployment.access_type === 'game' ? deployment.host + ':' + deployment.port : deployment.access_url}')" class="p-2 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400 rounded-lg transition" title="Copy URL">
+                        <button onclick="copyToClipboard('${escapeHtml(deployment.access_type === 'game' ? deployment.host + ':' + deployment.port : deployment.access_url)}')" class="p-2 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400 rounded-lg transition" title="Copy URL">
                             📋
                         </button>
                         <button onclick="stopTemplateDeployment('${escapeHtml(deployment.id)}', '${escapeHtml(deployment.template_name)}')" class="p-2 bg-red-50 dark:bg-red-900/30 hover:bg-red-100 dark:hover:bg-red-900/50 text-red-600 dark:text-red-400 rounded-lg transition" title="Stop">
@@ -4709,7 +4710,7 @@
 
         async function refreshMetrics(deploymentId) {
             try {
-                const response = await fetch(API_BASE + `/api/deployments/${deploymentId}/metrics`);
+                const response = await authFetch(API_BASE + `/api/deployments/${deploymentId}/metrics`);
                 const metrics = await response.json();
 
                 // Update all metric displays
