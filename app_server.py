@@ -74,7 +74,8 @@ except ImportError:
     TARGON_AVAILABLE = False
 
 # Template deployment server configuration (from environment)
-TEMPLATE_SERVER_HOST = os.getenv("TEMPLATE_SERVER_HOST", "65.108.32.148")
+TEMPLATE_SERVER_HOST = os.getenv("TEMPLATE_SERVER_HOST", "135.181.63.151")
+TEMPLATE_SERVER_SSH_HOST = os.getenv("TEMPLATE_SERVER_SSH_HOST", TEMPLATE_SERVER_HOST)
 TEMPLATE_SERVER_USER = os.getenv("TEMPLATE_SERVER_USER", "root")
 
 # Pricing markup configuration (20% markup on provider costs)
@@ -758,8 +759,8 @@ async def run_deployment_script(deployment_id: str, template: TemplateConfig, re
     """Execute deployment script with progress streaming via SSH"""
     deployments = load_template_deployments()
 
-    # Use configured server
-    host = TEMPLATE_SERVER_HOST
+    # Use configured server (SSH_HOST for SSH, HOST for access URLs)
+    host = TEMPLATE_SERVER_SSH_HOST
     ssh_user = TEMPLATE_SERVER_USER
 
     try:
@@ -1622,7 +1623,7 @@ async def sync_deployment_statuses(
             running_containers = set(c.name for c in containers)
         else:
             # Fallback to SSH
-            cmd = f'ssh -o StrictHostKeyChecking=no -o BatchMode=yes {TEMPLATE_SERVER_USER}@{TEMPLATE_SERVER_HOST} "docker ps --format {{{{.Names}}}}"'
+            cmd = f'ssh -o StrictHostKeyChecking=no -o BatchMode=yes {TEMPLATE_SERVER_USER}@{TEMPLATE_SERVER_SSH_HOST} "docker ps --format {{{{.Names}}}}"'
             process = await asyncio.create_subprocess_shell(
                 cmd,
                 stdout=asyncio.subprocess.PIPE,
