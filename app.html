@@ -4435,10 +4435,17 @@
 
                 const data = await response.json();
                 if (data.success) {
+                    // Update profile header with new values
+                    const updatedName = data.account?.name || name;
+                    const updatedEmail = data.account?.email || email;
+                    document.getElementById('profile-display-name').textContent = updatedName;
+                    document.getElementById('profile-display-email').textContent = updatedEmail;
                     toastManager.success('Settings Saved', 'Your account settings have been updated.');
+                } else if (data.detail) {
+                    toastManager.error('Save Failed', data.detail);
                 }
             } catch (error) {
-                console.error('Error saving settings:', error);
+                // Error saving settings
                 toastManager.error('Save Failed', 'Could not save your settings. Please try again.');
             }
         }

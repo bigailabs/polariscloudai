@@ -2465,7 +2465,16 @@ def save_settings(settings):
 @app.get("/api/settings")
 async def get_settings(current_user: User = Depends(get_current_user)):
     """Get account settings for the current user"""
-    return load_settings()
+    settings = load_settings()
+    # Override account section with real user data from the database
+    settings["account"] = {
+        "email": current_user.email,
+        "name": current_user.name or current_user.email.split("@")[0],
+        "company": current_user.company or "",
+        "plan": current_user.tier.value.capitalize() if current_user.tier else "Free",
+        "created_at": current_user.created_at.isoformat() if current_user.created_at else None
+    }
+    return settings
 
 class AccountUpdateRequest(BaseModel):
     email: Optional[str] = None
@@ -2473,17 +2482,33 @@ class AccountUpdateRequest(BaseModel):
     company: Optional[str] = None
 
 @app.put("/api/settings/account")
-async def update_account(request: AccountUpdateRequest, current_user: User = Depends(get_current_user)):
+async def update_account(
+    request: AccountUpdateRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
     """Update account settings for the current user"""
-    settings = load_settings()
-    if request.email:
-        settings["account"]["email"] = request.email
+    # Update user record in database
     if request.name:
-        settings["account"]["name"] = request.name
+        current_user.name = request.name
     if request.company is not None:
-        settings["account"]["company"] = request.company
-    save_settings(settings)
-    return {"success": True, "account": settings["account"]}
+        current_user.company = request.company
+    # Email changes require extra care (uniqueness check)
+    if request.email and request.email != current_user.email:
+        existing = await db.execute(select(User).where(User.email == request.email))
+        if existing.scalar_one_or_none():
+            raise HTTPException(status_code=400, detail="Email already in use")
+        current_user.email = request.email
+    await db.commit()
+    await db.refresh(current_user)
+    account = {
+        "email": current_user.email,
+        "name": current_user.name or current_user.email.split("@")[0],
+        "company": current_user.company or "",
+        "plan": current_user.tier.value.capitalize() if current_user.tier else "Free",
+        "created_at": current_user.created_at.isoformat() if current_user.created_at else None
+    }
+    return {"success": True, "account": account}
 
 class SSHKeyRequest(BaseModel):
     ssh_public_key: str
