@@ -126,7 +126,7 @@ if os.getenv("ENVIRONMENT") == "production":
     ALLOWED_ORIGINS = [
         "https://polaris.computer",
         "https://www.polaris.computer",
-        "https://api.polariscomputer.com",
+        "https://api.polaris.computer",
     ]
 
 app.add_middleware(
