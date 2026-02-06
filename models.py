@@ -77,7 +77,12 @@ class User(Base):
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
     email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False, index=True)
-    password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
+    password_hash: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+
+    # OAuth / Supabase
+    supabase_user_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True, unique=True)
+    auth_provider: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    avatar_url: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
 
     # Email verification
     email_verified: Mapped[bool] = mapped_column(Boolean, default=False)
@@ -93,7 +98,7 @@ class User(Base):
 
     # Subscription
     tier: Mapped[UserTier] = mapped_column(
-        Enum(UserTier), default=UserTier.FREE, nullable=False
+        Enum(UserTier, values_callable=lambda x: [e.value for e in x]), default=UserTier.FREE, nullable=False
     )
     stripe_customer_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     stripe_subscription_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
@@ -166,12 +171,12 @@ class Deployment(Base):
 
     # Status
     status: Mapped[DeploymentStatus] = mapped_column(
-        Enum(DeploymentStatus), default=DeploymentStatus.PENDING
+        Enum(DeploymentStatus, values_callable=lambda x: [e.value for e in x]), default=DeploymentStatus.PENDING
     )
 
     # Provider info
     provider: Mapped[ComputeProvider] = mapped_column(
-        Enum(ComputeProvider), default=ComputeProvider.VERDA
+        Enum(ComputeProvider, values_callable=lambda x: [e.value for e in x]), default=ComputeProvider.VERDA
     )
     provider_instance_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
 
@@ -227,7 +232,7 @@ class UsageRecord(Base):
     )
 
     # Provider and machine info
-    provider: Mapped[ComputeProvider] = mapped_column(Enum(ComputeProvider))
+    provider: Mapped[ComputeProvider] = mapped_column(Enum(ComputeProvider, values_callable=lambda x: [e.value for e in x]))
     machine_type: Mapped[str] = mapped_column(String(100))
 
     # Time tracking
@@ -268,7 +273,7 @@ class StorageVolume(Base):
 
     # Provider info
     provider: Mapped[StorageProvider] = mapped_column(
-        Enum(StorageProvider), default=StorageProvider.STORJ
+        Enum(StorageProvider, values_callable=lambda x: [e.value for e in x]), default=StorageProvider.STORJ
     )
     bucket_name: Mapped[str] = mapped_column(String(255), nullable=False)
 
@@ -311,12 +316,12 @@ class WarmSlot(Base):
     template_id: Mapped[str] = mapped_column(String(50), nullable=False)
 
     # Provider info
-    provider: Mapped[ComputeProvider] = mapped_column(Enum(ComputeProvider))
+    provider: Mapped[ComputeProvider] = mapped_column(Enum(ComputeProvider, values_callable=lambda x: [e.value for e in x]))
     provider_instance_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
 
     # Status
     status: Mapped[WarmSlotStatus] = mapped_column(
-        Enum(WarmSlotStatus), default=WarmSlotStatus.PREPARING
+        Enum(WarmSlotStatus, values_callable=lambda x: [e.value for e in x]), default=WarmSlotStatus.PREPARING
     )
 
     # Connection info (populated when ready)

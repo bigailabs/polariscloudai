@@ -346,8 +346,8 @@ async def get_optional_user(
 @router.post("/signup", response_model=TokenResponse)
 @limiter.limit("5/minute")
 async def signup(
-    request: SignupRequest,
-    req: Request,
+    signup_data: SignupRequest,
+    request: Request,
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -355,7 +355,7 @@ async def signup(
     Returns JWT tokens on success.
     """
     # Check if email already exists
-    result = await db.execute(select(User).where(User.email == request.email.lower()))
+    result = await db.execute(select(User).where(User.email == signup_data.email.lower()))
     existing_user = result.scalar_one_or_none()
 
     if existing_user:
@@ -366,9 +366,9 @@ async def signup(
 
     # Create new user
     user = User(
-        email=request.email.lower(),
-        password_hash=hash_password(request.password),
-        name=request.name,
+        email=signup_data.email.lower(),
+        password_hash=hash_password(signup_data.password),
+        name=signup_data.name,
         tier=UserTier.FREE,
         auth_provider="email",
     )
@@ -383,8 +383,8 @@ async def signup(
     refresh_token_record = RefreshToken(
         user_id=user.id,
         token_hash=hash_token(refresh_token),
-        device_info=req.headers.get("User-Agent", "")[:255],
-        ip_address=req.client.host if req.client else None,
+        device_info=request.headers.get("User-Agent", "")[:255],
+        ip_address=request.client.host if request.client else None,
         expires_at=refresh_expires,
     )
     db.add(refresh_token_record)
@@ -401,19 +401,19 @@ async def signup(
 @router.post("/login", response_model=TokenResponse)
 @limiter.limit("10/minute")
 async def login(
-    request: LoginRequest,
-    req: Request,
+    login_data: LoginRequest,
+    request: Request,
     db: AsyncSession = Depends(get_db)
 ):
     """
     Authenticate a user and return JWT tokens.
     """
     # Find user by email
-    result = await db.execute(select(User).where(User.email == request.email.lower()))
+    result = await db.execute(select(User).where(User.email == login_data.email.lower()))
     user = result.scalar_one_or_none()
 
     # Check if user exists and has a password (OAuth-only users can't login with password)
-    if not user or not user.password_hash or not verify_password(request.password, user.password_hash):
+    if not user or not user.password_hash or not verify_password(login_data.password, user.password_hash):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid email or password"
@@ -430,8 +430,8 @@ async def login(
     refresh_token_record = RefreshToken(
         user_id=user.id,
         token_hash=hash_token(refresh_token),
-        device_info=req.headers.get("User-Agent", "")[:255],
-        ip_address=req.client.host if req.client else None,
+        device_info=request.headers.get("User-Agent", "")[:255],
+        ip_address=request.client.host if request.client else None,
         expires_at=refresh_expires,
     )
     db.add(refresh_token_record)
@@ -448,14 +448,14 @@ async def login(
 @router.post("/refresh", response_model=TokenResponse)
 @limiter.limit("30/minute")
 async def refresh_tokens(
-    request: RefreshRequest,
-    req: Request,
+    refresh_data: RefreshRequest,
+    request: Request,
     db: AsyncSession = Depends(get_db)
 ):
     """
     Refresh an access token using a refresh token.
     """
-    token_hash = hash_token(request.refresh_token)
+    token_hash = hash_token(refresh_data.refresh_token)
 
     # Find the refresh token
     result = await db.execute(
@@ -494,8 +494,8 @@ async def refresh_tokens(
     new_refresh_token_record = RefreshToken(
         user_id=user.id,
         token_hash=hash_token(new_refresh_token),
-        device_info=req.headers.get("User-Agent", "")[:255],
-        ip_address=req.client.host if req.client else None,
+        device_info=request.headers.get("User-Agent", "")[:255],
+        ip_address=request.client.host if request.client else None,
         expires_at=refresh_expires,
     )
     db.add(new_refresh_token_record)
@@ -575,8 +575,8 @@ async def update_me(
 @router.post("/change-password")
 @limiter.limit("3/minute")
 async def change_password(
-    request: ChangePasswordRequest,
-    req: Request,
+    password_data: ChangePasswordRequest,
+    request: Request,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
@@ -590,13 +590,13 @@ async def change_password(
             detail="Cannot change password for OAuth-only accounts"
         )
 
-    if not verify_password(request.current_password, user.password_hash):
+    if not verify_password(password_data.current_password, user.password_hash):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Current password is incorrect"
         )
 
-    user.password_hash = hash_password(request.new_password)
+    user.password_hash = hash_password(password_data.new_password)
 
     # Revoke all refresh tokens (force re-login on all devices)
     await db.execute(
@@ -612,8 +612,8 @@ async def change_password(
 
 @router.post("/oauth/callback", response_model=TokenResponse)
 async def oauth_callback(
-    request: OAuthCallbackRequest,
-    req: Request,
+    oauth_data: OAuthCallbackRequest,
+    request: Request,
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -621,7 +621,7 @@ async def oauth_callback(
     Called by frontend after successful OAuth login.
     """
     # Decode the Supabase token
-    payload = decode_supabase_token(request.access_token)
+    payload = decode_supabase_token(oauth_data.access_token)
     if not payload:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -664,8 +664,8 @@ async def oauth_callback(
     refresh_token_record = RefreshToken(
         user_id=user.id,
         token_hash=hash_token(refresh_token),
-        device_info=req.headers.get("User-Agent", "")[:255],
-        ip_address=req.client.host if req.client else None,
+        device_info=request.headers.get("User-Agent", "")[:255],
+        ip_address=request.client.host if request.client else None,
         expires_at=refresh_expires,
     )
     db.add(refresh_token_record)
@@ -682,13 +682,13 @@ async def oauth_callback(
 @router.post("/forgot-password")
 @limiter.limit("3/minute")
 async def forgot_password(
-    request: PasswordResetRequest,
-    req: Request,
+    reset_req: PasswordResetRequest,
+    request: Request,
     db: AsyncSession = Depends(get_db)
 ):
     """Request a password reset email"""
     # Find user by email
-    result = await db.execute(select(User).where(User.email == request.email.lower()))
+    result = await db.execute(select(User).where(User.email == reset_req.email.lower()))
     user = result.scalar_one_or_none()
 
     # Always return success to prevent email enumeration
@@ -714,12 +714,12 @@ async def forgot_password(
 @router.post("/reset-password")
 @limiter.limit("5/minute")
 async def reset_password(
-    request: PasswordResetConfirm,
-    req: Request,
+    reset_confirm: PasswordResetConfirm,
+    request: Request,
     db: AsyncSession = Depends(get_db)
 ):
     """Reset password using token"""
-    token_hash = hash_token(request.token)
+    token_hash = hash_token(reset_confirm.token)
 
     # Find user with valid reset token
     result = await db.execute(
@@ -736,7 +736,7 @@ async def reset_password(
         )
 
     # Update password and clear reset token
-    user.password_hash = hash_password(request.new_password)
+    user.password_hash = hash_password(reset_confirm.new_password)
     user.password_reset_token = None
     user.password_reset_expires = None
 

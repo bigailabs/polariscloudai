@@ -1262,7 +1262,7 @@ async def run_template_deployment(deployment_id: str, template: TemplateConfig, 
 @app.get("/")
 async def serve_landing():
     """Serve the landing page"""
-    response = FileResponse("landing.html")
+    response = FileResponse("index.html")
     response.headers["Cache-Control"] = "public, max-age=3600"
     return response
 
