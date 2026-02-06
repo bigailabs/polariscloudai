@@ -1288,23 +1288,23 @@ async def serve_index():
 async def get_stats(current_user: User = Depends(get_current_user)):
     """Get dashboard statistics for the current user"""
     try:
-        # Get deployments (both containers and instances)
+        user_id = str(current_user.id)
+        user_deps = get_user_deployment_ids(user_id)
+
+        # Count only this user's deployments
         if DEMO_MODE or verda_client is None:
-            containers = []
-            instances = []
+            active_count = sum(1 for inst in COMPUTE_INSTANCES.values() if inst.get("user_id") == user_id)
         else:
             containers = verda_client.list_deployments()
             instances = verda_client.list_instances()
+            active_count = sum(1 for c in containers if c.get('id') in user_deps)
+            active_count += sum(1 for i in instances if i.get('id') in user_deps)
 
-        total_deployments = len(containers) + len(instances)
-        active_count = total_deployments  # Assume all listed are active
-
-        # Calculate monthly cost estimate based on active GPUs
-        # TODO: Track actual GPU hours for real billing
-        monthly_cost = active_count * 100  # Rough estimate
+        total_deployments = active_count
+        monthly_cost = active_count * 100
 
         # Get real API request count from usage stats
-        usage_stats = load_usage_stats()
+        usage_stats = load_usage_stats(str(current_user.id))
         current_month = datetime.now().strftime("%Y-%m")
         monthly_requests = sum(
             count for day, count in usage_stats.get("requests_by_day", {}).items()
@@ -1341,37 +1341,42 @@ async def get_deployments(current_user: User = Depends(get_current_user)):
         if DEMO_MODE or verda_client is None:
             return {"deployments": [], "demo_mode": True}
 
+        user_id = str(current_user.id)
+        user_deps = get_user_deployment_ids(user_id)
+
         containers = verda_client.list_deployments()
         instances = verda_client.list_instances()
 
-        # Format deployments for frontend
+        # Format deployments for frontend — only show user's own
         formatted = []
 
-        # Add containers
         for d in containers:
-            formatted.append({
-                "id": d.get('id', 'unknown'),
-                "name": d.get('name', 'Unknown'),
-                "status": d.get('status', 'unknown'),
-                "endpoint": d.get('endpoint', 'N/A'),
-                "gpu": d.get('gpu_type', 'N/A'),
-                "cost": "$0.000/hr",  # Would need to calculate from GPU type
-                "created": d.get('created_at', 'N/A'),
-                "type": "serverless"
-            })
+            dep_id = d.get('id', 'unknown')
+            if dep_id in user_deps:
+                formatted.append({
+                    "id": dep_id,
+                    "name": d.get('name', 'Unknown'),
+                    "status": d.get('status', 'unknown'),
+                    "endpoint": d.get('endpoint', 'N/A'),
+                    "gpu": d.get('gpu_type', 'N/A'),
+                    "cost": "$0.000/hr",
+                    "created": d.get('created_at', 'N/A'),
+                    "type": "serverless"
+                })
 
-        # Add instances
         for i in instances:
-            formatted.append({
-                "id": i.get('id', 'unknown'),
-                "name": i.get('hostname', 'Unknown'),
-                "status": i.get('status', 'unknown'),
-                "endpoint": i.get('ip', 'N/A'),
-                "gpu": i.get('gpu_type', 'N/A'),
-                "cost": "$0.000/hr",  # Would need to calculate from GPU type
-                "created": i.get('created_at', 'N/A'),
-                "type": "raw_compute"
-            })
+            inst_id = i.get('id', 'unknown')
+            if inst_id in user_deps:
+                formatted.append({
+                    "id": inst_id,
+                    "name": i.get('hostname', 'Unknown'),
+                    "status": i.get('status', 'unknown'),
+                    "endpoint": i.get('ip', 'N/A'),
+                    "gpu": i.get('gpu_type', 'N/A'),
+                    "cost": "$0.000/hr",
+                    "created": i.get('created_at', 'N/A'),
+                    "type": "raw_compute"
+                })
 
         return {"deployments": formatted}
     except Exception as e:
@@ -1382,27 +1387,33 @@ async def get_deployments(current_user: User = Depends(get_current_user)):
 
 @app.post("/api/deployments/stop")
 async def stop_deployment(request: StopDeploymentRequest, current_user: User = Depends(get_current_user)):
-    """Stop a deployment - requires authentication"""
+    """Stop a deployment - requires authentication and ownership"""
     if DEMO_MODE or verda_client is None:
         raise HTTPException(status_code=503, detail="Deployments disabled in demo mode.")
 
     try:
         deployment_id = request.deployment_id
+        user_id = str(current_user.id)
+
+        # Ownership check
+        owner = get_deployment_owner(deployment_id)
+        if owner and owner != user_id:
+            raise HTTPException(status_code=403, detail="You do not own this deployment")
 
         # Try to find the deployment in containers first
         containers = verda_client.list_deployments()
         is_container = any(c.get('id') == deployment_id or c.get('name') == deployment_id for c in containers)
 
         if is_container:
-            # It's a container deployment
             result = verda_client.delete_deployment(deployment_id)
+            unregister_deployment(deployment_id)
             return {
                 "success": True,
                 "message": f"Container deployment stopped successfully"
             }
         else:
-            # It's an instance
             result = verda_client.delete_instance(deployment_id)
+            unregister_deployment(deployment_id)
             return {
                 "success": True,
                 "message": f"Instance stopped successfully"
@@ -1415,7 +1426,11 @@ async def stop_deployment(request: StopDeploymentRequest, current_user: User = D
 
 @app.get("/api/deployments/{deployment_id}/logs")
 async def get_deployment_logs(deployment_id: str, current_user: User = Depends(get_current_user)):
-    """Get logs for a deployment - requires authentication"""
+    """Get logs for a deployment - requires authentication and ownership"""
+    owner = get_deployment_owner(deployment_id)
+    if owner and owner != str(current_user.id):
+        raise HTTPException(status_code=403, detail="You do not own this deployment")
+
     if DEMO_MODE or verda_client is None:
         return {"logs": "Logs unavailable in demo mode."}
 
@@ -1423,7 +1438,6 @@ async def get_deployment_logs(deployment_id: str, current_user: User = Depends(g
         logs = verda_client.get_deployment_logs(deployment_id)
         return {"logs": logs}
     except Exception as e:
-        print(f"Error getting logs: {e}")
         return {"logs": "Unable to fetch logs"}
 
 
@@ -1973,6 +1987,7 @@ async def list_compute_instances(current_user: User = Depends(get_current_user))
     """List active compute instances from all providers - requires authentication"""
     all_instances = []
     user_id = str(current_user.id)
+    user_deps = get_user_deployment_ids(user_id)
 
     try:
         if DEMO_MODE or verda_client is None:
@@ -1989,11 +2004,13 @@ async def list_compute_instances(current_user: User = Depends(get_current_user))
                     timeout=30.0
                 )
             except asyncio.TimeoutError:
-                print("Verda list_instances timed out after 30s")
                 verda_instances = []
             for inst in verda_instances:
+                inst_id = inst.get('id')
+                if inst_id not in user_deps:
+                    continue
                 all_instances.append({
-                    "id": inst.get('id'),
+                    "id": inst_id,
                     "name": inst.get('hostname', inst.get('name', 'Unknown')),
                     "gpu_type": inst.get('instance_type', 'Unknown'),
                     "status": inst.get('status', 'unknown'),
@@ -2004,9 +2021,9 @@ async def list_compute_instances(current_user: User = Depends(get_current_user))
                 })
 
     except Exception as e:
-        print(f"Error listing Verda instances: {e}")
+        pass
 
-    # Get Targon instances (with timeout)
+    # Get Targon instances (with timeout) — only user's own
     try:
         if targon_client and targon_client.authenticated:
             try:
@@ -2015,11 +2032,13 @@ async def list_compute_instances(current_user: User = Depends(get_current_user))
                     timeout=30.0
                 )
             except asyncio.TimeoutError:
-                print("Targon list_instances timed out after 30s")
                 targon_instances = []
             for inst in targon_instances:
+                inst_id = inst.get('id')
+                if inst_id not in user_deps:
+                    continue
                 all_instances.append({
-                    "id": inst.get('id'),
+                    "id": inst_id,
                     "name": inst.get('name', 'Unknown'),
                     "gpu_type": inst.get('gpu_type', 'Unknown'),
                     "status": inst.get('status', 'unknown'),
@@ -2044,8 +2063,8 @@ async def create_compute_instance(request: ComputeInstanceRequest, current_user:
         # Resolve SSH key: use request value, fall back to stored key in settings
         ssh_key = (request.ssh_public_key or "").strip() or None
         if not ssh_key:
-            settings = load_settings()
-            ssh_key = settings.get("ssh_public_key")
+            user_settings = load_settings(str(current_user.id))
+            ssh_key = user_settings.get("ssh_public_key")
 
         if not ssh_key or not any(ssh_key.strip().startswith(p) for p in ('ssh-', 'ecdsa-', 'sk-')):
             raise HTTPException(
@@ -2066,9 +2085,12 @@ async def create_compute_instance(request: ComputeInstanceRequest, current_user:
                 gpu_name=request.gpu_type,
                 use_spot=request.use_spot
             )
+            dep_id = result.get('id')
+            if dep_id:
+                register_deployment_owner(dep_id, str(current_user.id))
             return {
                 "success": True,
-                "deployment_id": result.get('id'),
+                "deployment_id": dep_id,
                 "message": f"Container {request.name} deployed successfully!",
                 "details": result
             }
@@ -2134,13 +2156,17 @@ async def create_compute_instance(request: ComputeInstanceRequest, current_user:
                 raise HTTPException(status_code=504, detail=f"GPU provider timed out while creating instance '{instance_name}'. Please try again.")
 
             if result:
+                inst_id = result.get('id')
                 created_instances.append({
-                    "id": result.get('id'),
+                    "id": inst_id,
                     "name": instance_name,
                     "gpu_type": request.gpu_type,
                     "status": result.get('status', 'starting'),
                     "ip": result.get('ip')
                 })
+                # Register ownership so only this user can see/manage it
+                if inst_id:
+                    register_deployment_owner(inst_id, str(current_user.id))
 
         if created_instances:
             message = f"{len(created_instances)} instances are being provisioned" if len(created_instances) > 1 else f"Instance {request.name} is being provisioned"
@@ -2177,6 +2203,11 @@ async def terminate_compute_instance(instance_id: str, current_user: User = Depe
             else:
                 raise HTTPException(status_code=404, detail="Instance not found")
 
+        # Ownership check for production instances
+        owner = get_deployment_owner(instance_id)
+        if owner and owner != str(current_user.id):
+            raise HTTPException(status_code=403, detail="You do not own this instance")
+
         # Terminate real instance via Verda (with timeout)
         try:
             result = await asyncio.wait_for(
@@ -2186,6 +2217,7 @@ async def terminate_compute_instance(instance_id: str, current_user: User = Depe
         except asyncio.TimeoutError:
             raise HTTPException(status_code=504, detail="GPU provider timed out. The instance may still be terminating.")
         if result:
+            unregister_deployment(instance_id)
             return {"success": True, "message": "Instance terminated"}
         else:
             raise HTTPException(status_code=500, detail="Failed to terminate instance")
@@ -2201,23 +2233,67 @@ async def terminate_compute_instance(instance_id: str, current_user: User = Depe
 # API KEYS
 # ============================================================================
 
-API_KEYS_FILE = "api_keys.json"
-USAGE_STATS_FILE = "usage_stats.json"
+USER_DATA_DIR = "user_data"
+os.makedirs(USER_DATA_DIR, exist_ok=True)
 
-def load_api_keys():
-    """Load API keys from file"""
-    if os.path.exists(API_KEYS_FILE):
-        with open(API_KEYS_FILE, 'r') as f:
+def _user_file(user_id: str, filename: str) -> str:
+    """Get path to a per-user data file, creating the user dir if needed"""
+    user_dir = os.path.join(USER_DATA_DIR, user_id)
+    os.makedirs(user_dir, exist_ok=True)
+    return os.path.join(user_dir, filename)
+
+# Deployment ownership registry: maps deployment/instance IDs to user IDs
+DEPLOYMENT_OWNERS_FILE = os.path.join(USER_DATA_DIR, "_deployment_owners.json")
+
+def _load_deployment_owners() -> dict:
+    """Load the deployment-to-user ownership map"""
+    if os.path.exists(DEPLOYMENT_OWNERS_FILE):
+        with open(DEPLOYMENT_OWNERS_FILE, 'r') as f:
+            return json.load(f)
+    return {}
+
+def _save_deployment_owners(owners: dict):
+    """Save the deployment-to-user ownership map"""
+    with open(DEPLOYMENT_OWNERS_FILE, 'w') as f:
+        json.dump(owners, f, indent=2)
+
+def register_deployment_owner(deployment_id: str, user_id: str):
+    """Record that a deployment belongs to a user"""
+    owners = _load_deployment_owners()
+    owners[deployment_id] = user_id
+    _save_deployment_owners(owners)
+
+def get_deployment_owner(deployment_id: str) -> str:
+    """Get the user_id that owns a deployment, or None"""
+    return _load_deployment_owners().get(deployment_id)
+
+def get_user_deployment_ids(user_id: str) -> set:
+    """Get all deployment IDs owned by a user"""
+    owners = _load_deployment_owners()
+    return {did for did, uid in owners.items() if uid == user_id}
+
+def unregister_deployment(deployment_id: str):
+    """Remove a deployment from the ownership map"""
+    owners = _load_deployment_owners()
+    owners.pop(deployment_id, None)
+    _save_deployment_owners(owners)
+
+def load_api_keys(user_id: str):
+    """Load API keys for a specific user"""
+    path = _user_file(user_id, "api_keys.json")
+    if os.path.exists(path):
+        with open(path, 'r') as f:
             return json.load(f)
     return []
 
-def save_api_keys(keys):
-    """Save API keys to file"""
-    with open(API_KEYS_FILE, 'w') as f:
+def save_api_keys(user_id: str, keys):
+    """Save API keys for a specific user"""
+    path = _user_file(user_id, "api_keys.json")
+    with open(path, 'w') as f:
         json.dump(keys, f, indent=2)
 
-def load_usage_stats():
-    """Load usage statistics from file"""
+def load_usage_stats(user_id: str):
+    """Load usage statistics for a specific user"""
     default_stats = {
         "total_requests": 0,
         "requests_by_key": {},
@@ -2225,8 +2301,9 @@ def load_usage_stats():
         "requests_by_deployment": {},
         "last_updated": None
     }
-    if os.path.exists(USAGE_STATS_FILE):
-        with open(USAGE_STATS_FILE, 'r') as f:
+    path = _user_file(user_id, "usage_stats.json")
+    if os.path.exists(path):
+        with open(path, 'r') as f:
             saved = json.load(f)
             for key in default_stats:
                 if key not in saved:
@@ -2234,15 +2311,16 @@ def load_usage_stats():
             return saved
     return default_stats
 
-def save_usage_stats(stats):
-    """Save usage statistics to file"""
+def save_usage_stats(user_id: str, stats):
+    """Save usage statistics for a specific user"""
     stats["last_updated"] = datetime.now().isoformat()
-    with open(USAGE_STATS_FILE, 'w') as f:
+    path = _user_file(user_id, "usage_stats.json")
+    with open(path, 'w') as f:
         json.dump(stats, f, indent=2)
 
-def record_api_usage(key_id: str, deployment_id: str = None):
-    """Record an API usage event"""
-    stats = load_usage_stats()
+def record_api_usage(user_id: str, key_id: str, deployment_id: str = None):
+    """Record an API usage event for a specific user"""
+    stats = load_usage_stats(user_id)
     today = datetime.now().strftime("%Y-%m-%d")
 
     # Increment total requests
@@ -2265,25 +2343,25 @@ def record_api_usage(key_id: str, deployment_id: str = None):
             stats["requests_by_deployment"][deployment_id] = 0
         stats["requests_by_deployment"][deployment_id] += 1
 
-    save_usage_stats(stats)
+    save_usage_stats(user_id, stats)
 
     # Also update last_used on the API key
-    keys = load_api_keys()
+    keys = load_api_keys(user_id)
     for key in keys:
         if key["id"] == key_id:
             key["last_used"] = datetime.now().isoformat()
             key["request_count"] = key.get("request_count", 0) + 1
             break
-    save_api_keys(keys)
+    save_api_keys(user_id, keys)
 
 @app.get("/api/keys")
 async def get_api_keys(current_user: User = Depends(get_current_user)):
     """Get all API keys for the current user"""
     try:
-        keys = load_api_keys()
+        user_id = str(current_user.id)
+        keys = load_api_keys(user_id)
         return {"keys": keys}
     except Exception as e:
-        print(f"Error loading API keys: {e}")
         return {"keys": []}
 
 @app.post("/api/keys/generate")
@@ -2291,12 +2369,13 @@ async def generate_api_key(request: APIKeyRequest, current_user: User = Depends(
     """Generate a new API key for the current user"""
     try:
         import secrets
+        user_id = str(current_user.id)
 
         # Generate key
         key = f"vf_live_{secrets.token_urlsafe(32)}"
 
         # Load existing keys
-        keys = load_api_keys()
+        keys = load_api_keys(user_id)
 
         # Add new key
         new_key = {
@@ -2310,27 +2389,26 @@ async def generate_api_key(request: APIKeyRequest, current_user: User = Depends(
         keys.append(new_key)
 
         # Save
-        save_api_keys(keys)
+        save_api_keys(user_id, keys)
 
         return {
             "success": True,
             "key": new_key
         }
     except Exception as e:
-        print(f"Error generating API key: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.delete("/api/keys/{key_id}")
 async def revoke_api_key(key_id: str, current_user: User = Depends(get_current_user)):
     """Revoke an API key"""
     try:
-        keys = load_api_keys()
+        user_id = str(current_user.id)
+        keys = load_api_keys(user_id)
         keys = [k for k in keys if k['id'] != key_id]
-        save_api_keys(keys)
+        save_api_keys(user_id, keys)
 
         return {"success": True, "message": "API key revoked"}
     except Exception as e:
-        print(f"Error revoking key: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 # ============================================================================
@@ -2341,8 +2419,9 @@ async def revoke_api_key(key_id: str, current_user: User = Depends(get_current_u
 async def get_usage_analytics(current_user: User = Depends(get_current_user)):
     """Get detailed usage analytics for the current user"""
     try:
-        stats = load_usage_stats()
-        keys = load_api_keys()
+        user_id = str(current_user.id)
+        stats = load_usage_stats(user_id)
+        keys = load_api_keys(user_id)
 
         # Get last 30 days of data
         today = datetime.now()
@@ -2408,28 +2487,22 @@ async def get_usage_analytics(current_user: User = Depends(get_current_user)):
 async def record_usage(key_id: str, deployment_id: Optional[str] = None, current_user: User = Depends(get_current_user)):
     """Record an API usage event (for testing/manual recording)"""
     try:
-        record_api_usage(key_id, deployment_id)
+        user_id = str(current_user.id)
+        record_api_usage(user_id, key_id, deployment_id)
         return {"success": True, "message": "Usage recorded"}
     except Exception as e:
-        print(f"Error recording usage: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 # ============================================================================
 # SETTINGS
 # ============================================================================
 
-SETTINGS_FILE = "settings.json"
+SETTINGS_DIR = "user_settings"
+os.makedirs(SETTINGS_DIR, exist_ok=True)
 
-def load_settings():
-    """Load settings from file"""
-    default_settings = {
-        "account": {
-            "email": "developer@example.com",
-            "name": "Developer",
-            "company": "",
-            "plan": "Professional",
-            "created_at": "2026-01-01"
-        },
+def _default_settings():
+    """Return default settings for a new user"""
+    return {
         "billing": {
             "current_month": 0.00,
             "last_month": 0.00,
@@ -2447,25 +2520,31 @@ def load_settings():
         "ssh_public_key": None,
         "webhooks": []
     }
-    if os.path.exists(SETTINGS_FILE):
-        with open(SETTINGS_FILE, 'r') as f:
-            saved = json.load(f)
-            # Merge with defaults to ensure all keys exist
-            for key in default_settings:
-                if key not in saved:
-                    saved[key] = default_settings[key]
-            return saved
-    return default_settings
 
-def save_settings(settings):
-    """Save settings to file"""
-    with open(SETTINGS_FILE, 'w') as f:
+def load_settings(user_id: str):
+    """Load settings for a specific user"""
+    defaults = _default_settings()
+    settings_file = os.path.join(SETTINGS_DIR, f"{user_id}.json")
+    if os.path.exists(settings_file):
+        with open(settings_file, 'r') as f:
+            saved = json.load(f)
+            for key in defaults:
+                if key not in saved:
+                    saved[key] = defaults[key]
+            return saved
+    return defaults
+
+def save_settings(user_id: str, settings):
+    """Save settings for a specific user"""
+    settings_file = os.path.join(SETTINGS_DIR, f"{user_id}.json")
+    with open(settings_file, 'w') as f:
         json.dump(settings, f, indent=2)
 
 @app.get("/api/settings")
 async def get_settings(current_user: User = Depends(get_current_user)):
     """Get account settings for the current user"""
-    settings = load_settings()
+    user_id = str(current_user.id)
+    settings = load_settings(user_id)
     # Override account section with real user data from the database
     settings["account"] = {
         "email": current_user.email,
@@ -2520,17 +2599,19 @@ async def update_ssh_key(request: SSHKeyRequest, current_user: User = Depends(ge
     valid_prefixes = ('ssh-rsa ', 'ssh-ed25519 ', 'ecdsa-sha2-nistp', 'sk-ssh-ed25519@', 'sk-ecdsa-sha2-nistp')
     if not any(key.startswith(prefix) for prefix in valid_prefixes):
         raise HTTPException(status_code=400, detail="Invalid SSH key format. Must start with ssh-rsa, ssh-ed25519, ecdsa-sha2, or sk-ssh.")
-    settings = load_settings()
+    user_id = str(current_user.id)
+    settings = load_settings(user_id)
     settings["ssh_public_key"] = key
-    save_settings(settings)
+    save_settings(user_id, settings)
     return {"success": True, "message": "SSH key saved."}
 
 @app.delete("/api/settings/ssh-key")
 async def delete_ssh_key(current_user: User = Depends(get_current_user)):
     """Remove the user's stored SSH public key"""
-    settings = load_settings()
+    user_id = str(current_user.id)
+    settings = load_settings(user_id)
     settings["ssh_public_key"] = None
-    save_settings(settings)
+    save_settings(user_id, settings)
     return {"success": True, "message": "SSH key removed."}
 
 class NotificationUpdateRequest(BaseModel):
@@ -2544,11 +2625,12 @@ class NotificationUpdateRequest(BaseModel):
 @app.put("/api/settings/notifications")
 async def update_notifications(request: NotificationUpdateRequest, current_user: User = Depends(get_current_user)):
     """Update notification preferences for the current user"""
-    settings = load_settings()
+    user_id = str(current_user.id)
+    settings = load_settings(user_id)
     updates = request.model_dump(exclude_none=True)
     for key, value in updates.items():
         settings["notifications"][key] = value
-    save_settings(settings)
+    save_settings(user_id, settings)
     return {"success": True, "notifications": settings["notifications"]}
 
 class WebhookRequest(BaseModel):
@@ -2559,14 +2641,16 @@ class WebhookRequest(BaseModel):
 @app.get("/api/settings/webhooks")
 async def get_webhooks(current_user: User = Depends(get_current_user)):
     """Get all webhooks for the current user"""
-    settings = load_settings()
+    user_id = str(current_user.id)
+    settings = load_settings(user_id)
     return {"webhooks": settings.get("webhooks", [])}
 
 @app.post("/api/settings/webhooks")
 async def create_webhook(request: WebhookRequest, current_user: User = Depends(get_current_user)):
     """Create a new webhook for the current user"""
     import secrets
-    settings = load_settings()
+    user_id = str(current_user.id)
+    settings = load_settings(user_id)
     webhook = {
         "id": secrets.token_urlsafe(8),
         "name": request.name or f"Webhook {len(settings.get('webhooks', [])) + 1}",
@@ -2579,25 +2663,27 @@ async def create_webhook(request: WebhookRequest, current_user: User = Depends(g
     if "webhooks" not in settings:
         settings["webhooks"] = []
     settings["webhooks"].append(webhook)
-    save_settings(settings)
+    save_settings(user_id, settings)
     return {"success": True, "webhook": webhook}
 
 @app.delete("/api/settings/webhooks/{webhook_id}")
 async def delete_webhook(webhook_id: str, current_user: User = Depends(get_current_user)):
     """Delete a webhook"""
-    settings = load_settings()
+    user_id = str(current_user.id)
+    settings = load_settings(user_id)
     settings["webhooks"] = [w for w in settings.get("webhooks", []) if w["id"] != webhook_id]
-    save_settings(settings)
+    save_settings(user_id, settings)
     return {"success": True, "message": "Webhook deleted"}
 
 @app.put("/api/settings/webhooks/{webhook_id}/toggle")
 async def toggle_webhook(webhook_id: str, current_user: User = Depends(get_current_user)):
     """Toggle webhook active status"""
-    settings = load_settings()
+    user_id = str(current_user.id)
+    settings = load_settings(user_id)
     for webhook in settings.get("webhooks", []):
         if webhook["id"] == webhook_id:
             webhook["active"] = not webhook.get("active", True)
-            save_settings(settings)
+            save_settings(user_id, settings)
             return {"success": True, "active": webhook["active"]}
     raise HTTPException(status_code=404, detail="Webhook not found")
 
@@ -2653,7 +2739,10 @@ def generate_mock_metrics(deployment_id: str):
 
 @app.get("/api/deployments/{deployment_id}/metrics")
 async def get_deployment_metrics(deployment_id: str, current_user: User = Depends(get_current_user)):
-    """Get real-time metrics for a deployment - requires authentication"""
+    """Get real-time metrics for a deployment - requires authentication and ownership"""
+    owner = get_deployment_owner(deployment_id)
+    if owner and owner != str(current_user.id):
+        raise HTTPException(status_code=403, detail="You do not own this deployment")
     try:
         # In production, this would query actual monitoring systems
         # For now, generate realistic mock data
@@ -2684,7 +2773,10 @@ async def get_deployment_metrics(deployment_id: str, current_user: User = Depend
 
 @app.get("/api/deployments/{deployment_id}/metrics/history")
 async def get_deployment_metrics_history(deployment_id: str, period: str = "1h", current_user: User = Depends(get_current_user)):
-    """Get historical metrics for a deployment - requires authentication"""
+    """Get historical metrics for a deployment - requires authentication and ownership"""
+    owner = get_deployment_owner(deployment_id)
+    if owner and owner != str(current_user.id):
+        raise HTTPException(status_code=403, detail="You do not own this deployment")
     try:
         all_metrics = load_metrics()
 
@@ -2710,11 +2802,9 @@ async def get_deployment_metrics_history(deployment_id: str, period: str = "1h",
 # USAGE LIMITS & RATE LIMITING
 # ============================================================================
 
-LIMITS_FILE = "usage_limits.json"
-
-def load_limits():
-    """Load usage limits configuration"""
-    default_limits = {
+def _default_limits():
+    """Default usage limits for a new user"""
+    return {
         "api_requests_per_minute": 60,
         "api_requests_per_day": 10000,
         "max_concurrent_deployments": 5,
@@ -2724,29 +2814,37 @@ def load_limits():
         "auto_stop_threshold": 500.00,
         "enabled": True
     }
-    if os.path.exists(LIMITS_FILE):
-        with open(LIMITS_FILE, 'r') as f:
-            saved = json.load(f)
-            for key in default_limits:
-                if key not in saved:
-                    saved[key] = default_limits[key]
-            return saved
-    return default_limits
 
-def save_limits(limits):
-    """Save usage limits configuration"""
-    with open(LIMITS_FILE, 'w') as f:
+def load_limits(user_id: str):
+    """Load usage limits for a specific user"""
+    defaults = _default_limits()
+    path = _user_file(user_id, "limits.json")
+    if os.path.exists(path):
+        with open(path, 'r') as f:
+            saved = json.load(f)
+            for key in defaults:
+                if key not in saved:
+                    saved[key] = defaults[key]
+            return saved
+    return defaults
+
+def save_limits(user_id: str, limits):
+    """Save usage limits for a specific user"""
+    path = _user_file(user_id, "limits.json")
+    with open(path, 'w') as f:
         json.dump(limits, f, indent=2)
 
 @app.get("/api/limits")
 async def get_limits(current_user: User = Depends(get_current_user)):
     """Get current usage limits for the current user"""
-    limits = load_limits()
+    user_id = str(current_user.id)
+    limits = load_limits(user_id)
 
     # Add current usage stats
-    keys = load_api_keys()
-    settings = load_settings()
-    stats = load_usage_stats()
+    user_id = str(current_user.id)
+    keys = load_api_keys(user_id)
+    settings = load_settings(user_id)
+    stats = load_usage_stats(user_id)
 
     today = datetime.now().strftime("%Y-%m-%d")
     today_requests = stats.get("requests_by_day", {}).get(today, 0)
@@ -2774,40 +2872,40 @@ class LimitsUpdateRequest(BaseModel):
 @app.put("/api/limits")
 async def update_limits(request: LimitsUpdateRequest, current_user: User = Depends(get_current_user)):
     """Update usage limits for the current user"""
-    limits = load_limits()
+    user_id = str(current_user.id)
+    limits = load_limits(user_id)
     updates = request.model_dump(exclude_none=True)
     for key, value in updates.items():
         limits[key] = value
-    save_limits(limits)
+    save_limits(user_id, limits)
     return {"success": True, "limits": limits}
 
 # ============================================================================
 # COST TRACKING
 # ============================================================================
 
-COST_FILE = "cost_tracking.json"
-
-def load_cost_data():
-    """Load cost tracking data"""
+def load_cost_data(user_id: str):
+    """Load cost tracking data for a specific user"""
     default_data = {
-        "hourly_rates": {},  # deployment_id -> hourly_rate
-        "usage_hours": {},   # deployment_id -> {"date": hours}
-        "daily_costs": {},   # "YYYY-MM-DD" -> cost
-        "monthly_totals": {} # "YYYY-MM" -> cost
+        "hourly_rates": {},
+        "usage_hours": {},
+        "daily_costs": {},
+        "monthly_totals": {}
     }
-    if os.path.exists(COST_FILE):
-        with open(COST_FILE, 'r') as f:
+    path = _user_file(user_id, "costs.json")
+    if os.path.exists(path):
+        with open(path, 'r') as f:
             return json.load(f)
     return default_data
 
-def save_cost_data(data):
-    """Save cost tracking data"""
-    with open(COST_FILE, 'w') as f:
+def save_cost_data(user_id: str, data):
+    """Save cost tracking data for a specific user"""
+    path = _user_file(user_id, "costs.json")
+    with open(path, 'w') as f:
         json.dump(data, f, indent=2)
 
-def record_deployment_cost(deployment_id: str, gpu_type: str, hours: float = 1.0):
-    """Record cost for a deployment"""
-    # GPU hourly rates (spot prices)
+def record_deployment_cost(user_id: str, deployment_id: str, gpu_type: str, hours: float = 1.0):
+    """Record cost for a deployment for a specific user"""
     gpu_rates = {
         "Tesla-V100-16GB": 0.076,
         "RTX-A6000": 0.125,
@@ -2821,36 +2919,26 @@ def record_deployment_cost(deployment_id: str, gpu_type: str, hours: float = 1.0
     rate = gpu_rates.get(gpu_type, 0.20)
     cost = rate * hours
 
-    data = load_cost_data()
+    data = load_cost_data(user_id)
     today = datetime.now().strftime("%Y-%m-%d")
     month = datetime.now().strftime("%Y-%m")
 
-    # Update hourly rate tracking
     data["hourly_rates"][deployment_id] = rate
-
-    # Update daily cost
     if today not in data["daily_costs"]:
         data["daily_costs"][today] = 0
     data["daily_costs"][today] += cost
-
-    # Update monthly total
     if month not in data["monthly_totals"]:
         data["monthly_totals"][month] = 0
     data["monthly_totals"][month] += cost
 
-    save_cost_data(data)
-
-    # Also update billing in settings
-    settings = load_settings()
-    settings["billing"]["current_month"] = data["monthly_totals"].get(month, 0)
-    save_settings(settings)
-
+    save_cost_data(user_id, data)
     return cost
 
 @app.get("/api/costs")
 async def get_cost_breakdown(current_user: User = Depends(get_current_user)):
     """Get detailed cost breakdown for the current user"""
-    data = load_cost_data()
+    user_id = str(current_user.id)
+    data = load_cost_data(user_id)
     today = datetime.now()
     current_month = today.strftime("%Y-%m")
     last_month = (today.replace(day=1) - __import__('datetime').timedelta(days=1)).strftime("%Y-%m")
@@ -2886,7 +2974,8 @@ async def get_cost_breakdown(current_user: User = Depends(get_current_user)):
 @app.post("/api/costs/simulate")
 async def simulate_cost(hours: float = 1.0, deployment_id: str = "demo", gpu_type: str = "A100-40GB", current_user: User = Depends(get_current_user)):
     """Simulate recording a cost (for testing)"""
-    cost = record_deployment_cost(deployment_id, gpu_type, hours)
+    user_id = str(current_user.id)
+    cost = record_deployment_cost(user_id, deployment_id, gpu_type, hours)
     return {"success": True, "cost_recorded": round(cost, 4), "deployment_id": deployment_id}
 
 # ============================================================================
@@ -2895,7 +2984,8 @@ async def simulate_cost(hours: float = 1.0, deployment_id: str = "demo", gpu_typ
 
 @app.post("/api/danger/reset-usage")
 async def reset_usage_stats(current_user: User = Depends(get_current_user)):
-    """Reset all usage statistics (danger zone) - requires authentication"""
+    """Reset usage statistics for the current user only"""
+    user_id = str(current_user.id)
     default_stats = {
         "total_requests": 0,
         "requests_by_key": {},
@@ -2903,44 +2993,57 @@ async def reset_usage_stats(current_user: User = Depends(get_current_user)):
         "requests_by_deployment": {},
         "last_updated": datetime.now().isoformat()
     }
-    save_usage_stats(default_stats)
+    save_usage_stats(user_id, default_stats)
     return {"success": True, "message": "Usage statistics have been reset"}
 
 @app.post("/api/danger/revoke-all-keys")
 async def revoke_all_api_keys(current_user: User = Depends(get_current_user)):
-    """Revoke all API keys (danger zone) - requires authentication"""
-    save_api_keys([])
+    """Revoke all API keys for the current user only"""
+    user_id = str(current_user.id)
+    save_api_keys(user_id, [])
     return {"success": True, "message": "All API keys have been revoked"}
 
 @app.post("/api/danger/stop-all-deployments")
 async def stop_all_deployments(current_user: User = Depends(get_current_user)):
-    """Stop all active deployments (danger zone) - requires authentication"""
+    """Stop all of the current user's active deployments only"""
+    user_id = str(current_user.id)
+
     if DEMO_MODE or verda_client is None:
-        return {"success": False, "message": "Cannot stop deployments in demo mode"}
+        # Demo mode: stop only this user's instances
+        user_instances = [iid for iid, inst in COMPUTE_INSTANCES.items() if inst.get("user_id") == user_id]
+        for iid in user_instances:
+            del COMPUTE_INSTANCES[iid]
+        return {"success": True, "stopped_count": len(user_instances), "message": f"Stopped {len(user_instances)} deployments"}
 
     try:
-        # Get all deployments
+        user_deps = get_user_deployment_ids(user_id)
         containers = verda_client.list_deployments()
         instances = verda_client.list_instances()
 
         stopped = 0
         errors = []
 
-        # Stop containers
         for c in containers:
+            cid = c.get('id')
+            if cid not in user_deps:
+                continue
             try:
-                verda_client.delete_deployment(c.get('id'))
+                verda_client.delete_deployment(cid)
+                unregister_deployment(cid)
                 stopped += 1
             except Exception as e:
-                errors.append(f"Container {c.get('id')}: {str(e)}")
+                errors.append(f"Container {cid}: {str(e)}")
 
-        # Stop instances
         for i in instances:
+            iid = i.get('id')
+            if iid not in user_deps:
+                continue
             try:
-                verda_client.delete_instance(i.get('id'))
+                verda_client.delete_instance(iid)
+                unregister_deployment(iid)
                 stopped += 1
             except Exception as e:
-                errors.append(f"Instance {i.get('id')}: {str(e)}")
+                errors.append(f"Instance {iid}: {str(e)}")
 
         return {
             "success": True,

@@ -1747,6 +1747,10 @@
                     supabaseClient.auth.signOut().catch(() => {});
                 }
                 this.clearTokens();
+                // Clear polling intervals
+                if (window._statsIntervalId) { clearInterval(window._statsIntervalId); window._statsIntervalId = null; }
+                if (window._metricsIntervalId) { clearInterval(window._metricsIntervalId); window._metricsIntervalId = null; }
+                window._hasSSHKey = false;
                 this.updateUI();
                 toastManager.success('Logged out', 'You have been signed out successfully');
             },
@@ -1803,9 +1807,9 @@
                 }
 
                 try {
-                    const response = await fetch(`${API_BASE}/api/billing/checkout`, {
+                    const response = await authFetch(`${API_BASE}/api/billing/checkout`, {
                         method: 'POST',
-                        headers: this.getAuthHeaders(),
+                        headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ tier })
                     });
 
@@ -2356,11 +2360,12 @@
                 const response = await authFetch(API_BASE + '/api/stats');
                 const data = await response.json();
 
-                // Update stats cards
-                document.querySelector('[data-stat="deployments"]').textContent = data.active_deployments;
-                document.querySelector('[data-stat="requests"]').textContent = formatNumber(data.api_requests);
-                document.querySelector('[data-stat="cost"]').textContent = '$' + data.monthly_cost;
-                document.querySelector('[data-stat="uptime"]').textContent = data.uptime + '%';
+                // Update stats cards if elements exist
+                const el = (sel) => document.querySelector(sel);
+                if (el('[data-stat="deployments"]')) el('[data-stat="deployments"]').textContent = data.active_deployments;
+                if (el('[data-stat="requests"]')) el('[data-stat="requests"]').textContent = formatNumber(data.api_requests);
+                if (el('[data-stat="cost"]')) el('[data-stat="cost"]').textContent = '$' + data.monthly_cost;
+                if (el('[data-stat="uptime"]')) el('[data-stat="uptime"]').textContent = data.uptime + '%';
 
                 // Show demo mode banner if applicable
                 const demoBanner = document.getElementById('demo-mode-banner');
@@ -2372,7 +2377,7 @@
                     }
                 }
             } catch (error) {
-                console.error('Error loading stats:', error);
+                // Stats loading failed silently
             }
         }
 
@@ -3925,7 +3930,7 @@
 
             const logEntry = document.createElement('p');
             logEntry.className = colorClass;
-            logEntry.innerHTML = `<span class="text-gray-500">[${timestamp}]</span> ${message}`;
+            logEntry.innerHTML = `<span class="text-gray-500">[${escapeHtml(timestamp)}]</span> ${escapeHtml(message)}`;
             logContainer.appendChild(logEntry);
 
             // Auto-scroll to bottom
@@ -4577,8 +4582,8 @@
                     <div class="flex items-center justify-between mb-3">
                         <div class="flex items-center space-x-3">
                             <div class="w-2 h-2 ${statusClass} rounded-full"></div>
-                            <span class="font-medium text-gray-900">${webhook.name}</span>
-                            <span class="text-xs text-gray-500">${statusText}</span>
+                            <span class="font-medium text-gray-900">${escapeHtml(webhook.name)}</span>
+                            <span class="text-xs text-gray-500">${escapeHtml(statusText)}</span>
                         </div>
                         <div class="flex items-center space-x-2">
                             <button onclick="toggleWebhook('${webhook.id}')" class="text-sm text-anthropic-600 hover:text-anthropic-700">
@@ -4590,12 +4595,12 @@
                     <div class="space-y-2">
                         <div>
                             <p class="text-xs text-gray-700 mb-1">URL</p>
-                            <code class="text-xs bg-white border border-gray-200 px-2 py-1 rounded block overflow-x-auto">${webhook.url}</code>
+                            <code class="text-xs bg-white border border-gray-200 px-2 py-1 rounded block overflow-x-auto">${escapeHtml(webhook.url)}</code>
                         </div>
                         <div>
                             <p class="text-xs text-gray-700 mb-1">Events</p>
                             <div class="flex flex-wrap gap-1">
-                                ${webhook.events.map(e => `<span class="px-2 py-0.5 bg-anthropic-100 text-anthropic-700 text-xs rounded">${e}</span>`).join('')}
+                                ${webhook.events.map(e => `<span class="px-2 py-0.5 bg-anthropic-100 text-anthropic-700 text-xs rounded">${escapeHtml(e)}</span>`).join('')}
                             </div>
                         </div>
                         ${webhook.last_triggered ? `<p class="text-xs text-gray-500">Last triggered: ${new Date(webhook.last_triggered).toLocaleString()}</p>` : ''}
@@ -4995,8 +5000,12 @@
             loadDashboard();
             startDashboardRefresh();
 
+            // Clear any previous intervals to prevent accumulation on re-login
+            if (window._statsIntervalId) clearInterval(window._statsIntervalId);
+            if (window._metricsIntervalId) clearInterval(window._metricsIntervalId);
+
             // Refresh stats every 30 seconds
-            setInterval(loadStats, 30000);
+            window._statsIntervalId = setInterval(loadStats, 30000);
 
             // Load metrics for deployments after they're loaded
             setTimeout(async () => {
@@ -5010,7 +5019,7 @@
             }, 1000);
 
             // Refresh deployment metrics every 30 seconds
-            setInterval(async () => {
+            window._metricsIntervalId = setInterval(async () => {
                 try {
                     const response = await authFetch(API_BASE + '/api/deployments');
                     const data = await response.json();
