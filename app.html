@@ -178,8 +178,8 @@
                 <div class="hidden md:flex items-center space-x-8">
                     <a href="#" onclick="switchTab('applications'); return false;" class="text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition text-sm font-medium">Home</a>
                     <a href="#" onclick="switchTab('pricing'); return false;" class="text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition text-sm font-medium">Pricing</a>
-                    <a href="#" class="text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition text-sm font-medium">Documentation</a>
-                    <a href="#" class="text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition text-sm font-medium">Support</a>
+                    <a href="https://docs.polaris.computer" target="_blank" class="text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition text-sm font-medium">Documentation</a>
+                    <a href="mailto:support@polaris.computer" class="text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition text-sm font-medium">Support</a>
                 </div>
 
                 <!-- User Menu -->
@@ -542,7 +542,9 @@
 
                 <!-- Template Cards Grid -->
                 <div id="applications-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    <p class="text-gray-600 dark:text-gray-400 col-span-full">Loading applications...</p>
+                    <div class="animate-pulse bg-gray-200 dark:bg-gray-700 rounded-xl h-48"></div>
+                    <div class="animate-pulse bg-gray-200 dark:bg-gray-700 rounded-xl h-48"></div>
+                    <div class="animate-pulse bg-gray-200 dark:bg-gray-700 rounded-xl h-48"></div>
                 </div>
 
             </div>
@@ -674,7 +676,10 @@
 
                 <!-- API Key List -->
                 <div id="api-keys-list" class="space-y-4">
-                    <p class="text-gray-600">Loading API keys...</p>
+                    <div class="animate-pulse space-y-3">
+                        <div class="bg-gray-200 dark:bg-gray-700 rounded-lg h-24"></div>
+                        <div class="bg-gray-200 dark:bg-gray-700 rounded-lg h-24"></div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -706,8 +711,15 @@
                         </div>
                     </div>
                     <div id="usage-chart" class="h-64 flex items-end justify-between gap-1">
-                        <!-- Chart bars will be rendered here -->
-                        <p class="text-gray-600 w-full text-center">Loading chart...</p>
+                        <div class="animate-pulse flex items-end justify-between gap-1 w-full h-full">
+                            <div class="bg-gray-200 dark:bg-gray-700 rounded-t w-full" style="height:30%"></div>
+                            <div class="bg-gray-200 dark:bg-gray-700 rounded-t w-full" style="height:50%"></div>
+                            <div class="bg-gray-200 dark:bg-gray-700 rounded-t w-full" style="height:70%"></div>
+                            <div class="bg-gray-200 dark:bg-gray-700 rounded-t w-full" style="height:40%"></div>
+                            <div class="bg-gray-200 dark:bg-gray-700 rounded-t w-full" style="height:60%"></div>
+                            <div class="bg-gray-200 dark:bg-gray-700 rounded-t w-full" style="height:45%"></div>
+                            <div class="bg-gray-200 dark:bg-gray-700 rounded-t w-full" style="height:55%"></div>
+                        </div>
                     </div>
                 </div>
 
@@ -827,8 +839,9 @@
                         </div>
 
                         <div id="gpu-cards" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                            <!-- GPU cards will be loaded here -->
-                            <p class="text-gray-600">Loading GPUs...</p>
+                            <div class="animate-pulse bg-gray-200 dark:bg-gray-700 rounded-xl h-32"></div>
+                            <div class="animate-pulse bg-gray-200 dark:bg-gray-700 rounded-xl h-32"></div>
+                            <div class="animate-pulse bg-gray-200 dark:bg-gray-700 rounded-xl h-32"></div>
                         </div>
                     </div>
 
@@ -890,7 +903,9 @@
                 <div>
                     <h4 class="text-lg font-semibold mb-3 dark:text-white">Available GPUs</h4>
                     <div id="compute-gpu-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        <p class="text-gray-500 dark:text-gray-400 col-span-full text-center py-8">Loading GPUs...</p>
+                        <div class="animate-pulse bg-gray-200 dark:bg-gray-700 rounded-xl h-32"></div>
+                        <div class="animate-pulse bg-gray-200 dark:bg-gray-700 rounded-xl h-32"></div>
+                        <div class="animate-pulse bg-gray-200 dark:bg-gray-700 rounded-xl h-32"></div>
                     </div>
                 </div>
             </div>
@@ -1030,11 +1045,11 @@
                             </div>
                         </div>
                         <div class="text-white">
-                            <h2 class="text-3xl font-bold tracking-tight">Wizkid</h2>
-                            <p class="text-white/60 text-sm">wizkid@polaris.computer</p>
+                            <h2 id="profile-display-name" class="text-3xl font-bold tracking-tight">Loading...</h2>
+                            <p id="profile-display-email" class="text-white/60 text-sm"></p>
                             <div class="flex items-center space-x-3 mt-3">
-                                <span class="px-3 py-1 bg-gradient-to-r from-purple-500/30 to-pink-500/30 backdrop-blur border border-white/10 rounded-full text-sm font-medium">Pro</span>
-                                <span class="px-3 py-1 bg-white/10 backdrop-blur border border-white/10 rounded-full text-sm">3 GPUs Active</span>
+                                <span id="profile-display-tier" class="px-3 py-1 bg-gradient-to-r from-purple-500/30 to-pink-500/30 backdrop-blur border border-white/10 rounded-full text-sm font-medium">Free</span>
+                                <span id="profile-display-gpus" class="px-3 py-1 bg-white/10 backdrop-blur border border-white/10 rounded-full text-sm">0 GPUs Active</span>
                             </div>
                         </div>
                     </div>
@@ -1151,7 +1166,7 @@
 
                     <div class="flex items-center justify-between pt-4 border-t border-gray-200 dark:border-gray-700">
                         <p class="text-sm text-gray-600 dark:text-gray-400">Need to update billing details?</p>
-                        <button class="text-anthropic-600 hover:text-anthropic-700 text-sm font-medium">Contact Support →</button>
+                        <a href="mailto:support@polaris.computer" class="text-anthropic-600 hover:text-anthropic-700 text-sm font-medium">Contact Support →</a>
                     </div>
                 </div>
 
@@ -1977,11 +1992,11 @@
                     const data = await response.json();
                     if (data.slot_id) {
                         activeWarmSlots.set(templateId, data);
-                        console.log(`Warming triggered for ${templateId}:`, data);
+                        // Warming triggered successfully
                     }
                 }
             } catch (error) {
-                console.log('Warming trigger failed (non-critical):', error);
+                // Warming trigger failed (non-critical)
             }
         }
 
@@ -1995,7 +2010,7 @@
                     return data.slots || [];
                 }
             } catch (error) {
-                console.log('Failed to get warm slots:', error);
+                // Failed to get warm slots (non-critical)
             }
             return [];
         }
@@ -2536,7 +2551,7 @@
 
                 const container = document.getElementById('api-keys-list');
                 if (!data.keys || data.keys.length === 0) {
-                    container.innerHTML = '<p class="text-gray-600">No API keys yet. Generate your first key!</p>';
+                    container.innerHTML = '<div class="text-center py-8"><p class="text-gray-500 dark:text-gray-400">No API keys yet.</p><p class="text-sm text-gray-400 dark:text-gray-500 mt-1">Generate your first key to start using the API.</p></div>';
                     return;
                 }
 
@@ -2820,7 +2835,7 @@
 
         async function loadComputeGPUs() {
             const container = document.getElementById('compute-gpu-grid');
-            container.innerHTML = '<p class="text-gray-500 dark:text-gray-400 col-span-full text-center py-8">Loading GPUs...</p>';
+            container.innerHTML = '<div class="animate-pulse bg-gray-200 dark:bg-gray-700 rounded-xl h-32"></div><div class="animate-pulse bg-gray-200 dark:bg-gray-700 rounded-xl h-32"></div><div class="animate-pulse bg-gray-200 dark:bg-gray-700 rounded-xl h-32"></div>';
 
             try {
                 const response = await fetch(API_BASE + '/api/compute/gpus');
@@ -2917,6 +2932,10 @@
 
                 const section = document.getElementById('compute-active-section');
                 const container = document.getElementById('compute-active-instances');
+
+                const runningCount = (data.instances || []).filter(i => i.status === 'running' || i.status === 'starting').length;
+                const gpuBadge = document.getElementById('profile-display-gpus');
+                if (gpuBadge) gpuBadge.textContent = `${runningCount} GPU${runningCount !== 1 ? 's' : ''} Active`;
 
                 if (!data.instances || data.instances.length === 0) {
                     section.classList.add('hidden');
@@ -3774,7 +3793,7 @@
             // Set a timeout - if WebSocket doesn't connect in 3 seconds, fall back to polling
             const wsTimeout = setTimeout(() => {
                 if (deploymentWebSocket.readyState !== WebSocket.OPEN) {
-                    console.log('WebSocket timeout, falling back to polling');
+                    // WebSocket timeout, fall back to polling
                     deploymentWebSocket.close();
                     startDeploymentPolling(deploymentId);
                 }
@@ -3782,7 +3801,7 @@
 
             deploymentWebSocket.onopen = () => {
                 clearTimeout(wsTimeout);
-                console.log('WebSocket connected');
+                // WebSocket connected
                 addDeploymentLog('Connected to deployment stream', 'info');
             };
 
@@ -3819,7 +3838,7 @@
             };
 
             deploymentWebSocket.onclose = () => {
-                console.log('WebSocket closed');
+                // WebSocket closed
             };
         }
 
@@ -4232,7 +4251,7 @@
             const container = document.getElementById('usage-chart');
 
             if (!dailyData || dailyData.length === 0) {
-                container.innerHTML = '<p class="text-gray-600 w-full text-center">No usage data yet. Make some API requests to see analytics.</p>';
+                container.innerHTML = '<div class="flex items-center justify-center w-full h-full"><p class="text-gray-400 dark:text-gray-500 text-sm">No usage data yet. Make some API requests to see analytics.</p></div>';
                 return;
             }
 
@@ -4336,10 +4355,18 @@
                 const data = await response.json();
 
                 // Account info
-                document.getElementById('settings-name').value = data.account?.name || '';
-                document.getElementById('settings-email').value = data.account?.email || '';
+                const userName = data.account?.name || auth.user?.name || 'User';
+                const userEmail = data.account?.email || auth.user?.email || '';
+                const userPlan = data.account?.plan || 'Free';
+                document.getElementById('settings-name').value = userName;
+                document.getElementById('settings-email').value = userEmail;
                 document.getElementById('settings-company').value = data.account?.company || '';
-                document.getElementById('account-plan-badge').textContent = data.account?.plan || 'Free';
+                document.getElementById('account-plan-badge').textContent = userPlan;
+
+                // Profile header
+                document.getElementById('profile-display-name').textContent = userName;
+                document.getElementById('profile-display-email').textContent = userEmail;
+                document.getElementById('profile-display-tier').textContent = userPlan;
 
                 // Billing info
                 document.getElementById('billing-current').textContent = '$' + (data.billing?.current_month || 0).toFixed(2);
