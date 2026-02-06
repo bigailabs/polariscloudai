@@ -547,6 +547,22 @@
                     <div class="animate-pulse bg-gray-200 dark:bg-gray-700 rounded-xl h-48"></div>
                 </div>
 
+                <!-- Running Deployments -->
+                <div class="mt-8">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-xl font-bold">Running Deployments</h3>
+                        <select id="deployment-status-filter" onchange="filterDeploymentsByStatus(this.value)" class="bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-1.5 text-sm">
+                            <option value="all">All</option>
+                            <option value="running">Running</option>
+                            <option value="stopped">Stopped</option>
+                            <option value="failed">Failed</option>
+                        </select>
+                    </div>
+                    <div id="template-deployments-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        <p class="text-gray-500 col-span-full text-center py-8">Loading deployments...</p>
+                    </div>
+                </div>
+
             </div>
 
             <!-- Step 2: Configure Template Deployment -->
@@ -4051,16 +4067,16 @@
 
         function renderApplicationDeployments(deployments) {
             const container = document.getElementById('template-deployments-list');
+            if (!container) return;
 
-            // Only show running deployments
-            const runningDeployments = deployments ? deployments.filter(d => d.status === 'running') : [];
+            const filtered = deployments || [];
 
-            if (runningDeployments.length === 0) {
-                container.innerHTML = '<p class="text-gray-500 col-span-full text-center py-8">No active deployments. Deploy an application to get started.</p>';
+            if (filtered.length === 0) {
+                container.innerHTML = '<p class="text-gray-500 col-span-full text-center py-8">No deployments found. Deploy an application to get started.</p>';
                 return;
             }
 
-            container.innerHTML = runningDeployments.map(d => createTemplateDeploymentCard(d)).join('');
+            container.innerHTML = filtered.map(d => createTemplateDeploymentCard(d)).join('');
         }
 
         function createTemplateDeploymentCard(deployment) {
