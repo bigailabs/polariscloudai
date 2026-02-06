@@ -1511,7 +1511,7 @@
 
             // Listen for auth state changes (handles OAuth redirect)
             supabaseClient.auth.onAuthStateChange(async (event, session) => {
-                if (event === 'SIGNED_IN' && session) {
+                if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session && !auth.isLoggedIn()) {
                     await handleOAuthCallback(session);
                 }
             });
@@ -1526,7 +1526,7 @@
             const { data, error } = await supabaseClient.auth.signInWithOAuth({
                 provider: 'google',
                 options: {
-                    redirectTo: window.location.origin
+                    redirectTo: `${API_BASE}/app`
                 }
             });
 
@@ -1572,13 +1572,13 @@
             accessToken: null,
             refreshToken: null,
 
-            init() {
+            async init() {
                 // Load tokens from localStorage
                 this.accessToken = localStorage.getItem('access_token');
                 this.refreshToken = localStorage.getItem('refresh_token');
 
                 if (this.accessToken) {
-                    this.fetchUser();
+                    await this.fetchUser();
                 } else {
                     this.updateUI();
                 }
@@ -4780,9 +4780,9 @@
             }, 30000);
         }
 
-        document.addEventListener('DOMContentLoaded', () => {
-            // Initialize authentication first
-            auth.init();
+        document.addEventListener('DOMContentLoaded', async () => {
+            // Initialize authentication first (await token validation)
+            await auth.init();
 
             // Auth guard: show login modal if not logged in
             if (!auth.isLoggedIn()) {
