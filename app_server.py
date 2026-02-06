@@ -1795,7 +1795,14 @@ async def get_gpus():
         if DEMO_MODE or verda_client is None:
             gpus = DEMO_GPUS
         else:
-            gpus = verda_client.get_available_gpus()
+            try:
+                gpus = await asyncio.wait_for(
+                    asyncio.get_event_loop().run_in_executor(None, verda_client.get_available_gpus),
+                    timeout=15.0
+                )
+            except asyncio.TimeoutError:
+                print("Verda get_available_gpus timed out after 15s")
+                gpus = DEMO_GPUS
 
         # Format for frontend
         formatted = []
@@ -1869,7 +1876,14 @@ async def get_compute_gpus():
             all_gpus.extend(demo_gpus)
         else:
             # Get real GPU pricing from Verda
-            verda_gpus = verda_client.get_available_gpus()
+            try:
+                verda_gpus = await asyncio.wait_for(
+                    asyncio.get_event_loop().run_in_executor(None, verda_client.get_available_gpus),
+                    timeout=15.0
+                )
+            except asyncio.TimeoutError:
+                print("Verda get_available_gpus timed out after 15s")
+                verda_gpus = []
             for gpu in verda_gpus:
                 base_price = gpu.get('instance_spot_price', 0)
                 all_gpus.append({
@@ -1889,7 +1903,14 @@ async def get_compute_gpus():
     # Add Targon GPUs
     try:
         if targon_client:
-            targon_gpus = targon_client.get_available_gpus()
+            try:
+                targon_gpus = await asyncio.wait_for(
+                    asyncio.get_event_loop().run_in_executor(None, targon_client.get_available_gpus),
+                    timeout=15.0
+                )
+            except asyncio.TimeoutError:
+                print("Targon get_available_gpus timed out after 15s")
+                targon_gpus = []
             for gpu in targon_gpus:
                 base_price = gpu.get('instance_spot_price', 0)
                 all_gpus.append({
@@ -2032,6 +2053,10 @@ async def create_compute_instance(request: ComputeInstanceRequest, current_user:
                 detail="SSH key required. Add one in Settings or provide in request."
             )
 
+        # Validate GPU type
+        if not request.gpu_type or len(request.gpu_type.strip()) < 2:
+            raise HTTPException(status_code=400, detail="Invalid GPU type specified.")
+
         # Handle serverless deployment type
         if request.deployment_type == "serverless":
             if DEMO_MODE or verda_client is None:
@@ -2063,6 +2088,7 @@ async def create_compute_instance(request: ComputeInstanceRequest, current_user:
                     "gpu_type": request.gpu_type,
                     "status": "starting",
                     "ip": None,
+                    "ssh_user": "root",
                     "hourly_cost": 0.091,  # Demo price with markup
                     "created_at": datetime.now().isoformat(),
                     "ssh_key_added": True,

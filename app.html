@@ -2901,7 +2901,7 @@
             }
 
             return `
-                <div class="card bg-white dark:bg-[#1a1a1a] border-2 border-gray-200 dark:border-gray-700 rounded-xl p-6 shadow-sm hover:shadow-md hover:border-anthropic-500 dark:hover:border-anthropic-500 transition-all ${availableClass}" ${available ? `onclick="openComputeModal('${gpu.name}')"` : ''}>
+                <div class="card bg-white dark:bg-[#1a1a1a] border-2 border-gray-200 dark:border-gray-700 rounded-xl p-6 shadow-sm hover:shadow-md hover:border-anthropic-500 dark:hover:border-anthropic-500 transition-all ${availableClass}" ${available ? `onclick="openComputeModal('${escapeHtml(gpu.name)}')"` : ''}>
                     <div class="flex items-start justify-between mb-4">
                         <div class="w-12 h-12 bg-gradient-to-br ${tierColor} rounded-lg flex items-center justify-center">
                             <span class="text-2xl">${tierIcon}</span>
@@ -2911,12 +2911,13 @@
                             ${providerBadge}
                         </div>
                     </div>
-                    <h4 class="text-lg font-semibold mb-1 dark:text-white">${gpu.display_name || gpu.name}</h4>
-                    <p class="text-sm text-gray-500 dark:text-gray-400 mb-3">${gpu.memory} VRAM</p>
+                    <h4 class="text-lg font-semibold mb-1 dark:text-white">${escapeHtml(gpu.display_name || gpu.name)}</h4>
+                    <p class="text-sm text-gray-500 dark:text-gray-400 mb-3">${escapeHtml(gpu.memory)} VRAM</p>
                     <div class="flex items-center justify-between">
                         <div>
                             <span class="text-xl font-bold text-anthropic-600">$${price.toFixed(3)}</span>
-                            <span class="text-sm text-gray-500">/hr</span>
+                            <span class="text-sm text-gray-500">/hr spot</span>
+                            ${gpu.on_demand_price ? `<p class="text-xs text-gray-400 dark:text-gray-500">On-demand: $${gpu.on_demand_price.toFixed(3)}/hr</p>` : ''}
                         </div>
                         ${available ? '<span class="text-anthropic-600 text-sm font-medium">Rent →</span>' : ''}
                     </div>
@@ -2978,7 +2979,8 @@
             const providerColor = providerColors[provider] || 'bg-gray-100 dark:bg-gray-800 text-gray-600';
 
             // SSH command - Targon uses gateway, Verda uses direct IP
-            const sshCommand = instance.ssh_command || (instance.ip ? `ssh root@${instance.ip}` : null);
+            const sshUser = instance.ssh_user || 'root';
+            const sshCommand = instance.ssh_command || (instance.ip ? `ssh ${sshUser}@${instance.ip}` : null);
             const hasConnection = instance.ip || instance.ssh_command;
 
             return `
