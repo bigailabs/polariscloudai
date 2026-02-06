@@ -188,12 +188,6 @@ if DEMO_MODE:
     print("🎮 Running in DEMO MODE - GPU deployments disabled")
 
 # Data models
-class DeploymentRequest(BaseModel):
-    name: str
-    gpu_type: str
-    deployment_type: str = "raw_compute"  # raw_compute or serverless
-    use_spot: bool = True
-
 class APIKeyRequest(BaseModel):
     name: str
     description: Optional[str] = None
@@ -1386,51 +1380,6 @@ async def get_deployments(current_user: User = Depends(get_current_user)):
         traceback.print_exc()
         return {"deployments": []}
 
-@app.post("/api/deployments/deploy")
-async def deploy_server(request: DeploymentRequest, current_user: User = Depends(get_current_user)):
-    """Deploy a new server - requires authentication"""
-    if DEMO_MODE or verda_client is None:
-        raise HTTPException(status_code=503, detail="Deployments disabled in demo mode. Configure Verda credentials to enable.")
-
-    try:
-        print(f"Deploying: {request.name} on {request.gpu_type}")
-
-        # Deploy based on type
-        if request.deployment_type == "raw_compute":
-            # Create raw compute instance
-            result = verda_client.create_instance(
-                name=request.name,
-                gpu_name=request.gpu_type,  # Uses GPU display name
-                use_spot=request.use_spot
-            )
-
-            return {
-                "success": True,
-                "deployment_id": result.get('id'),
-                "message": f"Instance {request.name} created successfully! Check Deployments tab for connection details.",
-                "details": result
-            }
-        else:
-            # Serverless deployment (container)
-            result = verda_client.create_container_deployment(
-                name=request.name,
-                gpu_name=request.gpu_type,
-                use_spot=request.use_spot
-            )
-
-            return {
-                "success": True,
-                "deployment_id": result.get('id'),
-                "message": f"Container {request.name} deployed successfully!",
-                "details": result
-            }
-
-    except Exception as e:
-        print(f"Deployment error: {e}")
-        import traceback
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=str(e))
-
 @app.post("/api/deployments/stop")
 async def stop_deployment(request: StopDeploymentRequest, current_user: User = Depends(get_current_user)):
     """Stop a deployment - requires authentication"""
@@ -1876,7 +1825,8 @@ COMPUTE_INSTANCES = {}
 class ComputeInstanceRequest(BaseModel):
     name: str
     gpu_type: str
-    ssh_public_key: str
+    ssh_public_key: Optional[str] = None
+    deployment_type: str = "raw_compute"  # raw_compute or serverless
     use_spot: bool = True
     quantity: int = Field(default=1, ge=1, le=4)
 
@@ -2031,12 +1981,37 @@ async def list_compute_instances(current_user: User = Depends(get_current_user))
 
 @app.post("/api/compute/instances")
 async def create_compute_instance(request: ComputeInstanceRequest, current_user: User = Depends(get_current_user)):
-    """Create one or more compute instances - requires authentication"""
+    """Create one or more compute instances (unified deployment endpoint) - requires authentication"""
     try:
-        # Validate SSH key
-        if not request.ssh_public_key or not request.ssh_public_key.strip().startswith('ssh-'):
-            raise HTTPException(status_code=400, detail="Valid SSH public key is required")
+        # Resolve SSH key: use request value, fall back to stored key in settings
+        ssh_key = (request.ssh_public_key or "").strip() or None
+        if not ssh_key:
+            settings = load_settings()
+            ssh_key = settings.get("ssh_public_key")
 
+        if not ssh_key or not ssh_key.strip().startswith('ssh-'):
+            raise HTTPException(
+                status_code=400,
+                detail="SSH key required. Add one in Settings or provide in request."
+            )
+
+        # Handle serverless deployment type
+        if request.deployment_type == "serverless":
+            if DEMO_MODE or verda_client is None:
+                raise HTTPException(status_code=503, detail="Serverless deployments disabled in demo mode.")
+            result = verda_client.create_container_deployment(
+                name=request.name,
+                gpu_name=request.gpu_type,
+                use_spot=request.use_spot
+            )
+            return {
+                "success": True,
+                "deployment_id": result.get('id'),
+                "message": f"Container {request.name} deployed successfully!",
+                "details": result
+            }
+
+        # Raw compute deployment
         quantity = request.quantity
         created_instances = []
 
@@ -2072,7 +2047,7 @@ async def create_compute_instance(request: ComputeInstanceRequest, current_user:
                 "success": True,
                 "message": message,
                 "instances": created_instances,
-                "instance": created_instances[0] if created_instances else None  # Backwards compat
+                "instance": created_instances[0] if created_instances else None
             }
 
         # Create real instances via Verda
@@ -2082,7 +2057,7 @@ async def create_compute_instance(request: ComputeInstanceRequest, current_user:
                 name=instance_name,
                 gpu_name=request.gpu_type,
                 use_spot=request.use_spot,
-                ssh_public_key=request.ssh_public_key
+                ssh_public_key=ssh_key
             )
 
             if result:
@@ -2385,6 +2360,7 @@ def load_settings():
             "weekly_summary": False,
             "email_notifications": True
         },
+        "ssh_public_key": None,
         "webhooks": []
     }
     if os.path.exists(SETTINGS_FILE):
@@ -2424,6 +2400,28 @@ async def update_account(request: AccountUpdateRequest, current_user: User = Dep
         settings["account"]["company"] = request.company
     save_settings(settings)
     return {"success": True, "account": settings["account"]}
+
+class SSHKeyRequest(BaseModel):
+    ssh_public_key: str
+
+@app.put("/api/settings/ssh-key")
+async def update_ssh_key(request: SSHKeyRequest, current_user: User = Depends(get_current_user)):
+    """Save or update the user's SSH public key"""
+    key = request.ssh_public_key.strip()
+    if not key.startswith('ssh-rsa ') and not key.startswith('ssh-ed25519 '):
+        raise HTTPException(status_code=400, detail="Invalid SSH key format. Must start with 'ssh-rsa' or 'ssh-ed25519'.")
+    settings = load_settings()
+    settings["ssh_public_key"] = key
+    save_settings(settings)
+    return {"success": True, "message": "SSH key saved."}
+
+@app.delete("/api/settings/ssh-key")
+async def delete_ssh_key(current_user: User = Depends(get_current_user)):
+    """Remove the user's stored SSH public key"""
+    settings = load_settings()
+    settings["ssh_public_key"] = None
+    save_settings(settings)
+    return {"success": True, "message": "SSH key removed."}
 
 class NotificationUpdateRequest(BaseModel):
     deployment_started: Optional[bool] = None

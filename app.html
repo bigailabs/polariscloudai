@@ -911,26 +911,15 @@
                         <p class="text-xs text-gray-500 mt-1">A unique name for your instance</p>
                     </div>
 
-                    <div>
-                        <div class="flex items-center justify-between mb-2">
-                            <label class="block text-sm font-medium dark:text-gray-200">SSH Public Key</label>
-                            <button type="button" onclick="toggleSSHHelp()" class="text-xs text-anthropic-600 hover:text-anthropic-700 font-medium">How do I get this?</button>
+                    <!-- SSH Key Status -->
+                    <div id="compute-ssh-key-notice">
+                        <div id="compute-ssh-ok" class="hidden bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-3 flex items-center space-x-2">
+                            <svg class="w-4 h-4 text-green-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                            <p class="text-sm text-green-700 dark:text-green-300">SSH key saved in Settings — it will be applied automatically.</p>
                         </div>
-                        <textarea id="compute-ssh-key" rows="3" class="w-full bg-white dark:bg-gray-800 dark:text-white border-2 border-gray-300 dark:border-gray-600 rounded-lg px-4 py-2 focus:border-anthropic-600 outline-none transition font-mono text-xs" placeholder="ssh-rsa AAAA... or ssh-ed25519 AAAA..."></textarea>
-                        <p id="ssh-key-error" class="text-xs text-red-500 mt-1 hidden">Please enter a valid SSH public key (must start with ssh-rsa or ssh-ed25519)</p>
-
-                        <!-- SSH Help Panel -->
-                        <div id="ssh-help-panel" class="hidden mt-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
-                            <p class="text-sm font-medium text-blue-800 dark:text-blue-200 mb-2">How to get your SSH public key:</p>
-                            <div class="text-xs text-blue-700 dark:text-blue-300 space-y-2">
-                                <p><strong>Mac/Linux:</strong> Open Terminal and run:</p>
-                                <code class="block bg-blue-100 dark:bg-blue-900/50 px-2 py-1 rounded">cat ~/.ssh/id_ed25519.pub</code>
-                                <p class="text-blue-600 dark:text-blue-400">or if you use RSA:</p>
-                                <code class="block bg-blue-100 dark:bg-blue-900/50 px-2 py-1 rounded">cat ~/.ssh/id_rsa.pub</code>
-                                <p class="mt-2"><strong>Don't have one?</strong> Generate a new key:</p>
-                                <code class="block bg-blue-100 dark:bg-blue-900/50 px-2 py-1 rounded">ssh-keygen -t ed25519</code>
-                                <p class="mt-2 text-blue-600 dark:text-blue-400">Copy the entire output (starts with ssh-ed25519 or ssh-rsa) and paste it above.</p>
-                            </div>
+                        <div id="compute-ssh-missing" class="hidden bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-3 flex items-center space-x-2">
+                            <svg class="w-4 h-4 text-yellow-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                            <p class="text-sm text-yellow-700 dark:text-yellow-300">No SSH key saved. <a href="#" onclick="switchTab('settings'); closeComputeModal(); return false;" class="underline font-medium text-yellow-800 dark:text-yellow-200">Add one in Settings</a> to deploy instances.</p>
                         </div>
                     </div>
 
@@ -1068,6 +1057,34 @@
                             </button>
                         </div>
                     </form>
+                </div>
+
+                <!-- SSH Key -->
+                <div class="card bg-white dark:bg-[#1a1a1a] rounded-xl p-8 border border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-md">
+                    <div class="flex items-center justify-between mb-6">
+                        <div>
+                            <h3 class="text-lg font-semibold mb-1 dark:text-white">SSH Key</h3>
+                            <p class="text-sm text-gray-600 dark:text-gray-400">Used to access your GPU instances via SSH</p>
+                        </div>
+                        <span id="ssh-key-status-badge" class="px-3 py-1 bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 text-xs font-medium rounded-full">No key saved</span>
+                    </div>
+
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium mb-2 dark:text-gray-200">Public Key</label>
+                            <textarea id="settings-ssh-key" rows="3" class="w-full bg-white dark:bg-gray-800 dark:text-white border-2 border-gray-300 dark:border-gray-600 rounded-lg px-4 py-2 focus:border-anthropic-600 focus:ring-2 focus:ring-anthropic-600 focus:ring-opacity-50 outline-none transition font-mono text-xs" placeholder="ssh-ed25519 AAAA... or ssh-rsa AAAA..."></textarea>
+                            <p id="settings-ssh-key-error" class="text-xs text-red-500 mt-1 hidden">Invalid format. Key must start with ssh-rsa or ssh-ed25519.</p>
+                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-2">Your public key is automatically applied to all new GPU deployments. Find yours with: <code class="bg-gray-100 dark:bg-gray-800 px-1 rounded">cat ~/.ssh/id_ed25519.pub</code></p>
+                        </div>
+                        <div class="flex justify-end space-x-3">
+                            <button type="button" onclick="removeSSHKey()" id="remove-ssh-key-btn" class="px-4 py-2 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg text-sm font-medium transition hidden">
+                                Remove Key
+                            </button>
+                            <button type="button" onclick="saveSSHKey()" class="px-4 py-2 bg-gradient-to-r from-anthropic-600 to-anthropic-700 hover:from-anthropic-700 hover:to-anthropic-800 rounded-lg text-sm font-medium text-white transition">
+                                Save Key
+                            </button>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Billing Summary -->
@@ -2960,7 +2977,17 @@
             document.getElementById('compute-quantity').value = '1';
             document.getElementById('compute-modal-total').textContent = `$${price.toFixed(3)}/hr`;
             document.getElementById('compute-instance-name').value = '';
-            document.getElementById('compute-ssh-key').value = '';
+
+            // Show SSH key status
+            if (window._hasSSHKey) {
+                document.getElementById('compute-ssh-ok').classList.remove('hidden');
+                document.getElementById('compute-ssh-missing').classList.add('hidden');
+                document.getElementById('compute-submit-btn').disabled = false;
+            } else {
+                document.getElementById('compute-ssh-ok').classList.add('hidden');
+                document.getElementById('compute-ssh-missing').classList.remove('hidden');
+                document.getElementById('compute-submit-btn').disabled = true;
+            }
 
             document.getElementById('compute-modal').classList.remove('hidden');
         }
@@ -2975,14 +3002,7 @@
 
         function closeComputeModal() {
             document.getElementById('compute-modal').classList.add('hidden');
-            document.getElementById('ssh-help-panel').classList.add('hidden');
-            document.getElementById('ssh-key-error').classList.add('hidden');
             selectedComputeGPU = null;
-        }
-
-        function toggleSSHHelp() {
-            const panel = document.getElementById('ssh-help-panel');
-            panel.classList.toggle('hidden');
         }
 
         async function submitComputeRental(event) {
@@ -2990,12 +3010,7 @@
 
             const name = document.getElementById('compute-instance-name').value.trim();
             const gpuName = document.getElementById('compute-gpu-name').value;
-            const sshKey = document.getElementById('compute-ssh-key').value.trim();
             const quantity = parseInt(document.getElementById('compute-quantity').value) || 1;
-            const sshKeyError = document.getElementById('ssh-key-error');
-
-            // Hide previous error
-            sshKeyError.classList.add('hidden');
 
             if (!name || name.length < 3) {
                 toastManager.warning('Invalid Name', 'Instance name must be at least 3 characters.');
@@ -3003,9 +3018,8 @@
                 return;
             }
 
-            if (!sshKey || (!sshKey.startsWith('ssh-rsa') && !sshKey.startsWith('ssh-ed25519'))) {
-                sshKeyError.classList.remove('hidden');
-                document.getElementById('compute-ssh-key').focus();
+            if (!window._hasSSHKey) {
+                toastManager.warning('SSH Key Required', 'Add an SSH key in Settings before deploying.');
                 return;
             }
 
@@ -3021,7 +3035,6 @@
                     body: JSON.stringify({
                         name: name,
                         gpu_type: gpuName,
-                        ssh_public_key: sshKey,
                         quantity: quantity
                     })
                 });
@@ -3034,7 +3047,6 @@
 
                 // Close modal first, then show success
                 document.getElementById('compute-modal').classList.add('hidden');
-                document.getElementById('ssh-help-panel').classList.add('hidden');
                 selectedComputeGPU = null;
 
                 const instanceText = quantity > 1 ? `${quantity} instances` : name;
@@ -3342,13 +3354,18 @@
                 return;
             }
 
+            if (!window._hasSSHKey) {
+                toastManager.warning('SSH Key Required', 'Add an SSH key in Settings before deploying.');
+                return;
+            }
+
             const submitButton = event.target.querySelector('button[type="submit"]');
             const originalText = submitButton.innerHTML;
             submitButton.disabled = true;
             submitButton.innerHTML = '⏳ Deploying...';
 
             try {
-                const response = await fetch(API_BASE + '/api/deployments/deploy', {
+                const response = await fetch(API_BASE + '/api/compute/instances', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -4248,6 +4265,23 @@
                 document.getElementById('billing-last').textContent = '$' + (data.billing?.last_month || 0).toFixed(2);
                 document.getElementById('billing-method').textContent = data.billing?.payment_method || 'No payment method';
 
+                // SSH Key
+                const sshKey = data.ssh_public_key || '';
+                document.getElementById('settings-ssh-key').value = sshKey;
+                const badge = document.getElementById('ssh-key-status-badge');
+                const removeBtn = document.getElementById('remove-ssh-key-btn');
+                if (sshKey) {
+                    badge.textContent = 'Key saved';
+                    badge.className = 'px-3 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 text-xs font-medium rounded-full';
+                    removeBtn.classList.remove('hidden');
+                    window._hasSSHKey = true;
+                } else {
+                    badge.textContent = 'No key saved';
+                    badge.className = 'px-3 py-1 bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 text-xs font-medium rounded-full';
+                    removeBtn.classList.add('hidden');
+                    window._hasSSHKey = false;
+                }
+
                 // Notification preferences
                 document.getElementById('notif-email').checked = data.notifications?.email_notifications ?? true;
                 document.getElementById('notif-started').checked = data.notifications?.deployment_started ?? true;
@@ -4289,6 +4323,54 @@
             } catch (error) {
                 console.error('Error saving settings:', error);
                 toastManager.error('Save Failed', 'Could not save your settings. Please try again.');
+            }
+        }
+
+        async function saveSSHKey() {
+            const key = document.getElementById('settings-ssh-key').value.trim();
+            const errorEl = document.getElementById('settings-ssh-key-error');
+            errorEl.classList.add('hidden');
+
+            if (!key || (!key.startsWith('ssh-rsa ') && !key.startsWith('ssh-ed25519 '))) {
+                errorEl.classList.remove('hidden');
+                document.getElementById('settings-ssh-key').focus();
+                return;
+            }
+
+            try {
+                const response = await fetch(API_BASE + '/api/settings/ssh-key', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ssh_public_key: key })
+                });
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.detail || 'Failed to save SSH key');
+                toastManager.success('SSH Key Saved', 'Your key will be used for all new deployments.');
+                window._hasSSHKey = true;
+                document.getElementById('ssh-key-status-badge').textContent = 'Key saved';
+                document.getElementById('ssh-key-status-badge').className = 'px-3 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 text-xs font-medium rounded-full';
+                document.getElementById('remove-ssh-key-btn').classList.remove('hidden');
+            } catch (error) {
+                console.error('Error saving SSH key:', error);
+                toastManager.error('Save Failed', error.message);
+            }
+        }
+
+        async function removeSSHKey() {
+            if (!confirm('Remove your SSH key? You will need to add one before deploying new instances.')) return;
+            try {
+                const response = await fetch(API_BASE + '/api/settings/ssh-key', { method: 'DELETE' });
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.detail || 'Failed to remove SSH key');
+                document.getElementById('settings-ssh-key').value = '';
+                window._hasSSHKey = false;
+                document.getElementById('ssh-key-status-badge').textContent = 'No key saved';
+                document.getElementById('ssh-key-status-badge').className = 'px-3 py-1 bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 text-xs font-medium rounded-full';
+                document.getElementById('remove-ssh-key-btn').classList.add('hidden');
+                toastManager.info('SSH Key Removed', 'You can add a new key anytime.');
+            } catch (error) {
+                console.error('Error removing SSH key:', error);
+                toastManager.error('Remove Failed', error.message);
             }
         }
 
