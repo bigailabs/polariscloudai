@@ -1822,6 +1822,22 @@ async def get_gpus():
 # In-memory store for compute instances (in production, use database)
 COMPUTE_INSTANCES = {}
 
+# Simple in-memory rate limiter for compute endpoints
+from collections import defaultdict
+import time as _time
+
+_compute_rate_limits: Dict[str, list] = defaultdict(list)
+
+def check_compute_rate_limit(user_id: str, max_requests: int = 10, window_seconds: int = 60):
+    """Check if a user has exceeded the compute rate limit. Raises 429 if exceeded."""
+    now = _time.time()
+    key = f"compute:{user_id}"
+    # Clean old entries
+    _compute_rate_limits[key] = [t for t in _compute_rate_limits[key] if now - t < window_seconds]
+    if len(_compute_rate_limits[key]) >= max_requests:
+        raise HTTPException(status_code=429, detail="Too many requests. Please wait before creating more instances.")
+    _compute_rate_limits[key].append(now)
+
 class ComputeInstanceRequest(BaseModel):
     name: str
     gpu_type: str
@@ -1935,14 +1951,25 @@ async def get_compute_gpus():
 async def list_compute_instances(current_user: User = Depends(get_current_user)):
     """List active compute instances from all providers - requires authentication"""
     all_instances = []
+    user_id = str(current_user.id)
 
     try:
         if DEMO_MODE or verda_client is None:
-            # Return in-memory instances for demo
-            all_instances.extend(list(COMPUTE_INSTANCES.values()))
+            # Return only this user's in-memory instances
+            all_instances.extend([
+                inst for inst in COMPUTE_INSTANCES.values()
+                if inst.get("user_id") == user_id
+            ])
         else:
-            # Get real instances from Verda
-            verda_instances = verda_client.list_instances()
+            # Get real instances from Verda (with timeout)
+            try:
+                verda_instances = await asyncio.wait_for(
+                    asyncio.get_event_loop().run_in_executor(None, verda_client.list_instances),
+                    timeout=30.0
+                )
+            except asyncio.TimeoutError:
+                print("Verda list_instances timed out after 30s")
+                verda_instances = []
             for inst in verda_instances:
                 all_instances.append({
                     "id": inst.get('id'),
@@ -1958,10 +1985,17 @@ async def list_compute_instances(current_user: User = Depends(get_current_user))
     except Exception as e:
         print(f"Error listing Verda instances: {e}")
 
-    # Get Targon instances
+    # Get Targon instances (with timeout)
     try:
         if targon_client and targon_client.authenticated:
-            targon_instances = targon_client.list_instances()
+            try:
+                targon_instances = await asyncio.wait_for(
+                    asyncio.get_event_loop().run_in_executor(None, targon_client.list_instances),
+                    timeout=30.0
+                )
+            except asyncio.TimeoutError:
+                print("Targon list_instances timed out after 30s")
+                targon_instances = []
             for inst in targon_instances:
                 all_instances.append({
                     "id": inst.get('id'),
@@ -1983,13 +2017,16 @@ async def list_compute_instances(current_user: User = Depends(get_current_user))
 async def create_compute_instance(request: ComputeInstanceRequest, current_user: User = Depends(get_current_user)):
     """Create one or more compute instances (unified deployment endpoint) - requires authentication"""
     try:
+        # Rate limit: max 10 instance creation requests per minute per user
+        check_compute_rate_limit(str(current_user.id), max_requests=10, window_seconds=60)
+
         # Resolve SSH key: use request value, fall back to stored key in settings
         ssh_key = (request.ssh_public_key or "").strip() or None
         if not ssh_key:
             settings = load_settings()
             ssh_key = settings.get("ssh_public_key")
 
-        if not ssh_key or not ssh_key.strip().startswith('ssh-'):
+        if not ssh_key or not any(ssh_key.strip().startswith(p) for p in ('ssh-', 'ecdsa-', 'sk-')):
             raise HTTPException(
                 status_code=400,
                 detail="SSH key required. Add one in Settings or provide in request."
@@ -2028,7 +2065,8 @@ async def create_compute_instance(request: ComputeInstanceRequest, current_user:
                     "ip": None,
                     "hourly_cost": 0.091,  # Demo price with markup
                     "created_at": datetime.now().isoformat(),
-                    "ssh_key_added": True
+                    "ssh_key_added": True,
+                    "user_id": str(current_user.id)
                 }
                 COMPUTE_INSTANCES[instance_id] = instance
                 created_instances.append(instance)
@@ -2050,15 +2088,24 @@ async def create_compute_instance(request: ComputeInstanceRequest, current_user:
                 "instance": created_instances[0] if created_instances else None
             }
 
-        # Create real instances via Verda
+        # Create real instances via Verda (with timeout)
         for i in range(quantity):
             instance_name = f"{request.name}-{i+1}" if quantity > 1 else request.name
-            result = verda_client.create_instance(
-                name=instance_name,
-                gpu_name=request.gpu_type,
-                use_spot=request.use_spot,
-                ssh_public_key=ssh_key
-            )
+            try:
+                result = await asyncio.wait_for(
+                    asyncio.get_event_loop().run_in_executor(
+                        None,
+                        lambda: verda_client.create_instance(
+                            name=instance_name,
+                            gpu_name=request.gpu_type,
+                            use_spot=request.use_spot,
+                            ssh_public_key=ssh_key
+                        )
+                    ),
+                    timeout=60.0
+                )
+            except asyncio.TimeoutError:
+                raise HTTPException(status_code=504, detail=f"GPU provider timed out while creating instance '{instance_name}'. Please try again.")
 
             if result:
                 created_instances.append({
@@ -2091,16 +2138,27 @@ async def create_compute_instance(request: ComputeInstanceRequest, current_user:
 async def terminate_compute_instance(instance_id: str, current_user: User = Depends(get_current_user)):
     """Terminate a compute instance - requires authentication"""
     try:
+        # Rate limit: max 10 termination requests per minute per user
+        check_compute_rate_limit(str(current_user.id) + ":delete", max_requests=10, window_seconds=60)
+
         if DEMO_MODE or verda_client is None:
-            # Demo mode - remove from in-memory store
+            # Demo mode - remove from in-memory store (with ownership check)
             if instance_id in COMPUTE_INSTANCES:
+                if COMPUTE_INSTANCES[instance_id].get("user_id") != str(current_user.id):
+                    raise HTTPException(status_code=403, detail="You do not own this instance")
                 del COMPUTE_INSTANCES[instance_id]
                 return {"success": True, "message": "Instance terminated"}
             else:
                 raise HTTPException(status_code=404, detail="Instance not found")
 
-        # Terminate real instance via Verda
-        result = verda_client.delete_instance(instance_id)
+        # Terminate real instance via Verda (with timeout)
+        try:
+            result = await asyncio.wait_for(
+                asyncio.get_event_loop().run_in_executor(None, lambda: verda_client.delete_instance(instance_id)),
+                timeout=30.0
+            )
+        except asyncio.TimeoutError:
+            raise HTTPException(status_code=504, detail="GPU provider timed out. The instance may still be terminating.")
         if result:
             return {"success": True, "message": "Instance terminated"}
         else:
@@ -2408,8 +2466,9 @@ class SSHKeyRequest(BaseModel):
 async def update_ssh_key(request: SSHKeyRequest, current_user: User = Depends(get_current_user)):
     """Save or update the user's SSH public key"""
     key = request.ssh_public_key.strip()
-    if not key.startswith('ssh-rsa ') and not key.startswith('ssh-ed25519 '):
-        raise HTTPException(status_code=400, detail="Invalid SSH key format. Must start with 'ssh-rsa' or 'ssh-ed25519'.")
+    valid_prefixes = ('ssh-rsa ', 'ssh-ed25519 ', 'ecdsa-sha2-nistp', 'sk-ssh-ed25519@', 'sk-ecdsa-sha2-nistp')
+    if not any(key.startswith(prefix) for prefix in valid_prefixes):
+        raise HTTPException(status_code=400, detail="Invalid SSH key format. Must start with ssh-rsa, ssh-ed25519, ecdsa-sha2, or sk-ssh.")
     settings = load_settings()
     settings["ssh_public_key"] = key
     save_settings(settings)
