@@ -66,6 +66,14 @@ CLERK_JWKS_CACHE_TTL = 3600  # 1 hour
 SUPABASE_URL = os.getenv("SUPABASE_URL", "")
 SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY", "")
 SUPABASE_JWT_SECRET = os.getenv("SUPABASE_JWT_SECRET", "")
+SUPABASE_JWKS_URL = os.getenv("SUPABASE_JWKS_URL", "")
+
+# Auto-derive Supabase JWKS URL from SUPABASE_URL if not set
+if not SUPABASE_JWKS_URL and SUPABASE_URL:
+    SUPABASE_JWKS_URL = f"{SUPABASE_URL}/auth/v1/.well-known/jwks.json"
+
+# Supabase JWKS cache
+_supabase_jwks_cache: dict = {"keys": None, "fetched_at": 0}
 
 # Password hashing
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -198,20 +206,68 @@ def decode_access_token(token: str) -> Optional[dict]:
         return None
 
 
-def decode_supabase_token(token: str) -> Optional[dict]:
-    """Decode and validate a Supabase JWT token"""
-    if not SUPABASE_JWT_SECRET:
+async def get_supabase_jwks() -> Optional[dict]:
+    """Fetch and cache Supabase's JWKS public keys (1hr TTL)."""
+    if not SUPABASE_JWKS_URL:
         return None
+
+    now = time.time()
+    if _supabase_jwks_cache["keys"] and (now - _supabase_jwks_cache["fetched_at"]) < CLERK_JWKS_CACHE_TTL:
+        return _supabase_jwks_cache["keys"]
+
     try:
-        payload = jwt.decode(
-            token,
-            SUPABASE_JWT_SECRET,
-            algorithms=["HS256"],
-            audience="authenticated"
-        )
-        return payload
-    except JWTError:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.get(SUPABASE_JWKS_URL)
+            resp.raise_for_status()
+            jwks = resp.json()
+            _supabase_jwks_cache["keys"] = jwks
+            _supabase_jwks_cache["fetched_at"] = now
+            return jwks
+    except Exception as e:
+        logger.warning(f"Failed to fetch Supabase JWKS: {e}")
+        if _supabase_jwks_cache["keys"]:
+            return _supabase_jwks_cache["keys"]
         return None
+
+
+def decode_supabase_token(token: str, jwks: Optional[dict] = None) -> Optional[dict]:
+    """Decode and validate a Supabase JWT token using JWKS (ES256) or shared secret (HS256)."""
+    # Try JWKS first (ES256)
+    if jwks:
+        try:
+            headers = jwt.get_unverified_header(token)
+            kid = headers.get("kid")
+            if kid:
+                matching_key = None
+                for key_data in jwks.get("keys", []):
+                    if key_data.get("kid") == kid:
+                        matching_key = key_data
+                        break
+                if matching_key:
+                    payload = jwt.decode(
+                        token,
+                        matching_key,
+                        algorithms=["ES256"],
+                        audience="authenticated",
+                    )
+                    return payload
+        except JWTError:
+            pass
+
+    # Fallback: try HS256 with shared secret
+    if SUPABASE_JWT_SECRET:
+        try:
+            payload = jwt.decode(
+                token,
+                SUPABASE_JWT_SECRET,
+                algorithms=["HS256"],
+                audience="authenticated"
+            )
+            return payload
+        except JWTError:
+            pass
+
+    return None
 
 
 async def get_clerk_jwks() -> Optional[dict]:
@@ -429,7 +485,8 @@ async def get_current_user(
 
     # 3. Try Supabase JWT (legacy, kept during migration)
     if not user:
-        supabase_payload = decode_supabase_token(token)
+        supabase_jwks = await get_supabase_jwks()
+        supabase_payload = decode_supabase_token(token, supabase_jwks)
         if supabase_payload:
             supabase_user_id = supabase_payload.get("sub")
             if supabase_user_id:
@@ -772,8 +829,9 @@ async def oauth_callback(
     Exchange a Supabase token for local JWT tokens.
     Called by frontend after successful OAuth login.
     """
-    # Decode the Supabase token
-    payload = decode_supabase_token(oauth_data.access_token)
+    # Decode the Supabase token (ES256 via JWKS)
+    supabase_jwks = await get_supabase_jwks()
+    payload = decode_supabase_token(oauth_data.access_token, supabase_jwks)
     if not payload:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

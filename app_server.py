@@ -1808,7 +1808,7 @@ async def get_template(template_id: str):
 @app.websocket("/ws/deployments/{deployment_id}")
 async def deployment_websocket(websocket: WebSocket, deployment_id: str, token: str = None):
     """WebSocket endpoint for real-time deployment progress (requires auth via ?token= query param)"""
-    from auth import decode_access_token, decode_supabase_token, decode_clerk_token, get_clerk_jwks
+    from auth import decode_access_token, decode_supabase_token, decode_clerk_token, get_clerk_jwks, get_supabase_jwks
     from database import get_db_context
 
     # Authenticate via token query parameter
@@ -1843,7 +1843,8 @@ async def deployment_websocket(websocket: WebSocket, deployment_id: str, token: 
 
     # 3. Try Supabase JWT (legacy)
     if not user_id:
-        supabase_payload = decode_supabase_token(token)
+        supabase_jwks = await get_supabase_jwks()
+        supabase_payload = decode_supabase_token(token, supabase_jwks)
         if supabase_payload:
             user_id = supabase_payload.get("sub")
 
