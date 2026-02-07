@@ -1288,7 +1288,7 @@ async def serve_waterfall_video():
 @app.get("/console")
 async def serve_console():
     """Serve the main application console"""
-    return FileResponse("index.html")
+    return FileResponse("app.html")
 
 @app.get("/index.html")
 async def serve_index():

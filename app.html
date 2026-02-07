@@ -1620,7 +1620,7 @@
             const { data, error } = await supabaseClient.auth.signInWithOAuth({
                 provider: 'google',
                 options: {
-                    redirectTo: `${API_BASE}/app`
+                    redirectTo: `${window.location.origin}/app`
                 }
             });
 
