@@ -37,6 +37,7 @@ try:
     from storage import storage_client, get_template_storage_path, TEMPLATE_STORAGE_PATHS
     from warming import warming_manager, start_warming_manager, stop_warming_manager
     from billing import router as billing_router, STRIPE_ENABLED
+    from admin_routes import router as admin_router
     DB_AVAILABLE = True
 except ImportError as e:
     print(f"Database modules not available: {e}")
@@ -161,10 +162,11 @@ if DB_AVAILABLE:
     app.state.limiter = limiter
     app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
-# Include auth and billing routers
+# Include auth, billing, and admin routers
 if DB_AVAILABLE:
     app.include_router(auth_router, prefix="/api")
     app.include_router(billing_router, prefix="/api")
+    app.include_router(admin_router, prefix="/api")
 
 # Initialize clients - demo mode if no credentials
 verda_client = None
@@ -3479,6 +3481,104 @@ async def health_check():
         "demo_mode": DEMO_MODE,
         "database": db_status,
         "auth_enabled": DB_AVAILABLE
+    }
+
+
+@app.get("/api/status")
+async def platform_status():
+    """Detailed platform status for status page"""
+    import time
+
+    services = []
+
+    # 1. API — always operational if we reach this point
+    api_start = time.monotonic()
+    services.append({
+        "name": "Polaris API",
+        "status": "operational",
+        "response_time_ms": round((time.monotonic() - api_start) * 1000, 1),
+        "description": "Core platform API for managing deployments and resources",
+    })
+
+    # 2. Database
+    db_start = time.monotonic()
+    db_status = "outage"
+    if DB_AVAILABLE:
+        try:
+            from database import check_db_connection
+            db_ok = await check_db_connection()
+            db_status = "operational" if db_ok else "outage"
+        except Exception:
+            db_status = "outage"
+    services.append({
+        "name": "Database",
+        "status": db_status,
+        "response_time_ms": round((time.monotonic() - db_start) * 1000, 1),
+        "description": "PostgreSQL database for user accounts, deployments, and billing",
+    })
+
+    # 3. GPU Provider — Verda
+    verda_status = "outage"
+    if verda_client is not None and not DEMO_MODE:
+        verda_status = "operational"
+    elif DEMO_MODE and verda_client is None:
+        verda_status = "degraded"
+    services.append({
+        "name": "GPU Compute (Verda)",
+        "status": verda_status,
+        "description": "Primary GPU compute provider for on-demand instances",
+    })
+
+    # 4. GPU Provider — Targon
+    targon_status = "outage"
+    if targon_client is not None:
+        targon_status = "operational"
+    services.append({
+        "name": "GPU Compute (Targon)",
+        "status": targon_status,
+        "description": "Secondary GPU compute provider for serverless inference",
+    })
+
+    # 5. Authentication — Clerk
+    auth_status = "outage"
+    if DB_AVAILABLE:
+        try:
+            from auth import CLERK_JWKS_URL
+            if CLERK_JWKS_URL:
+                auth_status = "operational"
+            else:
+                auth_status = "degraded"
+        except ImportError:
+            auth_status = "outage"
+    services.append({
+        "name": "Authentication",
+        "status": auth_status,
+        "description": "User authentication and session management via Clerk",
+    })
+
+    # 6. Storage — Storj
+    storj_status = "outage"
+    if storage_client is not None:
+        storj_status = "operational"
+    services.append({
+        "name": "Object Storage",
+        "status": storj_status,
+        "description": "Distributed object storage for model weights and deployment artifacts",
+    })
+
+    # Determine overall status
+    statuses = [s["status"] for s in services]
+    if all(s == "operational" for s in statuses):
+        overall = "operational"
+    elif any(s == "outage" for s in statuses):
+        overall = "degraded"
+    else:
+        overall = "degraded"
+
+    return {
+        "overall_status": overall,
+        "services": services,
+        "last_checked": datetime.utcnow().isoformat() + "Z",
     }
 
 # ============================================================================

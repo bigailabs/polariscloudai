@@ -35,7 +35,7 @@ export default function SettingsPage() {
               </dd>
             </div>
           </dl>
-          <p className="mt-4 text-xs text-forest-dark/40">
+          <p className="mt-4 text-xs text-forest-dark/60">
             Profile is managed by Clerk. Click your avatar in the sidebar to update.
           </p>
         </div>

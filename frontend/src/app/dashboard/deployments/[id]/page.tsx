@@ -5,6 +5,8 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import { useApi } from "@/lib/hooks";
 import { connectDeploymentWs, type DeploymentMessage } from "@/lib/websocket";
+import { useToast } from "@/components/toast";
+import { useConfirm } from "@/components/confirm-dialog";
 
 type DeploymentDetail = {
   id: string;
@@ -33,6 +35,8 @@ export default function DeploymentDetailPage() {
   const params = useParams();
   const id = params.id as string;
   const { get, post, getToken } = useApi();
+  const toast = useToast();
+  const confirm = useConfirm();
   const [deployment, setDeployment] = useState<DeploymentDetail | null>(null);
   const [metrics, setMetrics] = useState<Metrics | null>(null);
   const [logs, setLogs] = useState<DeploymentMessage[]>([]);
@@ -96,15 +100,25 @@ export default function DeploymentDetailPage() {
   }, [deployment?.status, id, getToken]);
 
   const handleStop = useCallback(async () => {
+    const confirmed = await confirm({
+      title: "Stop deployment",
+      description:
+        "Stop this deployment? Any unsaved work will be lost.",
+      confirmLabel: "Stop",
+      destructive: true,
+    });
+    if (!confirmed) return;
+
     try {
       await post(`/api/deployments/${id}/stop`);
       setDeployment((prev) =>
         prev ? { ...prev, status: "stopping" } : prev
       );
+      toast.success("Deployment is stopping");
     } catch {
-      // failed to stop
+      toast.error("Failed to stop deployment");
     }
-  }, [id, post]);
+  }, [id, post, confirm, toast]);
 
   if (loading) {
     return (
@@ -247,7 +261,7 @@ export default function DeploymentDetailPage() {
             <div className="max-h-64 overflow-y-auto rounded-lg bg-forest-dark p-4 font-mono text-xs text-lichen space-y-1">
               {logs.map((log, i) => (
                 <div key={i}>
-                  <span className="text-forest-dark/40 select-none">
+                  <span className="text-lichen/60 select-none">
                     {log.timestamp
                       ? new Date(log.timestamp).toLocaleTimeString()
                       : ""}

@@ -157,7 +157,7 @@ function StatCard({
       </p>
       <p className="mt-2 text-2xl font-semibold text-forest-dark">{value}</p>
       {total !== undefined && (
-        <p className="mt-1 text-xs text-forest-dark/40">of {total}</p>
+        <p className="mt-1 text-xs text-forest-dark/60">of {total}</p>
       )}
     </div>
   );

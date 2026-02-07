@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { useApi } from "@/lib/hooks";
+import { useToast } from "@/components/toast";
+import { useConfirm } from "@/components/confirm-dialog";
 
 type ApiKey = {
   id: string;
@@ -16,6 +18,8 @@ type ApiKey = {
 
 export default function ApiKeysPage() {
   const { get, post, del } = useApi();
+  const toast = useToast();
+  const confirm = useConfirm();
   const [keys, setKeys] = useState<ApiKey[]>([]);
   const [loading, setLoading] = useState(true);
   const [newKeyName, setNewKeyName] = useState("");
@@ -48,19 +52,30 @@ export default function ApiKeysPage() {
       setCreatedKey(result.key);
       setNewKeyName("");
       loadKeys();
+      toast.success("API key created successfully");
     } catch {
-      // failed
+      toast.error("Failed to create API key");
     } finally {
       setCreating(false);
     }
   }
 
   async function deleteKey(id: string) {
+    const confirmed = await confirm({
+      title: "Revoke API key",
+      description:
+        "Are you sure you want to revoke this API key? This cannot be undone.",
+      confirmLabel: "Revoke",
+      destructive: true,
+    });
+    if (!confirmed) return;
+
     try {
       await del(`/api/keys/${id}`);
       setKeys((prev) => prev.filter((k) => k.id !== id));
+      toast.success("API key revoked");
     } catch {
-      // failed
+      toast.error("Failed to revoke API key");
     }
   }
 

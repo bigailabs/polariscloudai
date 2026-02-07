@@ -26,7 +26,7 @@ from slowapi import Limiter
 from slowapi.util import get_remote_address
 
 from database import get_db
-from models import User, UserTier, RefreshToken
+from models import User, UserTier, RefreshToken, APIKey
 
 logger = logging.getLogger(__name__)
 
@@ -442,6 +442,72 @@ async def create_or_link_oauth_user(
 
 
 # ============================================================================
+# API KEY AUTH
+# ============================================================================
+
+async def _authenticate_api_key(token: str, db: AsyncSession) -> Optional[User]:
+    """
+    Authenticate a request using a raw API key (vf_live_...).
+    Checks both the JSON file (legacy) and the database APIKey table.
+    Returns the associated User if valid, None otherwise.
+    """
+    import json
+    import os
+
+    user_id_str = None
+
+    # 1. Check JSON file (current storage)
+    api_keys_file = os.path.join(os.path.dirname(__file__), "api_keys.json")
+    if os.path.exists(api_keys_file):
+        try:
+            with open(api_keys_file, "r") as f:
+                keys = json.load(f)
+            for key_entry in keys:
+                if key_entry.get("key") == token:
+                    user_id_str = key_entry.get("user_id")
+                    # Update last_used timestamp
+                    key_entry["last_used"] = datetime.utcnow().isoformat()
+                    key_entry["request_count"] = key_entry.get("request_count", 0) + 1
+                    with open(api_keys_file, "w") as f:
+                        json.dump(keys, f, indent=2)
+                    break
+        except Exception as e:
+            logger.warning(f"Error reading API keys file: {e}")
+
+    # 2. Check database APIKey table (hashed keys)
+    if not user_id_str:
+        key_hash = hashlib.sha256(token.encode()).hexdigest()
+        try:
+            result = await db.execute(
+                select(APIKey).where(
+                    APIKey.key_hash == key_hash,
+                    APIKey.is_active == True,
+                )
+            )
+            api_key = result.scalar_one_or_none()
+            if api_key:
+                # Check expiration
+                if api_key.expires_at and api_key.expires_at < datetime.utcnow():
+                    return None
+                api_key.last_used_at = datetime.utcnow()
+                api_key.request_count += 1
+                user_id_str = str(api_key.user_id)
+        except Exception as e:
+            logger.warning(f"Error checking DB API keys: {e}")
+
+    if not user_id_str:
+        return None
+
+    # Look up the user
+    try:
+        result = await db.execute(select(User).where(User.id == UUID(user_id_str)))
+        return result.scalar_one_or_none()
+    except Exception as e:
+        logger.warning(f"Error looking up API key user: {e}")
+        return None
+
+
+# ============================================================================
 # DEPENDENCIES
 # ============================================================================
 
@@ -495,6 +561,10 @@ async def get_current_user(
                 )
                 user = result.scalar_one_or_none()
 
+    # 4. Try API key auth (for CLI / programmatic access)
+    if not user and token.startswith("vf_live_"):
+        user = await _authenticate_api_key(token, db)
+
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -541,6 +611,10 @@ async def get_optional_user(
             if user_id:
                 result = await db.execute(select(User).where(User.id == UUID(user_id)))
                 user = result.scalar_one_or_none()
+
+    # 3. Try API key auth (for CLI / programmatic access)
+    if not user and token.startswith("vf_live_"):
+        user = await _authenticate_api_key(token, db)
 
     if user:
         user.last_active_at = datetime.utcnow()

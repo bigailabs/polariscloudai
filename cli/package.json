@@ -1,0 +1,36 @@
+{
+  "name": "@polaris-cloud/cli",
+  "version": "0.1.0",
+  "description": "Polaris Cloud CLI — Deploy GPU instances, manage AI models, and more from your terminal",
+  "bin": {
+    "polaris": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "commander": "^13.1.0",
+    "chalk": "^5.4.1",
+    "ora": "^8.2.0",
+    "cli-table3": "^0.6.5",
+    "@inquirer/prompts": "^7.3.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.1",
+    "tsup": "^8.3.6",
+    "typescript": "^5.7.3"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "files": [
+    "dist"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/polariscomputer/cli"
+  }
+}
