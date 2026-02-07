@@ -81,6 +81,7 @@ class User(Base):
 
     # OAuth / Supabase
     supabase_user_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True, unique=True)
+    clerk_user_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True, unique=True)
     auth_provider: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
     avatar_url: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
 

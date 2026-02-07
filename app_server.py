@@ -16,11 +16,11 @@ import uvicorn
 import asyncio
 import json
 import os
-import re
 import sys
 import subprocess
 import secrets
-from collections import defaultdict
+import shlex
+import re as re_module
 from datetime import datetime
 from contextlib import asynccontextmanager
 
@@ -190,6 +190,12 @@ if DEMO_MODE:
     print("🎮 Running in DEMO MODE - GPU deployments disabled")
 
 # Data models
+class DeploymentRequest(BaseModel):
+    name: str
+    gpu_type: str
+    deployment_type: str = "raw_compute"  # raw_compute or serverless
+    use_spot: bool = True
+
 class APIKeyRequest(BaseModel):
     name: str
     description: Optional[str] = None
@@ -660,12 +666,18 @@ class TemplateDeploymentRequest(BaseModel):
 
     @validator('parameters')
     def validate_parameters(cls, v, values):
-        # Sanitize parameter values to prevent injection
+        # Allowlist validation to prevent shell injection
+        # Only permit safe characters in string parameters
+        safe_pattern = re_module.compile(r'^[a-zA-Z0-9._:/\-@ ]+$')
         sanitized = {}
         for key, value in v.items():
             if isinstance(value, str):
-                # Remove potentially dangerous characters for shell commands
-                sanitized[key] = value.replace(';', '').replace('|', '').replace('&', '').replace('`', '').replace('$', '')
+                if not safe_pattern.match(value):
+                    raise ValueError(
+                        f"Parameter '{key}' contains invalid characters. "
+                        "Only alphanumeric, '.', '_', ':', '/', '-', '@', and spaces are allowed."
+                    )
+                sanitized[key] = value
             else:
                 sanitized[key] = value
         return sanitized
@@ -710,9 +722,13 @@ async def get_container_access_info(template_id: str, container_name: str, host:
     try:
         if template_id == "jupyter":
             # Get Jupyter token from container
-            cmd = f'ssh -o StrictHostKeyChecking=no -o BatchMode=yes {ssh_user}@{host} "docker exec {container_name} jupyter server list 2>/dev/null | grep token= | head -1"'
-            process = await asyncio.create_subprocess_shell(
-                cmd,
+            cmd = [
+                "ssh", "-o", "StrictHostKeyChecking=no", "-o", "BatchMode=yes",
+                f"{ssh_user}@{host}",
+                f"docker exec {shlex.quote(container_name)} jupyter server list 2>/dev/null | grep token= | head -1"
+            ]
+            process = await asyncio.create_subprocess_exec(
+                *cmd,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE
             )
@@ -721,6 +737,7 @@ async def get_container_access_info(template_id: str, container_name: str, host:
 
             # Parse token from output like: http://hostname:8888/?token=abc123 :: /path
             if "token=" in output:
+                import re
                 match = re.search(r'token=([a-f0-9]+)', output)
                 if match:
                     token = match.group(1)
@@ -911,24 +928,19 @@ async def run_deployment_script(deployment_id: str, template: TemplateConfig, re
             # Wait a moment for the container to be fully ready
             await asyncio.sleep(3)
 
-            # Get container name based on template
-            container_name = request.parameters.get("container_name", template.id)
-            if template.id == "jupyter":
-                container_name = "jupyter-notebook"
-            elif template.id == "ubuntu-desktop":
-                container_name = "cloud-computer"
-            elif template.id == "ollama":
-                container_name = "open-webui"
-            elif template.id == "transformer-labs":
-                container_name = "transformerlab"
-            elif template.id == "minecraft":
-                container_name = "minecraft-server"
-            elif template.id == "valheim":
-                container_name = "valheim-server"
-            elif template.id == "terraria":
-                container_name = "terraria-server"
-            elif template.id == "factorio":
-                container_name = "factorio-server"
+            # Get container name based on template (use safe defaults, not user input)
+            safe_container_names = {
+                "jupyter": "jupyter-notebook",
+                "ubuntu-desktop": "cloud-computer",
+                "ollama": "open-webui",
+                "transformer-labs": "transformerlab",
+                "minecraft": "minecraft-server",
+                "valheim": "valheim-server",
+                "terraria": "terraria-server",
+                "factorio": "factorio-server",
+                "dev-terminal": "dev-terminal",
+            }
+            container_name = safe_container_names.get(template.id, template.id)
 
             # Fetch access credentials
             port = request.parameters.get("port", template.default_port)
@@ -994,9 +1006,10 @@ sleep 5
 """
 
     # Template-specific deployment commands
+    # All user parameters are shell-escaped for safety
     if template.id == "ollama":
-        model = parameters.get("model", "llama2")
-        port = parameters.get("port", 8000)
+        model = shlex.quote(str(parameters.get("model", "llama2")))
+        port = shlex.quote(str(parameters.get("port", 8000)))
         script = base_script + f"""
 echo "Deploying Ollama LLM..."
 
@@ -1028,7 +1041,7 @@ echo "Model: {model}"
 """
 
     elif template.id == "jupyter":
-        port = parameters.get("port", 8888)
+        port = shlex.quote(str(parameters.get("port", 8888)))
         script = base_script + f"""
 echo "Deploying Jupyter Notebook..."
 
@@ -1049,8 +1062,8 @@ echo "JUPYTER_TOKEN=$JUPYTER_TOKEN" >> /root/.jupyter_token
 """
 
     elif template.id == "dev-terminal":
-        port = parameters.get("port", 7681)
-        container_name = parameters.get("container_name", "dev-terminal")
+        port = shlex.quote(str(parameters.get("port", 7681)))
+        container_name = shlex.quote(str(parameters.get("container_name", "dev-terminal")))
         script = base_script + f"""
 echo "Deploying Development Terminal..."
 
@@ -1066,8 +1079,8 @@ echo "Dev Terminal deployed on port {port}"
 """
 
     elif template.id == "ubuntu-desktop":
-        port = parameters.get("port", 6901)
-        vnc_port = parameters.get("vnc_port", 5901)
+        port = shlex.quote(str(parameters.get("port", 6901)))
+        vnc_port = shlex.quote(str(parameters.get("vnc_port", 5901)))
         script = base_script + f"""
 echo "Deploying Ubuntu Desktop..."
 
@@ -1086,7 +1099,7 @@ echo "Password: computer"
 """
 
     elif template.id == "transformer-labs":
-        port = parameters.get("port", 8000)
+        port = shlex.quote(str(parameters.get("port", 8000)))
         image_type = parameters.get("image_type", "api")
         if image_type == "api":
             image = "transformerlab/api:latest"
@@ -1094,6 +1107,7 @@ echo "Password: computer"
         else:
             image = "ghcr.io/bigideaafrica/labs:latest"
             internal_port = 8000
+        image = shlex.quote(image)
         script = base_script + f"""
 echo "Deploying Transformer Labs..."
 
@@ -1289,23 +1303,23 @@ async def serve_index():
 async def get_stats(current_user: User = Depends(get_current_user)):
     """Get dashboard statistics for the current user"""
     try:
-        user_id = str(current_user.id)
-        user_deps = get_user_deployment_ids(user_id)
-
-        # Count only this user's deployments
+        # Get deployments (both containers and instances)
         if DEMO_MODE or verda_client is None:
-            active_count = sum(1 for inst in COMPUTE_INSTANCES.values() if inst.get("user_id") == user_id)
+            containers = []
+            instances = []
         else:
             containers = verda_client.list_deployments()
             instances = verda_client.list_instances()
-            active_count = sum(1 for c in containers if c.get('id') in user_deps)
-            active_count += sum(1 for i in instances if instance_belongs_to_user(i, user_id) or i.get('id') in user_deps)
 
-        total_deployments = active_count
-        monthly_cost = active_count * 100
+        total_deployments = len(containers) + len(instances)
+        active_count = total_deployments  # Assume all listed are active
+
+        # Calculate monthly cost estimate based on active GPUs
+        # TODO: Track actual GPU hours for real billing
+        monthly_cost = active_count * 100  # Rough estimate
 
         # Get real API request count from usage stats
-        usage_stats = load_usage_stats(str(current_user.id))
+        usage_stats = load_usage_stats()
         current_month = datetime.now().strftime("%Y-%m")
         monthly_requests = sum(
             count for day, count in usage_stats.get("requests_by_day", {}).items()
@@ -1342,46 +1356,34 @@ async def get_deployments(current_user: User = Depends(get_current_user)):
         if DEMO_MODE or verda_client is None:
             return {"deployments": [], "demo_mode": True}
 
-        user_id = str(current_user.id)
-        user_deps = get_user_deployment_ids(user_id)
-
         containers = verda_client.list_deployments()
         instances = verda_client.list_instances()
 
-        # Format deployments for frontend — only show user's own
+        # Format deployments for frontend
         formatted = []
 
+        # Add containers
         for d in containers:
-            dep_id = d.get('id', 'unknown')
-            # Containers: registry-based (no description field in container API)
-            if dep_id in user_deps:
-                formatted.append({
-                    "id": dep_id,
-                    "name": d.get('name', 'Unknown'),
-                    "status": d.get('status', 'unknown'),
-                    "endpoint": d.get('endpoint', 'N/A'),
-                    "gpu": d.get('gpu_type', 'N/A'),
-                    "cost": "$0.000/hr",
-                    "created": d.get('created_at', 'N/A'),
-                    "type": "serverless"
-                })
-
-        for i in instances:
-            inst_id = i.get('id', 'unknown')
-            # Primary: description tag. Fallback: registry
-            owns = instance_belongs_to_user(i, user_id) or inst_id in user_deps
-            if not owns:
-                continue
-            # Self-heal registry from description
-            if inst_id and inst_id not in user_deps and instance_belongs_to_user(i, user_id):
-                register_deployment_owner(inst_id, user_id)
             formatted.append({
-                "id": inst_id,
+                "id": d.get('id', 'unknown'),
+                "name": d.get('name', 'Unknown'),
+                "status": d.get('status', 'unknown'),
+                "endpoint": d.get('endpoint', 'N/A'),
+                "gpu": d.get('gpu_type', 'N/A'),
+                "cost": "$0.000/hr",  # Would need to calculate from GPU type
+                "created": d.get('created_at', 'N/A'),
+                "type": "serverless"
+            })
+
+        # Add instances
+        for i in instances:
+            formatted.append({
+                "id": i.get('id', 'unknown'),
                 "name": i.get('hostname', 'Unknown'),
                 "status": i.get('status', 'unknown'),
                 "endpoint": i.get('ip', 'N/A'),
                 "gpu": i.get('gpu_type', 'N/A'),
-                "cost": "$0.000/hr",
+                "cost": "$0.000/hr",  # Would need to calculate from GPU type
                 "created": i.get('created_at', 'N/A'),
                 "type": "raw_compute"
             })
@@ -1393,57 +1395,74 @@ async def get_deployments(current_user: User = Depends(get_current_user)):
         traceback.print_exc()
         return {"deployments": []}
 
+@app.post("/api/deployments/deploy")
+async def deploy_server(request: DeploymentRequest, current_user: User = Depends(get_current_user)):
+    """Deploy a new server - requires authentication"""
+    if DEMO_MODE or verda_client is None:
+        raise HTTPException(status_code=503, detail="Deployments disabled in demo mode. Configure Verda credentials to enable.")
+
+    try:
+        print(f"Deploying: {request.name} on {request.gpu_type}")
+
+        # Deploy based on type
+        if request.deployment_type == "raw_compute":
+            # Create raw compute instance
+            result = verda_client.create_instance(
+                name=request.name,
+                gpu_name=request.gpu_type,  # Uses GPU display name
+                use_spot=request.use_spot
+            )
+
+            return {
+                "success": True,
+                "deployment_id": result.get('id'),
+                "message": f"Instance {request.name} created successfully! Check Deployments tab for connection details.",
+                "details": result
+            }
+        else:
+            # Serverless deployment (container)
+            result = verda_client.create_container_deployment(
+                name=request.name,
+                gpu_name=request.gpu_type,
+                use_spot=request.use_spot
+            )
+
+            return {
+                "success": True,
+                "deployment_id": result.get('id'),
+                "message": f"Container {request.name} deployed successfully!",
+                "details": result
+            }
+
+    except Exception as e:
+        print(f"Deployment error: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.post("/api/deployments/stop")
 async def stop_deployment(request: StopDeploymentRequest, current_user: User = Depends(get_current_user)):
-    """Stop a deployment - requires authentication and ownership"""
+    """Stop a deployment - requires authentication"""
     if DEMO_MODE or verda_client is None:
         raise HTTPException(status_code=503, detail="Deployments disabled in demo mode.")
 
     try:
         deployment_id = request.deployment_id
-        user_id = str(current_user.id)
-
-        # Ownership check — deny by default
-        owner = get_deployment_owner(deployment_id)
-        if owner and owner != user_id:
-            raise HTTPException(status_code=403, detail="You do not own this deployment")
 
         # Try to find the deployment in containers first
         containers = verda_client.list_deployments()
         is_container = any(c.get('id') == deployment_id or c.get('name') == deployment_id for c in containers)
 
         if is_container:
-            # Containers have no description tag — require registry match
-            if not owner:
-                raise HTTPException(status_code=403, detail="Cannot verify ownership of this container deployment")
+            # It's a container deployment
             result = verda_client.delete_deployment(deployment_id)
-            unregister_deployment(deployment_id)
             return {
                 "success": True,
                 "message": f"Container deployment stopped successfully"
             }
         else:
-            # Instances: verify ownership via description if registry is empty
-            if not owner:
-                verified = False
-                try:
-                    inst_detail = verda_client.get_instance(deployment_id)
-                    if inst_detail:
-                        desc_owner = parse_owner_from_description(inst_detail.get("description", ""))
-                        if desc_owner and desc_owner != user_id:
-                            raise HTTPException(status_code=403, detail="You do not own this deployment")
-                        if desc_owner == user_id:
-                            verified = True
-                            register_deployment_owner(deployment_id, user_id)
-                except HTTPException:
-                    raise
-                except Exception:
-                    pass
-                if not verified:
-                    raise HTTPException(status_code=403, detail="Cannot verify ownership of this instance")
-
+            # It's an instance
             result = verda_client.delete_instance(deployment_id)
-            unregister_deployment(deployment_id)
             return {
                 "success": True,
                 "message": f"Instance stopped successfully"
@@ -1456,16 +1475,7 @@ async def stop_deployment(request: StopDeploymentRequest, current_user: User = D
 
 @app.get("/api/deployments/{deployment_id}/logs")
 async def get_deployment_logs(deployment_id: str, current_user: User = Depends(get_current_user)):
-    """Get logs for a deployment - requires authentication and ownership"""
-    user_id = str(current_user.id)
-    owner = get_deployment_owner(deployment_id)
-    if owner != user_id:
-        # Also check template deployments for ownership
-        deployments = load_template_deployments()
-        dep = deployments.get(deployment_id)
-        if not dep or dep.get("user_id") != user_id:
-            raise HTTPException(status_code=403, detail="You do not own this deployment")
-
+    """Get logs for a deployment - requires authentication"""
     if DEMO_MODE or verda_client is None:
         return {"logs": "Logs unavailable in demo mode."}
 
@@ -1473,6 +1483,7 @@ async def get_deployment_logs(deployment_id: str, current_user: User = Depends(g
         logs = verda_client.get_deployment_logs(deployment_id)
         return {"logs": logs}
     except Exception as e:
+        print(f"Error getting logs: {e}")
         return {"logs": "Unable to fetch logs"}
 
 
@@ -1741,9 +1752,13 @@ async def delete_template_deployment(
                 host = deployment.get("host", TEMPLATE_SERVER_HOST)
                 ssh_user = TEMPLATE_SERVER_USER
                 for cname in containers_to_stop:
-                    cmd = f'ssh -o StrictHostKeyChecking=no -o BatchMode=yes {ssh_user}@{host} "docker stop {cname}; docker rm {cname}"'
-                    process = await asyncio.create_subprocess_shell(
-                        cmd,
+                    cmd = [
+                        "ssh", "-o", "StrictHostKeyChecking=no", "-o", "BatchMode=yes",
+                        f"{ssh_user}@{host}",
+                        f"docker stop {shlex.quote(cname)}; docker rm {shlex.quote(cname)}"
+                    ]
+                    process = await asyncio.create_subprocess_exec(
+                        *cmd,
                         stdout=asyncio.subprocess.PIPE,
                         stderr=asyncio.subprocess.PIPE
                     )
@@ -1792,31 +1807,45 @@ async def get_template(template_id: str):
 
 @app.websocket("/ws/deployments/{deployment_id}")
 async def deployment_websocket(websocket: WebSocket, deployment_id: str, token: str = None):
-    """WebSocket endpoint for real-time deployment progress — requires auth via ?token= query param"""
-    # Authenticate via JWT token in query parameter
+    """WebSocket endpoint for real-time deployment progress (requires auth via ?token= query param)"""
+    from auth import decode_access_token, decode_supabase_token, decode_clerk_token, get_clerk_jwks
+    from database import get_db_context
+
+    # Authenticate via token query parameter
     if not token:
-        await websocket.close(code=4001, reason="Authentication required")
+        await websocket.close(code=4001, reason="Authentication required. Pass ?token=<jwt>")
         return
 
+    # Decode token (try Clerk JWT, then custom JWT, then Supabase)
     user_id = None
-    try:
-        from auth import decode_access_token, decode_supabase_token
+
+    # 1. Try Clerk JWT first
+    jwks = await get_clerk_jwks()
+    if jwks:
+        clerk_payload = decode_clerk_token(token, jwks)
+        if clerk_payload:
+            clerk_user_id = clerk_payload.get("sub")
+            if clerk_user_id:
+                # Resolve clerk_user_id to internal UUID via DB lookup
+                async with get_db_context() as db:
+                    result = await db.execute(
+                        select(User.id).where(User.clerk_user_id == clerk_user_id)
+                    )
+                    row = result.scalar_one_or_none()
+                    if row:
+                        user_id = str(row)
+
+    # 2. Try custom JWT (legacy)
+    if not user_id:
         payload = decode_access_token(token)
         if payload:
             user_id = payload.get("sub")
-        else:
-            supabase_payload = decode_supabase_token(token)
-            if supabase_payload:
-                # Look up user by supabase_user_id
-                async with get_db_context() as db:
-                    result = await db.execute(
-                        select(User).where(User.supabase_user_id == supabase_payload.get("sub"))
-                    )
-                    user = result.scalar_one_or_none()
-                    if user:
-                        user_id = str(user.id)
-    except Exception:
-        pass
+
+    # 3. Try Supabase JWT (legacy)
+    if not user_id:
+        supabase_payload = decode_supabase_token(token)
+        if supabase_payload:
+            user_id = supabase_payload.get("sub")
 
     if not user_id:
         await websocket.close(code=4001, reason="Invalid or expired token")
@@ -1824,23 +1853,28 @@ async def deployment_websocket(websocket: WebSocket, deployment_id: str, token: 
 
     # Verify deployment ownership
     deployments = load_template_deployments()
-    deployment = deployments.get(deployment_id)
-    if deployment and deployment.get("user_id") != user_id:
+    if deployment_id not in deployments:
+        await websocket.close(code=4004, reason="Deployment not found")
+        return
+    deployment = deployments[deployment_id]
+    if deployment.get("user_id") != user_id:
         await websocket.close(code=4003, reason="Not authorized for this deployment")
         return
 
     await websocket.accept()
-    active_connections[deployment_id] = websocket
+
+    # Only set connection if no existing connection (prevent hijacking)
+    if deployment_id not in active_connections:
+        active_connections[deployment_id] = websocket
 
     try:
         # Send initial status
-        if deployment:
-            await websocket.send_json({
-                "deployment_id": deployment_id,
-                "message": "Connected to deployment progress stream",
-                "status": deployment.get("status", "unknown"),
-                "timestamp": datetime.now().isoformat()
-            })
+        await websocket.send_json({
+            "deployment_id": deployment_id,
+            "message": "Connected to deployment progress stream",
+            "status": deployment.get("status", "unknown"),
+            "timestamp": datetime.now().isoformat()
+        })
 
         # Keep connection alive and wait for messages
         while True:
@@ -1853,7 +1887,7 @@ async def deployment_websocket(websocket: WebSocket, deployment_id: str, token: 
     except WebSocketDisconnect:
         pass
     finally:
-        if deployment_id in active_connections:
+        if deployment_id in active_connections and active_connections[deployment_id] is websocket:
             del active_connections[deployment_id]
 
 
@@ -1879,14 +1913,7 @@ async def get_gpus():
         if DEMO_MODE or verda_client is None:
             gpus = DEMO_GPUS
         else:
-            try:
-                gpus = await asyncio.wait_for(
-                    asyncio.get_event_loop().run_in_executor(None, verda_client.get_available_gpus),
-                    timeout=15.0
-                )
-            except asyncio.TimeoutError:
-                print("Verda get_available_gpus timed out after 15s")
-                gpus = DEMO_GPUS
+            gpus = verda_client.get_available_gpus()
 
         # Format for frontend
         formatted = []
@@ -1913,26 +1940,10 @@ async def get_gpus():
 # In-memory store for compute instances (in production, use database)
 COMPUTE_INSTANCES = {}
 
-# Simple in-memory rate limiter for compute endpoints
-import time as _time
-
-_compute_rate_limits: Dict[str, list] = defaultdict(list)
-
-def check_compute_rate_limit(user_id: str, max_requests: int = 10, window_seconds: int = 60):
-    """Check if a user has exceeded the compute rate limit. Raises 429 if exceeded."""
-    now = _time.time()
-    key = f"compute:{user_id}"
-    # Clean old entries
-    _compute_rate_limits[key] = [t for t in _compute_rate_limits[key] if now - t < window_seconds]
-    if len(_compute_rate_limits[key]) >= max_requests:
-        raise HTTPException(status_code=429, detail="Too many requests. Please wait before creating more instances.")
-    _compute_rate_limits[key].append(now)
-
 class ComputeInstanceRequest(BaseModel):
     name: str
     gpu_type: str
-    ssh_public_key: Optional[str] = None
-    deployment_type: str = "raw_compute"  # raw_compute or serverless
+    ssh_public_key: str
     use_spot: bool = True
     quantity: int = Field(default=1, ge=1, le=4)
 
@@ -1959,14 +1970,7 @@ async def get_compute_gpus():
             all_gpus.extend(demo_gpus)
         else:
             # Get real GPU pricing from Verda
-            try:
-                verda_gpus = await asyncio.wait_for(
-                    asyncio.get_event_loop().run_in_executor(None, verda_client.get_available_gpus),
-                    timeout=15.0
-                )
-            except asyncio.TimeoutError:
-                print("Verda get_available_gpus timed out after 15s")
-                verda_gpus = []
+            verda_gpus = verda_client.get_available_gpus()
             for gpu in verda_gpus:
                 base_price = gpu.get('instance_spot_price', 0)
                 all_gpus.append({
@@ -1986,14 +1990,7 @@ async def get_compute_gpus():
     # Add Targon GPUs
     try:
         if targon_client:
-            try:
-                targon_gpus = await asyncio.wait_for(
-                    asyncio.get_event_loop().run_in_executor(None, targon_client.get_available_gpus),
-                    timeout=15.0
-                )
-            except asyncio.TimeoutError:
-                print("Targon get_available_gpus timed out after 15s")
-                targon_gpus = []
+            targon_gpus = targon_client.get_available_gpus()
             for gpu in targon_gpus:
                 base_price = gpu.get('instance_spot_price', 0)
                 all_gpus.append({
@@ -2016,81 +2013,56 @@ async def get_compute_gpus():
     except Exception as e:
         print(f"Error getting Targon GPUs: {e}")
 
-    # Merge GPUs from all providers:
-    # - Duplicates (same GPU model from multiple providers): keep the cheapest
-    # - Unique GPUs (only one provider has it): always include for diversity
-    # The user sees a unified catalog sorted by price.
+    # Deduplicate by GPU type - keep only the cheapest option for each
+    # Normalize GPU names for comparison (e.g., "H100 SXM5 80GB" and "H100 SXM5 80GB (Targon)" -> "H100 80GB")
     def normalize_gpu_name(name):
         """Extract core GPU identifier for deduplication"""
         name = name.upper()
+        # Remove provider suffixes
         for suffix in ['(VERDA)', '(TARGON)', 'VERDA', 'TARGON']:
             name = name.replace(suffix, '')
+        # Extract key identifiers
         for gpu_type in ['B300', 'B200', 'H200', 'H100', 'A100', 'L40S', 'L40', 'A6000', 'RTX 6000', 'V100', 'RTX']:
             if gpu_type in name:
+                # Include memory size if present
+                import re
                 mem_match = re.search(r'(\d+)\s*GB', name)
                 mem = mem_match.group(1) + 'GB' if mem_match else ''
                 return f"{gpu_type} {mem}".strip()
         return name.strip()
 
-    # Group all GPUs by normalized name
-    gpu_groups = defaultdict(list)
+    # Group by normalized name and keep cheapest
+    gpu_map = {}
     for gpu in all_gpus:
         key = normalize_gpu_name(gpu['name'])
-        gpu_groups[key].append(gpu)
+        if key not in gpu_map or gpu['spot_price'] < gpu_map[key]['spot_price']:
+            # Update display name to remove provider suffix since we're showing the best price
+            gpu_copy = gpu.copy()
+            gpu_copy['display_name'] = gpu_copy['display_name'].replace(' (Verda)', '').replace(' (Targon)', '')
+            gpu_map[key] = gpu_copy
 
-    merged_gpus = []
-    for key, group in gpu_groups.items():
-        # Sort group by spot_price ascending — cheapest first
-        group.sort(key=lambda g: g['spot_price'])
-        winner = group[0].copy()
-        # Clean up display name
-        winner['display_name'] = winner['display_name'].replace(' (Verda)', '').replace(' (Targon)', '')
-        # If multiple providers carry this GPU, note the cheapest provider
-        if len(group) > 1:
-            winner['alt_provider'] = group[1]['provider']
-            winner['alt_price'] = group[1]['spot_price']
-        merged_gpus.append(winner)
+    # Convert back to list and sort by price
+    deduplicated_gpus = list(gpu_map.values())
+    deduplicated_gpus.sort(key=lambda x: x['spot_price'])
 
-    merged_gpus.sort(key=lambda x: x['spot_price'])
-
-    return {"gpus": merged_gpus}
+    return {"gpus": deduplicated_gpus}
 
 
 @app.get("/api/compute/instances")
 async def list_compute_instances(current_user: User = Depends(get_current_user)):
     """List active compute instances from all providers - requires authentication"""
     all_instances = []
-    user_id = str(current_user.id)
-    user_deps = get_user_deployment_ids(user_id)
 
     try:
         if DEMO_MODE or verda_client is None:
-            # Return only this user's in-memory instances
-            all_instances.extend([
-                inst for inst in COMPUTE_INSTANCES.values()
-                if inst.get("user_id") == user_id
-            ])
+            # Return in-memory instances for demo
+            all_instances.extend(list(COMPUTE_INSTANCES.values()))
         else:
-            # Get real instances from Verda (with timeout)
-            try:
-                verda_instances = await asyncio.wait_for(
-                    asyncio.get_event_loop().run_in_executor(None, verda_client.list_instances),
-                    timeout=30.0
-                )
-            except asyncio.TimeoutError:
-                verda_instances = []
+            # Get real instances from Verda
+            verda_instances = verda_client.list_instances()
             for inst in verda_instances:
-                inst_id = inst.get('id')
-                # Primary: check provider-level description tag
-                # Fallback: check local registry (for instances created before tagging)
-                owns = instance_belongs_to_user(inst, user_id) or inst_id in user_deps
-                if not owns:
-                    continue
-                # Rebuild registry from provider data (self-healing)
-                if inst_id and inst_id not in user_deps and instance_belongs_to_user(inst, user_id):
-                    register_deployment_owner(inst_id, user_id)
                 all_instances.append({
-                    "id": inst_id,
+                    "id": inst.get('id'),
                     "name": inst.get('hostname', inst.get('name', 'Unknown')),
                     "gpu_type": inst.get('instance_type', 'Unknown'),
                     "status": inst.get('status', 'unknown'),
@@ -2101,24 +2073,15 @@ async def list_compute_instances(current_user: User = Depends(get_current_user))
                 })
 
     except Exception as e:
-        pass
+        print(f"Error listing Verda instances: {e}")
 
-    # Get Targon instances (with timeout) — only user's own (registry-based, no description support)
+    # Get Targon instances
     try:
         if targon_client and targon_client.authenticated:
-            try:
-                targon_instances = await asyncio.wait_for(
-                    asyncio.get_event_loop().run_in_executor(None, targon_client.list_instances),
-                    timeout=30.0
-                )
-            except asyncio.TimeoutError:
-                targon_instances = []
+            targon_instances = targon_client.list_instances()
             for inst in targon_instances:
-                inst_id = inst.get('id')
-                if inst_id not in user_deps:
-                    continue
                 all_instances.append({
-                    "id": inst_id,
+                    "id": inst.get('id'),
                     "name": inst.get('name', 'Unknown'),
                     "gpu_type": inst.get('gpu_type', 'Unknown'),
                     "status": inst.get('status', 'unknown'),
@@ -2135,47 +2098,12 @@ async def list_compute_instances(current_user: User = Depends(get_current_user))
 
 @app.post("/api/compute/instances")
 async def create_compute_instance(request: ComputeInstanceRequest, current_user: User = Depends(get_current_user)):
-    """Create one or more compute instances (unified deployment endpoint) - requires authentication"""
+    """Create one or more compute instances - requires authentication"""
     try:
-        # Rate limit: max 10 instance creation requests per minute per user
-        check_compute_rate_limit(str(current_user.id), max_requests=10, window_seconds=60)
+        # Validate SSH key
+        if not request.ssh_public_key or not request.ssh_public_key.strip().startswith('ssh-'):
+            raise HTTPException(status_code=400, detail="Valid SSH public key is required")
 
-        # Resolve SSH key: use request value, fall back to stored key in settings
-        ssh_key = (request.ssh_public_key or "").strip() or None
-        if not ssh_key:
-            user_settings = load_settings(str(current_user.id))
-            ssh_key = user_settings.get("ssh_public_key")
-
-        if not ssh_key or not any(ssh_key.strip().startswith(p) for p in ('ssh-', 'ecdsa-', 'sk-')):
-            raise HTTPException(
-                status_code=400,
-                detail="SSH key required. Add one in Settings or provide in request."
-            )
-
-        # Validate GPU type
-        if not request.gpu_type or len(request.gpu_type.strip()) < 2:
-            raise HTTPException(status_code=400, detail="Invalid GPU type specified.")
-
-        # Handle serverless deployment type
-        if request.deployment_type == "serverless":
-            if DEMO_MODE or verda_client is None:
-                raise HTTPException(status_code=503, detail="Serverless deployments disabled in demo mode.")
-            result = verda_client.create_container_deployment(
-                name=request.name,
-                gpu_name=request.gpu_type,
-                use_spot=request.use_spot
-            )
-            dep_id = result.get('id')
-            if dep_id:
-                register_deployment_owner(dep_id, str(current_user.id))
-            return {
-                "success": True,
-                "deployment_id": dep_id,
-                "message": f"Container {request.name} deployed successfully!",
-                "details": result
-            }
-
-        # Raw compute deployment
         quantity = request.quantity
         created_instances = []
 
@@ -2190,11 +2118,9 @@ async def create_compute_instance(request: ComputeInstanceRequest, current_user:
                     "gpu_type": request.gpu_type,
                     "status": "starting",
                     "ip": None,
-                    "ssh_user": "root",
                     "hourly_cost": 0.091,  # Demo price with markup
                     "created_at": datetime.now().isoformat(),
-                    "ssh_key_added": True,
-                    "user_id": str(current_user.id)
+                    "ssh_key_added": True
                 }
                 COMPUTE_INSTANCES[instance_id] = instance
                 created_instances.append(instance)
@@ -2213,42 +2139,27 @@ async def create_compute_instance(request: ComputeInstanceRequest, current_user:
                 "success": True,
                 "message": message,
                 "instances": created_instances,
-                "instance": created_instances[0] if created_instances else None
+                "instance": created_instances[0] if created_instances else None  # Backwards compat
             }
 
-        # Create real instances via Verda (with timeout)
+        # Create real instances via Verda
         for i in range(quantity):
             instance_name = f"{request.name}-{i+1}" if quantity > 1 else request.name
-            owner_desc = make_instance_description(str(current_user.id), request.gpu_type)
-            try:
-                result = await asyncio.wait_for(
-                    asyncio.get_event_loop().run_in_executor(
-                        None,
-                        lambda name=instance_name, desc=owner_desc: verda_client.create_instance(
-                            name=name,
-                            gpu_name=request.gpu_type,
-                            use_spot=request.use_spot,
-                            ssh_public_key=ssh_key,
-                            description=desc
-                        )
-                    ),
-                    timeout=60.0
-                )
-            except asyncio.TimeoutError:
-                raise HTTPException(status_code=504, detail=f"GPU provider timed out while creating instance '{instance_name}'. Please try again.")
+            result = verda_client.create_instance(
+                name=instance_name,
+                gpu_name=request.gpu_type,
+                use_spot=request.use_spot,
+                ssh_public_key=request.ssh_public_key
+            )
 
             if result:
-                inst_id = result.get('id')
                 created_instances.append({
-                    "id": inst_id,
+                    "id": result.get('id'),
                     "name": instance_name,
                     "gpu_type": request.gpu_type,
                     "status": result.get('status', 'starting'),
                     "ip": result.get('ip')
                 })
-                # Register ownership so only this user can see/manage it
-                if inst_id:
-                    register_deployment_owner(inst_id, str(current_user.id))
 
         if created_instances:
             message = f"{len(created_instances)} instances are being provisioned" if len(created_instances) > 1 else f"Instance {request.name} is being provisioned"
@@ -2272,57 +2183,17 @@ async def create_compute_instance(request: ComputeInstanceRequest, current_user:
 async def terminate_compute_instance(instance_id: str, current_user: User = Depends(get_current_user)):
     """Terminate a compute instance - requires authentication"""
     try:
-        # Rate limit: max 10 termination requests per minute per user
-        check_compute_rate_limit(str(current_user.id) + ":delete", max_requests=10, window_seconds=60)
-
         if DEMO_MODE or verda_client is None:
-            # Demo mode - remove from in-memory store (with ownership check)
+            # Demo mode - remove from in-memory store
             if instance_id in COMPUTE_INSTANCES:
-                if COMPUTE_INSTANCES[instance_id].get("user_id") != str(current_user.id):
-                    raise HTTPException(status_code=403, detail="You do not own this instance")
                 del COMPUTE_INSTANCES[instance_id]
                 return {"success": True, "message": "Instance terminated"}
             else:
                 raise HTTPException(status_code=404, detail="Instance not found")
 
-        # Ownership check — deny by default
-        user_id = str(current_user.id)
-        owner = get_deployment_owner(instance_id)
-        if owner and owner != user_id:
-            raise HTTPException(status_code=403, detail="You do not own this instance")
-
-        if not owner:
-            # Registry missing — verify via provider description, deny on failure
-            verified = False
-            try:
-                inst_detail = await asyncio.wait_for(
-                    asyncio.get_event_loop().run_in_executor(None, lambda: verda_client.get_instance(instance_id)),
-                    timeout=15.0
-                )
-                if inst_detail:
-                    desc_owner = parse_owner_from_description(inst_detail.get("description", ""))
-                    if desc_owner and desc_owner != user_id:
-                        raise HTTPException(status_code=403, detail="You do not own this instance")
-                    if desc_owner == user_id:
-                        verified = True
-                        register_deployment_owner(instance_id, user_id)
-            except HTTPException:
-                raise
-            except Exception:
-                pass
-            if not verified:
-                raise HTTPException(status_code=403, detail="Cannot verify ownership of this instance")
-
-        # Terminate real instance via Verda (with timeout)
-        try:
-            result = await asyncio.wait_for(
-                asyncio.get_event_loop().run_in_executor(None, lambda: verda_client.delete_instance(instance_id)),
-                timeout=30.0
-            )
-        except asyncio.TimeoutError:
-            raise HTTPException(status_code=504, detail="GPU provider timed out. The instance may still be terminating.")
+        # Terminate real instance via Verda
+        result = verda_client.delete_instance(instance_id)
         if result:
-            unregister_deployment(instance_id)
             return {"success": True, "message": "Instance terminated"}
         else:
             raise HTTPException(status_code=500, detail="Failed to terminate instance")
@@ -2338,86 +2209,23 @@ async def terminate_compute_instance(instance_id: str, current_user: User = Depe
 # API KEYS
 # ============================================================================
 
-USER_DATA_DIR = "user_data"
-os.makedirs(USER_DATA_DIR, exist_ok=True)
+API_KEYS_FILE = "api_keys.json"
+USAGE_STATS_FILE = "usage_stats.json"
 
-def _user_file(user_id: str, filename: str) -> str:
-    """Get path to a per-user data file, creating the user dir if needed"""
-    user_dir = os.path.join(USER_DATA_DIR, user_id)
-    os.makedirs(user_dir, exist_ok=True)
-    return os.path.join(user_dir, filename)
-
-# Deployment ownership: uses provider-level description tag for durable ownership
-# Format: "polaris:uid:{user_uuid}|{human_readable_info}"
-# This survives server restarts and registry file loss.
-POLARIS_OWNER_PREFIX = "polaris:uid:"
-
-def make_instance_description(user_id: str, gpu_name: str) -> str:
-    """Build a description string that embeds user ownership"""
-    return f"{POLARIS_OWNER_PREFIX}{user_id}|{gpu_name}"
-
-def parse_owner_from_description(description: str) -> str:
-    """Extract user_id from a Polaris-tagged instance description, or None"""
-    if not description or not description.startswith(POLARIS_OWNER_PREFIX):
-        return None
-    # "polaris:uid:{uuid}|{info}" -> extract uuid
-    tag_part = description[len(POLARIS_OWNER_PREFIX):]
-    return tag_part.split("|")[0] if tag_part else None
-
-def instance_belongs_to_user(instance: dict, user_id: str) -> bool:
-    """Check if an instance belongs to a user by reading its description"""
-    return parse_owner_from_description(instance.get("description", "")) == user_id
-
-# File-based cache (backup — rebuilt from provider if lost)
-DEPLOYMENT_OWNERS_FILE = os.path.join(USER_DATA_DIR, "_deployment_owners.json")
-
-def _load_deployment_owners() -> dict:
-    if os.path.exists(DEPLOYMENT_OWNERS_FILE):
-        with open(DEPLOYMENT_OWNERS_FILE, 'r') as f:
-            return json.load(f)
-    return {}
-
-def _save_deployment_owners(owners: dict):
-    with open(DEPLOYMENT_OWNERS_FILE, 'w') as f:
-        json.dump(owners, f, indent=2)
-
-def register_deployment_owner(deployment_id: str, user_id: str):
-    """Cache ownership locally (provider description is the source of truth)"""
-    owners = _load_deployment_owners()
-    owners[deployment_id] = user_id
-    _save_deployment_owners(owners)
-
-def get_deployment_owner(deployment_id: str) -> str:
-    """Get the user_id that owns a deployment from local cache"""
-    return _load_deployment_owners().get(deployment_id)
-
-def get_user_deployment_ids(user_id: str) -> set:
-    """Get all deployment IDs owned by a user from local cache"""
-    owners = _load_deployment_owners()
-    return {did for did, uid in owners.items() if uid == user_id}
-
-def unregister_deployment(deployment_id: str):
-    """Remove a deployment from the local cache"""
-    owners = _load_deployment_owners()
-    owners.pop(deployment_id, None)
-    _save_deployment_owners(owners)
-
-def load_api_keys(user_id: str):
-    """Load API keys for a specific user"""
-    path = _user_file(user_id, "api_keys.json")
-    if os.path.exists(path):
-        with open(path, 'r') as f:
+def load_api_keys():
+    """Load API keys from file"""
+    if os.path.exists(API_KEYS_FILE):
+        with open(API_KEYS_FILE, 'r') as f:
             return json.load(f)
     return []
 
-def save_api_keys(user_id: str, keys):
-    """Save API keys for a specific user"""
-    path = _user_file(user_id, "api_keys.json")
-    with open(path, 'w') as f:
+def save_api_keys(keys):
+    """Save API keys to file"""
+    with open(API_KEYS_FILE, 'w') as f:
         json.dump(keys, f, indent=2)
 
-def load_usage_stats(user_id: str):
-    """Load usage statistics for a specific user"""
+def load_usage_stats():
+    """Load usage statistics from file"""
     default_stats = {
         "total_requests": 0,
         "requests_by_key": {},
@@ -2425,9 +2233,8 @@ def load_usage_stats(user_id: str):
         "requests_by_deployment": {},
         "last_updated": None
     }
-    path = _user_file(user_id, "usage_stats.json")
-    if os.path.exists(path):
-        with open(path, 'r') as f:
+    if os.path.exists(USAGE_STATS_FILE):
+        with open(USAGE_STATS_FILE, 'r') as f:
             saved = json.load(f)
             for key in default_stats:
                 if key not in saved:
@@ -2435,16 +2242,15 @@ def load_usage_stats(user_id: str):
             return saved
     return default_stats
 
-def save_usage_stats(user_id: str, stats):
-    """Save usage statistics for a specific user"""
+def save_usage_stats(stats):
+    """Save usage statistics to file"""
     stats["last_updated"] = datetime.now().isoformat()
-    path = _user_file(user_id, "usage_stats.json")
-    with open(path, 'w') as f:
+    with open(USAGE_STATS_FILE, 'w') as f:
         json.dump(stats, f, indent=2)
 
-def record_api_usage(user_id: str, key_id: str, deployment_id: str = None):
-    """Record an API usage event for a specific user"""
-    stats = load_usage_stats(user_id)
+def record_api_usage(key_id: str, deployment_id: str = None):
+    """Record an API usage event"""
+    stats = load_usage_stats()
     today = datetime.now().strftime("%Y-%m-%d")
 
     # Increment total requests
@@ -2467,25 +2273,26 @@ def record_api_usage(user_id: str, key_id: str, deployment_id: str = None):
             stats["requests_by_deployment"][deployment_id] = 0
         stats["requests_by_deployment"][deployment_id] += 1
 
-    save_usage_stats(user_id, stats)
+    save_usage_stats(stats)
 
     # Also update last_used on the API key
-    keys = load_api_keys(user_id)
+    keys = load_api_keys()
     for key in keys:
         if key["id"] == key_id:
             key["last_used"] = datetime.now().isoformat()
             key["request_count"] = key.get("request_count", 0) + 1
             break
-    save_api_keys(user_id, keys)
+    save_api_keys(keys)
 
 @app.get("/api/keys")
 async def get_api_keys(current_user: User = Depends(get_current_user)):
     """Get all API keys for the current user"""
     try:
-        user_id = str(current_user.id)
-        keys = load_api_keys(user_id)
-        return {"keys": keys}
+        keys = load_api_keys()
+        user_keys = [k for k in keys if k.get("user_id") == str(current_user.id)]
+        return {"keys": user_keys}
     except Exception as e:
+        print(f"Error loading API keys: {e}")
         return {"keys": []}
 
 @app.post("/api/keys/generate")
@@ -2493,17 +2300,17 @@ async def generate_api_key(request: APIKeyRequest, current_user: User = Depends(
     """Generate a new API key for the current user"""
     try:
         import secrets
-        user_id = str(current_user.id)
 
         # Generate key
         key = f"vf_live_{secrets.token_urlsafe(32)}"
 
         # Load existing keys
-        keys = load_api_keys(user_id)
+        keys = load_api_keys()
 
         # Add new key
         new_key = {
             "id": secrets.token_urlsafe(8),
+            "user_id": str(current_user.id),
             "name": request.name,
             "description": request.description or "",
             "key": key,
@@ -2513,26 +2320,35 @@ async def generate_api_key(request: APIKeyRequest, current_user: User = Depends(
         keys.append(new_key)
 
         # Save
-        save_api_keys(user_id, keys)
+        save_api_keys(keys)
 
         return {
             "success": True,
             "key": new_key
         }
     except Exception as e:
+        print(f"Error generating API key: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.delete("/api/keys/{key_id}")
 async def revoke_api_key(key_id: str, current_user: User = Depends(get_current_user)):
-    """Revoke an API key"""
+    """Revoke an API key (must be owned by current user)"""
     try:
-        user_id = str(current_user.id)
-        keys = load_api_keys(user_id)
+        keys = load_api_keys()
+        # Verify ownership before deleting
+        key_to_delete = next((k for k in keys if k['id'] == key_id), None)
+        if not key_to_delete:
+            raise HTTPException(status_code=404, detail="API key not found")
+        if key_to_delete.get("user_id") != str(current_user.id):
+            raise HTTPException(status_code=403, detail="Not authorized to revoke this API key")
         keys = [k for k in keys if k['id'] != key_id]
-        save_api_keys(user_id, keys)
+        save_api_keys(keys)
 
         return {"success": True, "message": "API key revoked"}
+    except HTTPException:
+        raise
     except Exception as e:
+        print(f"Error revoking key: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 # ============================================================================
@@ -2543,9 +2359,10 @@ async def revoke_api_key(key_id: str, current_user: User = Depends(get_current_u
 async def get_usage_analytics(current_user: User = Depends(get_current_user)):
     """Get detailed usage analytics for the current user"""
     try:
-        user_id = str(current_user.id)
-        stats = load_usage_stats(user_id)
-        keys = load_api_keys(user_id)
+        stats = load_usage_stats()
+        keys = load_api_keys()
+        # Filter to current user's keys only
+        keys = [k for k in keys if k.get("user_id") == str(current_user.id)]
 
         # Get last 30 days of data
         today = datetime.now()
@@ -2611,22 +2428,28 @@ async def get_usage_analytics(current_user: User = Depends(get_current_user)):
 async def record_usage(key_id: str, deployment_id: Optional[str] = None, current_user: User = Depends(get_current_user)):
     """Record an API usage event (for testing/manual recording)"""
     try:
-        user_id = str(current_user.id)
-        record_api_usage(user_id, key_id, deployment_id)
+        record_api_usage(key_id, deployment_id)
         return {"success": True, "message": "Usage recorded"}
     except Exception as e:
+        print(f"Error recording usage: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 # ============================================================================
 # SETTINGS
 # ============================================================================
 
-SETTINGS_DIR = "user_settings"
-os.makedirs(SETTINGS_DIR, exist_ok=True)
+SETTINGS_FILE = "settings.json"
 
-def _default_settings():
+def _default_user_settings():
     """Return default settings for a new user"""
     return {
+        "account": {
+            "email": "developer@example.com",
+            "name": "Developer",
+            "company": "",
+            "plan": "Professional",
+            "created_at": "2026-01-01"
+        },
         "billing": {
             "current_month": 0.00,
             "last_month": 0.00,
@@ -2641,43 +2464,46 @@ def _default_settings():
             "weekly_summary": False,
             "email_notifications": True
         },
-        "ssh_public_key": None,
         "webhooks": []
     }
 
-def load_settings(user_id: str):
-    """Load settings for a specific user"""
-    defaults = _default_settings()
-    settings_file = os.path.join(SETTINGS_DIR, f"{user_id}.json")
-    if os.path.exists(settings_file):
-        with open(settings_file, 'r') as f:
+def load_settings(user_id: str = None):
+    """Load settings from file, scoped by user_id"""
+    default_settings = _default_user_settings()
+    if os.path.exists(SETTINGS_FILE):
+        with open(SETTINGS_FILE, 'r') as f:
             saved = json.load(f)
-            for key in defaults:
+            if user_id:
+                user_settings = saved.get(user_id, {})
+                for key in default_settings:
+                    if key not in user_settings:
+                        user_settings[key] = default_settings[key]
+                return user_settings
+            # Legacy: merge with defaults
+            for key in default_settings:
                 if key not in saved:
-                    saved[key] = defaults[key]
+                    saved[key] = default_settings[key]
             return saved
-    return defaults
+    return default_settings
 
-def save_settings(user_id: str, settings):
-    """Save settings for a specific user"""
-    settings_file = os.path.join(SETTINGS_DIR, f"{user_id}.json")
-    with open(settings_file, 'w') as f:
-        json.dump(settings, f, indent=2)
+def save_settings(settings, user_id: str = None):
+    """Save settings to file, scoped by user_id"""
+    if user_id:
+        all_settings = {}
+        if os.path.exists(SETTINGS_FILE):
+            with open(SETTINGS_FILE, 'r') as f:
+                all_settings = json.load(f)
+        all_settings[user_id] = settings
+        with open(SETTINGS_FILE, 'w') as f:
+            json.dump(all_settings, f, indent=2)
+    else:
+        with open(SETTINGS_FILE, 'w') as f:
+            json.dump(settings, f, indent=2)
 
 @app.get("/api/settings")
 async def get_settings(current_user: User = Depends(get_current_user)):
     """Get account settings for the current user"""
-    user_id = str(current_user.id)
-    settings = load_settings(user_id)
-    # Override account section with real user data from the database
-    settings["account"] = {
-        "email": current_user.email,
-        "name": current_user.name or current_user.email.split("@")[0],
-        "company": current_user.company or "",
-        "plan": current_user.tier.value.capitalize() if current_user.tier else "Free",
-        "created_at": current_user.created_at.isoformat() if current_user.created_at else None
-    }
-    return settings
+    return load_settings(user_id=str(current_user.id))
 
 class AccountUpdateRequest(BaseModel):
     email: Optional[str] = None
@@ -2685,58 +2511,18 @@ class AccountUpdateRequest(BaseModel):
     company: Optional[str] = None
 
 @app.put("/api/settings/account")
-async def update_account(
-    request: AccountUpdateRequest,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
-):
+async def update_account(request: AccountUpdateRequest, current_user: User = Depends(get_current_user)):
     """Update account settings for the current user"""
-    # Update user record in database
+    uid = str(current_user.id)
+    settings = load_settings(user_id=uid)
+    if request.email:
+        settings["account"]["email"] = request.email
     if request.name:
-        current_user.name = request.name
+        settings["account"]["name"] = request.name
     if request.company is not None:
-        current_user.company = request.company
-    # Email changes require extra care (uniqueness check)
-    if request.email and request.email != current_user.email:
-        existing = await db.execute(select(User).where(User.email == request.email))
-        if existing.scalar_one_or_none():
-            raise HTTPException(status_code=400, detail="Email already in use")
-        current_user.email = request.email
-    await db.commit()
-    await db.refresh(current_user)
-    account = {
-        "email": current_user.email,
-        "name": current_user.name or current_user.email.split("@")[0],
-        "company": current_user.company or "",
-        "plan": current_user.tier.value.capitalize() if current_user.tier else "Free",
-        "created_at": current_user.created_at.isoformat() if current_user.created_at else None
-    }
-    return {"success": True, "account": account}
-
-class SSHKeyRequest(BaseModel):
-    ssh_public_key: str
-
-@app.put("/api/settings/ssh-key")
-async def update_ssh_key(request: SSHKeyRequest, current_user: User = Depends(get_current_user)):
-    """Save or update the user's SSH public key"""
-    key = request.ssh_public_key.strip()
-    valid_prefixes = ('ssh-rsa ', 'ssh-ed25519 ', 'ecdsa-sha2-nistp', 'sk-ssh-ed25519@', 'sk-ecdsa-sha2-nistp')
-    if not any(key.startswith(prefix) for prefix in valid_prefixes):
-        raise HTTPException(status_code=400, detail="Invalid SSH key format. Must start with ssh-rsa, ssh-ed25519, ecdsa-sha2, or sk-ssh.")
-    user_id = str(current_user.id)
-    settings = load_settings(user_id)
-    settings["ssh_public_key"] = key
-    save_settings(user_id, settings)
-    return {"success": True, "message": "SSH key saved."}
-
-@app.delete("/api/settings/ssh-key")
-async def delete_ssh_key(current_user: User = Depends(get_current_user)):
-    """Remove the user's stored SSH public key"""
-    user_id = str(current_user.id)
-    settings = load_settings(user_id)
-    settings["ssh_public_key"] = None
-    save_settings(user_id, settings)
-    return {"success": True, "message": "SSH key removed."}
+        settings["account"]["company"] = request.company
+    save_settings(settings, user_id=uid)
+    return {"success": True, "account": settings["account"]}
 
 class NotificationUpdateRequest(BaseModel):
     deployment_started: Optional[bool] = None
@@ -2749,12 +2535,12 @@ class NotificationUpdateRequest(BaseModel):
 @app.put("/api/settings/notifications")
 async def update_notifications(request: NotificationUpdateRequest, current_user: User = Depends(get_current_user)):
     """Update notification preferences for the current user"""
-    user_id = str(current_user.id)
-    settings = load_settings(user_id)
+    uid = str(current_user.id)
+    settings = load_settings(user_id=uid)
     updates = request.model_dump(exclude_none=True)
     for key, value in updates.items():
         settings["notifications"][key] = value
-    save_settings(user_id, settings)
+    save_settings(settings, user_id=uid)
     return {"success": True, "notifications": settings["notifications"]}
 
 class WebhookRequest(BaseModel):
@@ -2765,16 +2551,14 @@ class WebhookRequest(BaseModel):
 @app.get("/api/settings/webhooks")
 async def get_webhooks(current_user: User = Depends(get_current_user)):
     """Get all webhooks for the current user"""
-    user_id = str(current_user.id)
-    settings = load_settings(user_id)
+    settings = load_settings(user_id=str(current_user.id))
     return {"webhooks": settings.get("webhooks", [])}
 
 @app.post("/api/settings/webhooks")
 async def create_webhook(request: WebhookRequest, current_user: User = Depends(get_current_user)):
     """Create a new webhook for the current user"""
-    import secrets
-    user_id = str(current_user.id)
-    settings = load_settings(user_id)
+    uid = str(current_user.id)
+    settings = load_settings(user_id=uid)
     webhook = {
         "id": secrets.token_urlsafe(8),
         "name": request.name or f"Webhook {len(settings.get('webhooks', [])) + 1}",
@@ -2787,27 +2571,27 @@ async def create_webhook(request: WebhookRequest, current_user: User = Depends(g
     if "webhooks" not in settings:
         settings["webhooks"] = []
     settings["webhooks"].append(webhook)
-    save_settings(user_id, settings)
+    save_settings(settings, user_id=uid)
     return {"success": True, "webhook": webhook}
 
 @app.delete("/api/settings/webhooks/{webhook_id}")
 async def delete_webhook(webhook_id: str, current_user: User = Depends(get_current_user)):
     """Delete a webhook"""
-    user_id = str(current_user.id)
-    settings = load_settings(user_id)
+    uid = str(current_user.id)
+    settings = load_settings(user_id=uid)
     settings["webhooks"] = [w for w in settings.get("webhooks", []) if w["id"] != webhook_id]
-    save_settings(user_id, settings)
+    save_settings(settings, user_id=uid)
     return {"success": True, "message": "Webhook deleted"}
 
 @app.put("/api/settings/webhooks/{webhook_id}/toggle")
 async def toggle_webhook(webhook_id: str, current_user: User = Depends(get_current_user)):
     """Toggle webhook active status"""
-    user_id = str(current_user.id)
-    settings = load_settings(user_id)
+    uid = str(current_user.id)
+    settings = load_settings(user_id=uid)
     for webhook in settings.get("webhooks", []):
         if webhook["id"] == webhook_id:
             webhook["active"] = not webhook.get("active", True)
-            save_settings(user_id, settings)
+            save_settings(settings, user_id=uid)
             return {"success": True, "active": webhook["active"]}
     raise HTTPException(status_code=404, detail="Webhook not found")
 
@@ -2863,14 +2647,7 @@ def generate_mock_metrics(deployment_id: str):
 
 @app.get("/api/deployments/{deployment_id}/metrics")
 async def get_deployment_metrics(deployment_id: str, current_user: User = Depends(get_current_user)):
-    """Get real-time metrics for a deployment - requires authentication and ownership"""
-    user_id = str(current_user.id)
-    owner = get_deployment_owner(deployment_id)
-    if owner != user_id:
-        deployments = load_template_deployments()
-        dep = deployments.get(deployment_id)
-        if not dep or dep.get("user_id") != user_id:
-            raise HTTPException(status_code=403, detail="You do not own this deployment")
+    """Get real-time metrics for a deployment - requires authentication"""
     try:
         # In production, this would query actual monitoring systems
         # For now, generate realistic mock data
@@ -2901,14 +2678,7 @@ async def get_deployment_metrics(deployment_id: str, current_user: User = Depend
 
 @app.get("/api/deployments/{deployment_id}/metrics/history")
 async def get_deployment_metrics_history(deployment_id: str, period: str = "1h", current_user: User = Depends(get_current_user)):
-    """Get historical metrics for a deployment - requires authentication and ownership"""
-    user_id = str(current_user.id)
-    owner = get_deployment_owner(deployment_id)
-    if owner != user_id:
-        deployments = load_template_deployments()
-        dep = deployments.get(deployment_id)
-        if not dep or dep.get("user_id") != user_id:
-            raise HTTPException(status_code=403, detail="You do not own this deployment")
+    """Get historical metrics for a deployment - requires authentication"""
     try:
         all_metrics = load_metrics()
 
@@ -2934,9 +2704,11 @@ async def get_deployment_metrics_history(deployment_id: str, period: str = "1h",
 # USAGE LIMITS & RATE LIMITING
 # ============================================================================
 
-def _default_limits():
-    """Default usage limits for a new user"""
-    return {
+LIMITS_FILE = "usage_limits.json"
+
+def load_limits():
+    """Load usage limits configuration"""
+    default_limits = {
         "api_requests_per_minute": 60,
         "api_requests_per_day": 10000,
         "max_concurrent_deployments": 5,
@@ -2946,37 +2718,31 @@ def _default_limits():
         "auto_stop_threshold": 500.00,
         "enabled": True
     }
-
-def load_limits(user_id: str):
-    """Load usage limits for a specific user"""
-    defaults = _default_limits()
-    path = _user_file(user_id, "limits.json")
-    if os.path.exists(path):
-        with open(path, 'r') as f:
+    if os.path.exists(LIMITS_FILE):
+        with open(LIMITS_FILE, 'r') as f:
             saved = json.load(f)
-            for key in defaults:
+            for key in default_limits:
                 if key not in saved:
-                    saved[key] = defaults[key]
+                    saved[key] = default_limits[key]
             return saved
-    return defaults
+    return default_limits
 
-def save_limits(user_id: str, limits):
-    """Save usage limits for a specific user"""
-    path = _user_file(user_id, "limits.json")
-    with open(path, 'w') as f:
+def save_limits(limits):
+    """Save usage limits configuration"""
+    with open(LIMITS_FILE, 'w') as f:
         json.dump(limits, f, indent=2)
 
 @app.get("/api/limits")
 async def get_limits(current_user: User = Depends(get_current_user)):
     """Get current usage limits for the current user"""
-    user_id = str(current_user.id)
-    limits = load_limits(user_id)
+    uid = str(current_user.id)
+    limits = load_limits()
 
-    # Add current usage stats
-    user_id = str(current_user.id)
-    keys = load_api_keys(user_id)
-    settings = load_settings(user_id)
-    stats = load_usage_stats(user_id)
+    # Add current usage stats scoped to user
+    keys = load_api_keys()
+    user_keys = [k for k in keys if k.get("user_id") == uid]
+    settings = load_settings(user_id=uid)
+    stats = load_usage_stats()
 
     today = datetime.now().strftime("%Y-%m-%d")
     today_requests = stats.get("requests_by_day", {}).get(today, 0)
@@ -2984,7 +2750,7 @@ async def get_limits(current_user: User = Depends(get_current_user)):
     return {
         "limits": limits,
         "current_usage": {
-            "api_keys_count": len(keys),
+            "api_keys_count": len(user_keys),
             "webhooks_count": len(settings.get("webhooks", [])),
             "requests_today": today_requests,
             "estimated_monthly_cost": settings.get("billing", {}).get("current_month", 0)
@@ -3004,40 +2770,40 @@ class LimitsUpdateRequest(BaseModel):
 @app.put("/api/limits")
 async def update_limits(request: LimitsUpdateRequest, current_user: User = Depends(get_current_user)):
     """Update usage limits for the current user"""
-    user_id = str(current_user.id)
-    limits = load_limits(user_id)
+    limits = load_limits()
     updates = request.model_dump(exclude_none=True)
     for key, value in updates.items():
         limits[key] = value
-    save_limits(user_id, limits)
+    save_limits(limits)
     return {"success": True, "limits": limits}
 
 # ============================================================================
 # COST TRACKING
 # ============================================================================
 
-def load_cost_data(user_id: str):
-    """Load cost tracking data for a specific user"""
+COST_FILE = "cost_tracking.json"
+
+def load_cost_data():
+    """Load cost tracking data"""
     default_data = {
-        "hourly_rates": {},
-        "usage_hours": {},
-        "daily_costs": {},
-        "monthly_totals": {}
+        "hourly_rates": {},  # deployment_id -> hourly_rate
+        "usage_hours": {},   # deployment_id -> {"date": hours}
+        "daily_costs": {},   # "YYYY-MM-DD" -> cost
+        "monthly_totals": {} # "YYYY-MM" -> cost
     }
-    path = _user_file(user_id, "costs.json")
-    if os.path.exists(path):
-        with open(path, 'r') as f:
+    if os.path.exists(COST_FILE):
+        with open(COST_FILE, 'r') as f:
             return json.load(f)
     return default_data
 
-def save_cost_data(user_id: str, data):
-    """Save cost tracking data for a specific user"""
-    path = _user_file(user_id, "costs.json")
-    with open(path, 'w') as f:
+def save_cost_data(data):
+    """Save cost tracking data"""
+    with open(COST_FILE, 'w') as f:
         json.dump(data, f, indent=2)
 
-def record_deployment_cost(user_id: str, deployment_id: str, gpu_type: str, hours: float = 1.0):
-    """Record cost for a deployment for a specific user"""
+def record_deployment_cost(deployment_id: str, gpu_type: str, hours: float = 1.0):
+    """Record cost for a deployment"""
+    # GPU hourly rates (spot prices)
     gpu_rates = {
         "Tesla-V100-16GB": 0.076,
         "RTX-A6000": 0.125,
@@ -3051,26 +2817,34 @@ def record_deployment_cost(user_id: str, deployment_id: str, gpu_type: str, hour
     rate = gpu_rates.get(gpu_type, 0.20)
     cost = rate * hours
 
-    data = load_cost_data(user_id)
+    data = load_cost_data()
     today = datetime.now().strftime("%Y-%m-%d")
     month = datetime.now().strftime("%Y-%m")
 
+    # Update hourly rate tracking
     data["hourly_rates"][deployment_id] = rate
+
+    # Update daily cost
     if today not in data["daily_costs"]:
         data["daily_costs"][today] = 0
     data["daily_costs"][today] += cost
+
+    # Update monthly total
     if month not in data["monthly_totals"]:
         data["monthly_totals"][month] = 0
     data["monthly_totals"][month] += cost
 
-    save_cost_data(user_id, data)
+    save_cost_data(data)
+
+    # Note: billing in settings is updated per-user at the endpoint level
+    # This function records aggregate cost data only
+
     return cost
 
 @app.get("/api/costs")
 async def get_cost_breakdown(current_user: User = Depends(get_current_user)):
     """Get detailed cost breakdown for the current user"""
-    user_id = str(current_user.id)
-    data = load_cost_data(user_id)
+    data = load_cost_data()
     today = datetime.now()
     current_month = today.strftime("%Y-%m")
     last_month = (today.replace(day=1) - __import__('datetime').timedelta(days=1)).strftime("%Y-%m")
@@ -3106,8 +2880,7 @@ async def get_cost_breakdown(current_user: User = Depends(get_current_user)):
 @app.post("/api/costs/simulate")
 async def simulate_cost(hours: float = 1.0, deployment_id: str = "demo", gpu_type: str = "A100-40GB", current_user: User = Depends(get_current_user)):
     """Simulate recording a cost (for testing)"""
-    user_id = str(current_user.id)
-    cost = record_deployment_cost(user_id, deployment_id, gpu_type, hours)
+    cost = record_deployment_cost(deployment_id, gpu_type, hours)
     return {"success": True, "cost_recorded": round(cost, 4), "deployment_id": deployment_id}
 
 # ============================================================================
@@ -3116,8 +2889,7 @@ async def simulate_cost(hours: float = 1.0, deployment_id: str = "demo", gpu_typ
 
 @app.post("/api/danger/reset-usage")
 async def reset_usage_stats(current_user: User = Depends(get_current_user)):
-    """Reset usage statistics for the current user only"""
-    user_id = str(current_user.id)
+    """Reset all usage statistics (danger zone) - requires authentication"""
     default_stats = {
         "total_requests": 0,
         "requests_by_key": {},
@@ -3125,59 +2897,44 @@ async def reset_usage_stats(current_user: User = Depends(get_current_user)):
         "requests_by_deployment": {},
         "last_updated": datetime.now().isoformat()
     }
-    save_usage_stats(user_id, default_stats)
+    save_usage_stats(default_stats)
     return {"success": True, "message": "Usage statistics have been reset"}
 
 @app.post("/api/danger/revoke-all-keys")
 async def revoke_all_api_keys(current_user: User = Depends(get_current_user)):
-    """Revoke all API keys for the current user only"""
-    user_id = str(current_user.id)
-    save_api_keys(user_id, [])
+    """Revoke all API keys (danger zone) - requires authentication"""
+    save_api_keys([])
     return {"success": True, "message": "All API keys have been revoked"}
 
 @app.post("/api/danger/stop-all-deployments")
 async def stop_all_deployments(current_user: User = Depends(get_current_user)):
-    """Stop all of the current user's active deployments only"""
-    user_id = str(current_user.id)
-
+    """Stop all active deployments (danger zone) - requires authentication"""
     if DEMO_MODE or verda_client is None:
-        # Demo mode: stop only this user's instances
-        user_instances = [iid for iid, inst in COMPUTE_INSTANCES.items() if inst.get("user_id") == user_id]
-        for iid in user_instances:
-            del COMPUTE_INSTANCES[iid]
-        return {"success": True, "stopped_count": len(user_instances), "message": f"Stopped {len(user_instances)} deployments"}
+        return {"success": False, "message": "Cannot stop deployments in demo mode"}
 
     try:
-        user_deps = get_user_deployment_ids(user_id)
+        # Get all deployments
         containers = verda_client.list_deployments()
         instances = verda_client.list_instances()
 
         stopped = 0
         errors = []
 
+        # Stop containers
         for c in containers:
-            cid = c.get('id')
-            if cid not in user_deps:
-                continue
             try:
-                verda_client.delete_deployment(cid)
-                unregister_deployment(cid)
+                verda_client.delete_deployment(c.get('id'))
                 stopped += 1
             except Exception as e:
-                errors.append(f"Container {cid}: {str(e)}")
+                errors.append(f"Container {c.get('id')}: {str(e)}")
 
+        # Stop instances
         for i in instances:
-            iid = i.get('id')
-            # Use description tag or registry to determine ownership
-            owns = instance_belongs_to_user(i, user_id) or iid in user_deps
-            if not owns:
-                continue
             try:
-                verda_client.delete_instance(iid)
-                unregister_deployment(iid)
+                verda_client.delete_instance(i.get('id'))
                 stopped += 1
             except Exception as e:
-                errors.append(f"Instance {iid}: {str(e)}")
+                errors.append(f"Instance {i.get('id')}: {str(e)}")
 
         return {
             "success": True,

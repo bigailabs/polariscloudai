@@ -4,16 +4,20 @@ JWT-based authentication with refresh tokens
 """
 
 import os
+import time
+import logging
 import secrets
 import hashlib
 from datetime import datetime, timedelta
 from typing import Optional, Tuple
 from uuid import UUID
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel, EmailStr, Field
-from jose import JWTError, jwt
+from jose import JWTError, jwt, jwk
+from jose.utils import base64url_decode
 from passlib.context import CryptContext
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -23,6 +27,8 @@ from slowapi.util import get_remote_address
 
 from database import get_db
 from models import User, UserTier, RefreshToken
+
+logger = logging.getLogger(__name__)
 
 limiter = Limiter(key_func=get_remote_address)
 
@@ -48,7 +54,15 @@ ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 REFRESH_TOKEN_EXPIRE_DAYS = 30
 
-# Supabase settings (for OAuth)
+# Clerk settings
+CLERK_JWKS_URL = os.getenv("CLERK_JWKS_URL", "")
+CLERK_SECRET_KEY = os.getenv("CLERK_SECRET_KEY", "")
+
+# JWKS cache (keys + timestamp)
+_clerk_jwks_cache: dict = {"keys": None, "fetched_at": 0}
+CLERK_JWKS_CACHE_TTL = 3600  # 1 hour
+
+# Supabase settings (for OAuth — legacy, kept during migration)
 SUPABASE_URL = os.getenv("SUPABASE_URL", "")
 SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY", "")
 SUPABASE_JWT_SECRET = os.getenv("SUPABASE_JWT_SECRET", "")
@@ -200,6 +214,121 @@ def decode_supabase_token(token: str) -> Optional[dict]:
         return None
 
 
+async def get_clerk_jwks() -> Optional[dict]:
+    """Fetch and cache Clerk's JWKS public keys (1hr TTL)."""
+    if not CLERK_JWKS_URL:
+        return None
+
+    now = time.time()
+    if _clerk_jwks_cache["keys"] and (now - _clerk_jwks_cache["fetched_at"]) < CLERK_JWKS_CACHE_TTL:
+        return _clerk_jwks_cache["keys"]
+
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.get(CLERK_JWKS_URL)
+            resp.raise_for_status()
+            jwks = resp.json()
+            _clerk_jwks_cache["keys"] = jwks
+            _clerk_jwks_cache["fetched_at"] = now
+            return jwks
+    except Exception as e:
+        logger.warning(f"Failed to fetch Clerk JWKS: {e}")
+        # Return stale cache if available
+        if _clerk_jwks_cache["keys"]:
+            return _clerk_jwks_cache["keys"]
+        return None
+
+
+def decode_clerk_token(token: str, jwks: dict) -> Optional[dict]:
+    """Decode and validate a Clerk RS256 JWT using JWKS public keys."""
+    try:
+        # Get the key ID from the token header
+        headers = jwt.get_unverified_header(token)
+        kid = headers.get("kid")
+        if not kid:
+            return None
+
+        # Find matching key in JWKS
+        matching_key = None
+        for key_data in jwks.get("keys", []):
+            if key_data.get("kid") == kid:
+                matching_key = key_data
+                break
+
+        if not matching_key:
+            return None
+
+        # Decode and verify the token with the public key
+        payload = jwt.decode(
+            token,
+            matching_key,
+            algorithms=["RS256"],
+            options={"verify_aud": False},  # Clerk tokens don't always set audience
+        )
+        return payload
+    except JWTError:
+        return None
+
+
+async def get_or_create_clerk_user(
+    db: AsyncSession,
+    clerk_user_id: str,
+    email: str,
+    payload: dict,
+) -> User:
+    """
+    Find user by clerk_user_id, link by email, or create new user.
+    Follows same pattern as create_or_link_oauth_user.
+    """
+    # 1. Check if user already exists with this clerk_user_id
+    result = await db.execute(
+        select(User).where(User.clerk_user_id == clerk_user_id)
+    )
+    user = result.scalar_one_or_none()
+
+    if user:
+        user.last_active_at = datetime.utcnow()
+        return user
+
+    # 2. Check if user exists with same email (link accounts)
+    result = await db.execute(
+        select(User).where(User.email == email.lower())
+    )
+    user = result.scalar_one_or_none()
+
+    if user:
+        # Link existing account to Clerk
+        user.clerk_user_id = clerk_user_id
+        if not user.auth_provider:
+            user.auth_provider = "clerk"
+        user.last_active_at = datetime.utcnow()
+        # Update avatar/name from Clerk if not already set
+        name = payload.get("name") or payload.get("first_name")
+        avatar = payload.get("image_url") or payload.get("profile_image_url")
+        if name and not user.name:
+            user.name = name
+        if avatar and not user.avatar_url:
+            user.avatar_url = avatar
+        return user
+
+    # 3. Create new user
+    name = payload.get("name") or payload.get("first_name")
+    avatar = payload.get("image_url") or payload.get("profile_image_url")
+
+    user = User(
+        email=email.lower(),
+        clerk_user_id=clerk_user_id,
+        auth_provider="clerk",
+        name=name,
+        avatar_url=avatar,
+        tier=UserTier.FREE,
+    )
+    db.add(user)
+    await db.flush()
+
+    return user
+
+
 async def create_or_link_oauth_user(
     db: AsyncSession,
     supabase_user_id: str,
@@ -266,7 +395,7 @@ async def get_current_user(
 ) -> User:
     """
     Dependency to get the current authenticated user.
-    Supports both custom JWT and Supabase JWT tokens.
+    Tries auth methods in order: Clerk JWT → custom JWT → Supabase JWT.
     Raises 401 if not authenticated.
     """
     if not credentials:
@@ -279,15 +408,26 @@ async def get_current_user(
     token = credentials.credentials
     user = None
 
-    # Try custom JWT first
-    payload = decode_access_token(token)
-    if payload:
-        user_id = payload.get("sub")
-        if user_id:
-            result = await db.execute(select(User).where(User.id == UUID(user_id)))
-            user = result.scalar_one_or_none()
+    # 1. Try Clerk JWT first (primary auth method)
+    jwks = await get_clerk_jwks()
+    if jwks:
+        clerk_payload = decode_clerk_token(token, jwks)
+        if clerk_payload:
+            clerk_user_id = clerk_payload.get("sub")
+            email = clerk_payload.get("email")
+            if clerk_user_id and email:
+                user = await get_or_create_clerk_user(db, clerk_user_id, email, clerk_payload)
 
-    # Try Supabase JWT if custom JWT didn't work
+    # 2. Try custom JWT (legacy, kept during migration)
+    if not user:
+        payload = decode_access_token(token)
+        if payload:
+            user_id = payload.get("sub")
+            if user_id:
+                result = await db.execute(select(User).where(User.id == UUID(user_id)))
+                user = result.scalar_one_or_none()
+
+    # 3. Try Supabase JWT (legacy, kept during migration)
     if not user:
         supabase_payload = decode_supabase_token(token)
         if supabase_payload:
@@ -318,20 +458,32 @@ async def get_optional_user(
     """
     Dependency to get the current user if authenticated, or None.
     Does not raise an error if not authenticated.
+    Tries: Clerk JWT → custom JWT.
     """
     if not credentials:
         return None
 
-    payload = decode_access_token(credentials.credentials)
-    if not payload:
-        return None
+    token = credentials.credentials
+    user = None
 
-    user_id = payload.get("sub")
-    if not user_id:
-        return None
+    # 1. Try Clerk JWT first
+    jwks = await get_clerk_jwks()
+    if jwks:
+        clerk_payload = decode_clerk_token(token, jwks)
+        if clerk_payload:
+            clerk_user_id = clerk_payload.get("sub")
+            email = clerk_payload.get("email")
+            if clerk_user_id and email:
+                user = await get_or_create_clerk_user(db, clerk_user_id, email, clerk_payload)
 
-    result = await db.execute(select(User).where(User.id == UUID(user_id)))
-    user = result.scalar_one_or_none()
+    # 2. Try custom JWT (legacy)
+    if not user:
+        payload = decode_access_token(token)
+        if payload:
+            user_id = payload.get("sub")
+            if user_id:
+                result = await db.execute(select(User).where(User.id == UUID(user_id)))
+                user = result.scalar_one_or_none()
 
     if user:
         user.last_active_at = datetime.utcnow()
