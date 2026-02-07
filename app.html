@@ -1600,13 +1600,21 @@
         const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh1eHRrcGl4Z2dwbXpqam9na210Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkzNjcwMzEsImV4cCI6MjA4NDk0MzAzMX0.2A5rKwLVt7A_0LGDhksTrEN3YTnr4ZcpKEKuf7U_-Lo';
 
         let supabaseClient = null;
+        let _oauthCallbackInProgress = false;
         if (typeof window.supabase !== 'undefined') {
             supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
             // Listen for auth state changes (handles OAuth redirect)
             supabaseClient.auth.onAuthStateChange(async (event, session) => {
-                if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session && !auth.isLoggedIn()) {
-                    await handleOAuthCallback(session);
+                // Skip if already logged in via localStorage tokens or callback already running
+                if (auth.accessToken || _oauthCallbackInProgress) return;
+                if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session) {
+                    _oauthCallbackInProgress = true;
+                    try {
+                        await handleOAuthCallback(session);
+                    } finally {
+                        _oauthCallbackInProgress = false;
+                    }
                 }
             });
         }
