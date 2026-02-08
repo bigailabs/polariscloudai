@@ -83,72 +83,47 @@ export default function Home() {
         <section className="flex flex-col items-center justify-center px-8 py-24">
           <div className="max-w-2xl text-center">
             <h1 className="text-5xl font-bold tracking-tight text-forest-dark leading-tight">
-              Deploy AI models
+              Open-source inference
               <br />
-              in seconds
+              API
             </h1>
             <p className="mt-6 text-lg text-forest-dark/70 leading-relaxed max-w-lg mx-auto">
-              {AT_CAPACITY
-                ? "Fast, reliable inference API for production workloads. GPU-powered endpoints for text generation, image synthesis, and more."
-                : "GPU-powered cloud compute with pre-built templates. From text generation to image synthesis \u2014 launch production-ready AI with one click."}
+              OpenAI-compatible API for Llama, Mixtral, Gemma, and more. One API key, zero infrastructure.
             </p>
             <div className="mt-10 flex items-center justify-center gap-4">
-              {AT_CAPACITY ? (
-                <>
-                  <SignedOut>
-                    <a
-                      href="#waitlist"
-                      className="rounded-lg bg-forest px-6 py-3 text-base font-medium text-white hover:bg-forest-hover transition-colors"
-                    >
-                      Join the waitlist
-                    </a>
-                  </SignedOut>
-                  <SignedIn>
-                    <Link
-                      href="/dashboard"
-                      className="rounded-lg bg-forest px-6 py-3 text-base font-medium text-white hover:bg-forest-hover transition-colors"
-                    >
-                      Go to dashboard
-                    </Link>
-                  </SignedIn>
-                  <Link
-                    href="/pricing"
-                    className="rounded-lg border border-forest/20 px-6 py-3 text-base font-medium text-forest-dark hover:border-forest/40 transition-colors"
-                  >
-                    Learn more
-                  </Link>
-                </>
-              ) : (
-                <>
-                  <SignedOut>
-                    <Link
-                      href="/sign-up"
-                      className="rounded-lg bg-forest px-6 py-3 text-base font-medium text-white hover:bg-forest-hover transition-colors"
-                    >
-                      Start deploying
-                    </Link>
-                  </SignedOut>
-                  <SignedIn>
-                    <Link
-                      href="/dashboard"
-                      className="rounded-lg bg-forest px-6 py-3 text-base font-medium text-white hover:bg-forest-hover transition-colors"
-                    >
-                      Go to dashboard
-                    </Link>
-                  </SignedIn>
-                  <Link
-                    href="/pricing"
-                    className="rounded-lg border border-forest/20 px-6 py-3 text-base font-medium text-forest-dark hover:border-forest/40 transition-colors"
-                  >
-                    Learn more
-                  </Link>
-                </>
-              )}
+              <SignedOut>
+                <a
+                  href="#waitlist"
+                  className="rounded-lg bg-forest px-6 py-3 text-base font-medium text-white hover:bg-forest-hover transition-colors"
+                >
+                  Join the waitlist
+                </a>
+                <Link
+                  href="/v1/models"
+                  className="rounded-lg border border-forest/20 px-6 py-3 text-base font-medium text-forest-dark hover:border-forest/40 transition-colors"
+                >
+                  Explore models
+                </Link>
+              </SignedOut>
+              <SignedIn>
+                <Link
+                  href="/dashboard/api-keys"
+                  className="rounded-lg bg-forest px-6 py-3 text-base font-medium text-white hover:bg-forest-hover transition-colors"
+                >
+                  Get API key
+                </Link>
+                <Link
+                  href="/docs/api"
+                  className="rounded-lg border border-forest/20 px-6 py-3 text-base font-medium text-forest-dark hover:border-forest/40 transition-colors"
+                >
+                  Explore models
+                </Link>
+              </SignedIn>
             </div>
           </div>
         </section>
 
-        {/* CLI Terminal Demo */}
+        {/* API Demo */}
         <section className="flex justify-center px-8 pb-16">
           <div className="w-full max-w-2xl">
             <div className="rounded-xl border border-forest-dark/10 bg-forest-dark overflow-hidden shadow-lg">
@@ -161,37 +136,35 @@ export default function Home() {
               <div className="p-5 font-mono text-sm leading-relaxed">
                 <div className="text-white/60">
                   <span className="text-green-400">$</span>{" "}
-                  <span className="text-white">polaris deploy --template ollama --name my-llm</span>
-                </div>
-                <div className="mt-3 text-white/50">Deploying Ollama Chat...</div>
-                <div className="text-white/50">
-                  &nbsp;&nbsp;Template: Ollama + Open WebUI
+                  <span className="text-white">curl polaris.computer/v1/chat/completions \</span>
                 </div>
                 <div className="text-white/50">
-                  &nbsp;&nbsp;Model: &nbsp;&nbsp; llama3.2 (3B)
+                  &nbsp;&nbsp;-H &quot;Authorization: Bearer pi_sk_...&quot; \
                 </div>
                 <div className="text-white/50">
-                  &nbsp;&nbsp;Region: &nbsp; Lagos, Nigeria
+                  &nbsp;&nbsp;-d &apos;&#123;&quot;model&quot;: &quot;llama-3.1-8b&quot;, &quot;messages&quot;: [&#123;&quot;role&quot;: &quot;user&quot;, &quot;content&quot;: &quot;Hello&quot;&#125;]&#125;&apos;
                 </div>
-                <div className="mt-3 text-green-400">
-                  &#10003; Deployment created!
+                <div className="mt-4 text-white/40">&#123;</div>
+                <div className="text-white/50">
+                  &nbsp;&nbsp;&quot;model&quot;: &quot;llama-3.1-8b&quot;,
                 </div>
-                <div className="mt-3 text-white/60">
-                  <span className="text-green-400">$</span>{" "}
-                  <span className="text-white">polaris instances list</span>
+                <div className="text-white/50">
+                  &nbsp;&nbsp;&quot;choices&quot;: [&#123;
                 </div>
-                <div className="mt-2 text-white/40 text-xs">
-                  <div>ID &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Name &nbsp;&nbsp;&nbsp;&nbsp; Template &nbsp; Status</div>
-                  <div>a7f3b291 &nbsp;my-llm &nbsp;&nbsp; ollama &nbsp;&nbsp;&nbsp; <span className="text-green-400">running</span></div>
+                <div className="text-green-400">
+                  &nbsp;&nbsp;&nbsp;&nbsp;&quot;message&quot;: &#123;&quot;content&quot;: &quot;Hello! How can I help you today?&quot;&#125;
                 </div>
-                <div className="mt-3 text-white/60">
-                  <span className="text-green-400">$</span>{" "}
-                  <span className="text-white/40 animate-pulse">_</span>
+                <div className="text-white/50">
+                  &nbsp;&nbsp;&#125;],
                 </div>
+                <div className="text-white/50">
+                  &nbsp;&nbsp;&quot;usage&quot;: &#123;&quot;total_tokens&quot;: 42&#125;
+                </div>
+                <div className="text-white/40">&#125;</div>
               </div>
             </div>
             <p className="mt-3 text-center text-xs text-forest-dark/60">
-              Install: npm install -g @polaris-cloud/cli
+              OpenAI SDK compatible &mdash; just change the base URL
             </p>
           </div>
         </section>
