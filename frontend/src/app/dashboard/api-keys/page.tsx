@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useApi } from "@/lib/hooks";
 import { useToast } from "@/components/toast";
 import { useConfirm } from "@/components/confirm-dialog";
+import { track } from "@/lib/analytics";
 
 type ApiKey = {
   id: string;
@@ -53,6 +54,7 @@ export default function ApiKeysPage() {
       setNewKeyName("");
       loadKeys();
       toast.success("API key created successfully");
+      track("api_key_created", { name: newKeyName.trim() });
     } catch {
       toast.error("Failed to create API key");
     } finally {
@@ -74,6 +76,7 @@ export default function ApiKeysPage() {
       await del(`/api/keys/${id}`);
       setKeys((prev) => prev.filter((k) => k.id !== id));
       toast.success("API key revoked");
+      track("api_key_revoked");
     } catch {
       toast.error("Failed to revoke API key");
     }

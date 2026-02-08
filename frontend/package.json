@@ -9,7 +9,9 @@
   },
   "dependencies": {
     "@clerk/nextjs": "^6.37.3",
+    "@supabase/supabase-js": "^2.95.3",
     "next": "16.1.6",
+    "posthog-js": "^1.342.1",
     "react": "19.2.3",
     "react-dom": "19.2.3"
   },

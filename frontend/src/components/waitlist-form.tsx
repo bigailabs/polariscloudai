@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { joinWaitlist } from "@/lib/supabase";
+import { track } from "@/lib/analytics";
 
 type Variant = "hero" | "inline";
 type Status = "idle" | "loading" | "joined" | "already_joined" | "error";
@@ -20,6 +21,7 @@ export function WaitlistForm({ variant = "hero" }: { variant?: Variant }) {
 
     if (result.status === "joined") {
       setStatus("joined");
+      track("waitlist_joined", { email: email.trim() });
     } else if (result.status === "already_joined") {
       setStatus("already_joined");
     } else {

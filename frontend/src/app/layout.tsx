@@ -3,6 +3,7 @@ import { Inter, JetBrains_Mono } from "next/font/google";
 import { ClerkProvider } from "@clerk/nextjs";
 import { ToastProvider } from "@/components/toast";
 import { ConfirmDialogProvider } from "@/components/confirm-dialog";
+import { PostHogWrapper } from "@/components/posthog-provider";
 import "./globals.css";
 
 const inter = Inter({
@@ -70,9 +71,11 @@ export default function RootLayout({
         <body
           className={`${inter.variable} ${jetbrainsMono.variable} antialiased`}
         >
-          <ToastProvider>
-            <ConfirmDialogProvider>{children}</ConfirmDialogProvider>
-          </ToastProvider>
+          <PostHogWrapper>
+            <ToastProvider>
+              <ConfirmDialogProvider>{children}</ConfirmDialogProvider>
+            </ToastProvider>
+          </PostHogWrapper>
         </body>
       </html>
     </ClerkProvider>
