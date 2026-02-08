@@ -70,145 +70,58 @@ const endpointGroups: {
   endpoints: Endpoint[];
 }[] = [
   {
-    title: "Health",
-    slug: "health",
-    description: "Check the API server status.",
+    title: "Inference",
+    slug: "inference",
+    description: "OpenAI-compatible chat completions API. Use your API key to run inference on open-source models.",
     endpoints: [
       {
         method: "GET",
-        path: "/health",
-        description: "Returns the current health status of the API. Use this endpoint for uptime monitoring and load balancer health checks.",
+        path: "/v1/models",
+        description: "List all available models. No authentication required.",
         auth: false,
         responseExample: `{
-  "status": "healthy",
-  "version": "1.2.0",
-  "uptime": 864000
-}`,
-      },
-    ],
-  },
-  {
-    title: "Auth",
-    slug: "auth",
-    description: "Retrieve information about the authenticated user.",
-    endpoints: [
-      {
-        method: "GET",
-        path: "/api/auth/me",
-        description: "Returns the profile of the currently authenticated user, including email, plan, and account creation date.",
-        auth: true,
-        responseExample: `{
-  "id": "user_abc123",
-  "email": "developer@example.com",
-  "name": "Jane Developer",
-  "plan": "starter",
-  "created_at": "2025-06-15T10:30:00Z"
-}`,
-      },
-    ],
-  },
-  {
-    title: "Templates",
-    slug: "templates",
-    description: "Browse available deployment templates.",
-    endpoints: [
-      {
-        method: "GET",
-        path: "/api/templates",
-        description: "List all available deployment templates with their descriptions, resource requirements, and default configurations.",
-        auth: true,
-        responseExample: `{
-  "templates": [
-    {
-      "id": "ollama",
-      "name": "Ollama Chat",
-      "description": "Ollama + Open WebUI for conversational AI",
-      "gpu_required": true,
-      "default_model": "llama3.2"
-    },
-    {
-      "id": "jupyter",
-      "name": "Jupyter Notebook",
-      "description": "JupyterLab with GPU support",
-      "gpu_required": true,
-      "default_model": null
-    }
-  ]
-}`,
-      },
-      {
-        method: "GET",
-        path: "/api/templates/{id}",
-        description: "Retrieve details for a specific template by its ID, including full configuration options and pricing.",
-        auth: true,
-        responseExample: `{
-  "id": "ollama",
-  "name": "Ollama Chat",
-  "description": "Ollama + Open WebUI for conversational AI",
-  "gpu_required": true,
-  "default_model": "llama3.2",
-  "ports": [8080, 11434],
-  "min_gpu_memory": "8GB",
-  "estimated_cost_per_hour": "$0.50"
-}`,
-      },
-    ],
-  },
-  {
-    title: "Deployments",
-    slug: "deployments",
-    description: "Create, list, and manage your GPU instances.",
-    endpoints: [
-      {
-        method: "GET",
-        path: "/api/user/deployments",
-        description: "List all deployments for the authenticated user. Returns instances in all states: pending, running, stopped, and failed.",
-        auth: true,
-        responseExample: `{
-  "deployments": [
-    {
-      "id": "dep_a7f3b291",
-      "name": "my-llm",
-      "template": "ollama",
-      "status": "running",
-      "region": "lagos",
-      "ip_address": "102.89.45.12",
-      "created_at": "2025-09-01T14:00:00Z",
-      "cost_per_hour": "$0.50"
-    }
+  "object": "list",
+  "data": [
+    { "id": "llama-3.3-70b", "object": "model", "owned_by": "meta", "context_window": 8192 },
+    { "id": "llama-3.1-8b", "object": "model", "owned_by": "meta", "context_window": 131072 },
+    { "id": "llama-3.3-70b-versatile", "object": "model", "owned_by": "meta", "context_window": 131072 },
+    { "id": "mixtral-8x7b", "object": "model", "owned_by": "mistral", "context_window": 32768 },
+    { "id": "gemma2-9b", "object": "model", "owned_by": "google", "context_window": 8192 },
+    { "id": "deepseek-r1-70b", "object": "model", "owned_by": "deepseek", "context_window": 131072 }
   ]
 }`,
       },
       {
         method: "POST",
-        path: "/api/user/deployments",
-        description: "Create a new deployment from a template. The instance will be provisioned and start automatically.",
+        path: "/v1/chat/completions",
+        description: "Create a chat completion. Supports streaming via SSE. Compatible with the OpenAI SDK — just change the base URL and API key.",
         auth: true,
         requestBody: `{
-  "template_id": "ollama",
-  "name": "my-llm",
-  "region": "lagos",
-  "gpu_type": "a100"
+  "model": "llama-3.1-8b",
+  "messages": [
+    { "role": "user", "content": "Explain quantum computing in one sentence." }
+  ],
+  "stream": false
 }`,
         responseExample: `{
-  "id": "dep_a7f3b291",
-  "name": "my-llm",
-  "template": "ollama",
-  "status": "pending",
-  "region": "lagos",
-  "created_at": "2025-09-01T14:00:00Z",
-  "estimated_ready_at": "2025-09-01T14:02:00Z"
-}`,
+  "id": "chatcmpl-abc123",
+  "object": "chat.completion",
+  "model": "llama-3.1-8b",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "Quantum computing uses qubits that can exist in superposition..."
       },
-      {
-        method: "DELETE",
-        path: "/api/user/deployments/{id}",
-        description: "Permanently delete a deployment and release all associated resources. This action cannot be undone.",
-        auth: true,
-        responseExample: `{
-  "id": "dep_a7f3b291",
-  "status": "deleted",
-  "deleted_at": "2025-09-01T16:00:00Z"
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 14,
+    "completion_tokens": 28,
+    "total_tokens": 42
+  }
 }`,
       },
     ],
@@ -216,88 +129,68 @@ const endpointGroups: {
   {
     title: "API Keys",
     slug: "api-keys",
-    description: "Generate and manage API keys for programmatic access.",
+    description: "Generate and manage API keys for inference access. Requires dashboard authentication (Clerk).",
     endpoints: [
       {
         method: "GET",
         path: "/api/keys",
-        description: "List all API keys for the authenticated user. Key values are partially masked for security.",
+        description: "List all API keys for the authenticated user. Key values are masked — only the prefix is returned.",
         auth: true,
-        responseExample: `{
-  "keys": [
-    {
-      "id": "key_abc123",
-      "name": "production-api",
-      "prefix": "pi_sk_AKA...sl",
-      "created_at": "2025-08-15T10:00:00Z",
-      "last_used_at": "2025-09-01T12:30:00Z"
-    }
-  ]
-}`,
+        responseExample: `[
+  {
+    "id": "a7f3b291-...",
+    "name": "production-api",
+    "key_prefix": "pi_sk_8a3f12",
+    "request_count": 1420,
+    "is_active": true,
+    "created_at": "2026-01-15T10:00:00Z",
+    "last_used_at": "2026-02-08T06:00:00Z"
+  }
+]`,
       },
       {
         method: "POST",
         path: "/api/keys/generate",
-        description: "Generate a new API key. The full key value is returned only once in this response. Store it securely.",
+        description: "Generate a new API key. The full key is returned only once — store it securely.",
         auth: true,
         requestBody: `{
   "name": "production-api"
 }`,
         responseExample: `{
-  "id": "key_def456",
-  "name": "production-api",
-  "key": "pi_sk_AKAok8bmRvIJsyRlAHo2HTdSAkWOAzsl",
-  "created_at": "2025-09-01T14:00:00Z"
+  "id": "a7f3b291-...",
+  "key": "pi_sk_8a3f12b9c4e5d6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0"
 }`,
       },
       {
         method: "DELETE",
         path: "/api/keys/{id}",
-        description: "Revoke an API key immediately. Any requests using this key will be rejected.",
+        description: "Revoke an API key. The key is soft-deleted and any future requests using it will be rejected.",
         auth: true,
         responseExample: `{
-  "id": "key_abc123",
-  "revoked": true,
-  "revoked_at": "2025-09-01T16:00:00Z"
+  "success": true
 }`,
       },
     ],
   },
   {
-    title: "Usage & Billing",
+    title: "Usage",
     slug: "usage",
-    description: "Track resource consumption and billing information.",
+    description: "Track inference API consumption.",
     endpoints: [
       {
         method: "GET",
         path: "/api/usage",
-        description: "Retrieve usage statistics for the current billing period, including compute hours, API calls, and cost breakdown.",
+        description: "Retrieve inference usage statistics for the current billing period, including request counts, token usage, and model breakdown.",
         auth: true,
         responseExample: `{
-  "period": {
-    "start": "2025-09-01T00:00:00Z",
-    "end": "2025-09-30T23:59:59Z"
-  },
-  "compute_hours": 142.5,
-  "api_calls": 28450,
-  "total_cost": "$71.25",
-  "breakdown": {
-    "gpu_compute": "$65.00",
-    "api_requests": "$6.25"
-  }
-}`,
-      },
-      {
-        method: "GET",
-        path: "/api/stats",
-        description: "Retrieve aggregate platform statistics and your account metrics.",
-        auth: true,
-        responseExample: `{
-  "total_deployments": 12,
-  "active_deployments": 3,
-  "total_api_calls": 156000,
-  "avg_response_time_ms": 45,
-  "uptime_percentage": 99.95
+  "period": "2026-02",
+  "total_requests": 1420,
+  "total_input_tokens": 284000,
+  "total_output_tokens": 142000,
+  "by_model": [
+    { "model": "llama-3.1-8b", "requests": 1100, "input_tokens": 220000, "output_tokens": 110000 },
+    { "model": "llama-3.3-70b", "requests": 320, "input_tokens": 64000, "output_tokens": 32000 }
+  ]
 }`,
       },
     ],
@@ -454,7 +347,7 @@ export default function APIReferencePage() {
               API Reference
             </h1>
             <p className="mt-4 text-lg text-forest-dark/70 leading-relaxed">
-              The Polaris REST API gives you programmatic access to deployments, templates, API keys, and usage data. All endpoints return JSON.
+              The Polaris inference API is OpenAI-compatible. Use your API key to run open-source models with a single line of code.
             </p>
           </section>
 
@@ -464,9 +357,9 @@ export default function APIReferencePage() {
               Base URL
             </h2>
             <p className="mt-4 text-forest-dark/70">
-              All API requests are made to the following base URL:
+              All inference requests use the following base URL:
             </p>
-            <CodeBlock code="https://api.polaris.computer" language="text" />
+            <CodeBlock code="https://polaris.computer/v1" language="text" />
           </section>
 
           {/* Authentication */}
@@ -475,17 +368,38 @@ export default function APIReferencePage() {
               Authentication
             </h2>
             <p className="mt-4 text-forest-dark/70">
-              Authenticate API requests by including your API key in the <code className="rounded bg-forest-dark/10 px-1.5 py-0.5 text-sm font-mono text-forest-dark">Authorization</code> header as a Bearer token.
+              Authenticate requests by including your API key in the <code className="rounded bg-forest-dark/10 px-1.5 py-0.5 text-sm font-mono text-forest-dark">Authorization</code> header as a Bearer token.
             </p>
             <CodeBlock
-              code={`curl https://api.polaris.computer/api/auth/me \\
-  -H "Authorization: Bearer pi_sk_your_key_here"`}
+              code={`curl https://polaris.computer/v1/chat/completions \\
+  -H "Authorization: Bearer pi_sk_your_key_here" \\
+  -H "Content-Type: application/json" \\
+  -d '{"model": "llama-3.1-8b", "messages": [{"role": "user", "content": "Hello"}]}'`}
             />
             <p className="mt-4 text-sm text-forest-dark/60">
               API keys are prefixed with <code className="rounded bg-forest-dark/10 px-1.5 py-0.5 text-xs font-mono text-forest-dark">pi_sk_</code>. Generate keys from your{" "}
-              <Link href="/dashboard" className="text-forest hover:underline">dashboard</Link> or via the{" "}
-              <Link href="/docs/cli" className="text-forest hover:underline">CLI</Link>.
+              <Link href="/dashboard/api-keys" className="text-forest hover:underline">dashboard</Link>.
             </p>
+
+            <h3 className="mt-8 text-lg font-semibold text-forest-dark">OpenAI SDK</h3>
+            <p className="mt-2 text-sm text-forest-dark/70">
+              Works with the OpenAI Python and Node SDKs — just change the base URL:
+            </p>
+            <CodeBlock
+              code={`from openai import OpenAI
+
+client = OpenAI(
+    base_url="https://polaris.computer/v1",
+    api_key="pi_sk_your_key_here"
+)
+
+response = client.chat.completions.create(
+    model="llama-3.1-8b",
+    messages=[{"role": "user", "content": "Hello"}]
+)
+print(response.choices[0].message.content)`}
+              language="python"
+            />
           </section>
 
           {/* Error Handling */}
@@ -589,10 +503,10 @@ export default function APIReferencePage() {
                       <CodeBlock
                         code={
                           endpoint.method === "GET"
-                            ? `curl https://api.polaris.computer${endpoint.path.replace("{id}", "example_id")}${endpoint.auth ? ' \\\n  -H "Authorization: Bearer pi_sk_your_key_here"' : ""}`
+                            ? `curl https://polaris.computer${endpoint.path.replace("{id}", "example_id")}${endpoint.auth ? ' \\\n  -H "Authorization: Bearer pi_sk_your_key_here"' : ""}`
                             : endpoint.method === "POST"
-                              ? `curl -X POST https://api.polaris.computer${endpoint.path} \\\n  -H "Authorization: Bearer pi_sk_your_key_here" \\\n  -H "Content-Type: application/json" \\\n  -d '${endpoint.requestBody || "{}"}'`
-                              : `curl -X DELETE https://api.polaris.computer${endpoint.path.replace("{id}", "example_id")} \\\n  -H "Authorization: Bearer pi_sk_your_key_here"`
+                              ? `curl -X POST https://polaris.computer${endpoint.path} \\\n  -H "Authorization: Bearer pi_sk_your_key_here" \\\n  -H "Content-Type: application/json" \\\n  -d '${endpoint.requestBody || "{}"}'`
+                              : `curl -X DELETE https://polaris.computer${endpoint.path.replace("{id}", "example_id")} \\\n  -H "Authorization: Bearer pi_sk_your_key_here"`
                         }
                       />
                     </div>
@@ -603,33 +517,29 @@ export default function APIReferencePage() {
           ))}
 
           {/* Rate Limits */}
-          <section className="mt-16 mb-16">
+          <section className="mt-16 scroll-mt-8">
             <h2 className="text-2xl font-semibold text-forest-dark border-b border-mist pb-3">
               Rate Limits
             </h2>
             <p className="mt-4 text-forest-dark/70">
-              API rate limits vary by plan. When you exceed the limit, requests return a <code className="rounded bg-forest-dark/10 px-1.5 py-0.5 text-sm font-mono text-forest-dark">429</code> status code.
+              Rate limits are applied per API key. When you exceed the limit, requests return a <code className="rounded bg-forest-dark/10 px-1.5 py-0.5 text-sm font-mono text-forest-dark">429</code> status code with a <code className="rounded bg-forest-dark/10 px-1.5 py-0.5 text-sm font-mono text-forest-dark">Retry-After</code> header.
             </p>
             <div className="mt-6 overflow-hidden rounded-xl border border-mist">
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-mist bg-stone">
-                    <th className="px-4 py-3 text-left text-sm font-semibold text-forest-dark">Plan</th>
-                    <th className="px-4 py-3 text-left text-sm font-semibold text-forest-dark">Requests/minute</th>
-                    <th className="px-4 py-3 text-left text-sm font-semibold text-forest-dark">Requests/day</th>
+                    <th className="px-4 py-3 text-left text-sm font-semibold text-forest-dark">Limit</th>
+                    <th className="px-4 py-3 text-left text-sm font-semibold text-forest-dark">Value</th>
                   </tr>
                 </thead>
                 <tbody className="text-sm">
                   {[
-                    ["Hobby", "60", "5,000"],
-                    ["Starter", "300", "50,000"],
-                    ["Pro", "1,000", "Unlimited"],
-                    ["Enterprise", "Custom", "Custom"],
-                  ].map(([plan, rpm, rpd]) => (
-                    <tr key={plan} className="border-b border-mist last:border-b-0">
-                      <td className="px-4 py-3 font-medium text-forest-dark">{plan}</td>
-                      <td className="px-4 py-3 text-forest-dark/70">{rpm}</td>
-                      <td className="px-4 py-3 text-forest-dark/70">{rpd}</td>
+                    ["Requests per minute", "60"],
+                    ["Requests per day", "1,000"],
+                  ].map(([limit, value]) => (
+                    <tr key={limit} className="border-b border-mist last:border-b-0">
+                      <td className="px-4 py-3 text-forest-dark">{limit}</td>
+                      <td className="px-4 py-3 font-mono text-forest-dark/70">{value}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -637,9 +547,44 @@ export default function APIReferencePage() {
             </div>
             <p className="mt-4 text-sm text-forest-dark/60">
               Rate limit headers are included in every response:{" "}
+              <code className="rounded bg-forest-dark/10 px-1 py-0.5 text-xs font-mono text-forest-dark">X-RateLimit-Limit</code>,{" "}
               <code className="rounded bg-forest-dark/10 px-1 py-0.5 text-xs font-mono text-forest-dark">X-RateLimit-Remaining</code>,{" "}
               <code className="rounded bg-forest-dark/10 px-1 py-0.5 text-xs font-mono text-forest-dark">X-RateLimit-Reset</code>.
             </p>
+          </section>
+
+          {/* Models */}
+          <section className="mt-16 mb-16 scroll-mt-8">
+            <h2 className="text-2xl font-semibold text-forest-dark border-b border-mist pb-3">
+              Available Models
+            </h2>
+            <div className="mt-6 overflow-hidden rounded-xl border border-mist">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-mist bg-stone">
+                    <th className="px-4 py-3 text-left text-sm font-semibold text-forest-dark">Model ID</th>
+                    <th className="px-4 py-3 text-left text-sm font-semibold text-forest-dark">Provider</th>
+                    <th className="px-4 py-3 text-left text-sm font-semibold text-forest-dark">Context</th>
+                  </tr>
+                </thead>
+                <tbody className="text-sm">
+                  {[
+                    ["llama-3.3-70b", "Meta", "8K"],
+                    ["llama-3.1-8b", "Meta", "128K"],
+                    ["llama-3.3-70b-versatile", "Meta", "128K"],
+                    ["mixtral-8x7b", "Mistral", "32K"],
+                    ["gemma2-9b", "Google", "8K"],
+                    ["deepseek-r1-70b", "DeepSeek", "128K"],
+                  ].map(([id, provider, ctx]) => (
+                    <tr key={id} className="border-b border-mist last:border-b-0">
+                      <td className="px-4 py-3 font-mono text-xs text-forest">{id}</td>
+                      <td className="px-4 py-3 text-forest-dark/70">{provider}</td>
+                      <td className="px-4 py-3 text-forest-dark/70">{ctx}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </section>
         </main>
       </div>

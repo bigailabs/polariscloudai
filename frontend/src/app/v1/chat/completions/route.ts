@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { validateApiKey, recordKeyUsageDirect } from "@/lib/auth-api-key";
 import { resolveModel } from "@/lib/models";
 import { supabaseServer } from "@/lib/supabase-server";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 export const runtime = "edge";
 
@@ -23,6 +24,23 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       { error: { message: "Invalid or revoked API key.", type: "auth_error", code: "invalid_api_key" } },
       { status: 401 }
+    );
+  }
+
+  // --- Rate limit ---
+  const rateLimit = checkRateLimit(keyRecord.id, 60, 60_000);
+  if (!rateLimit.allowed) {
+    return NextResponse.json(
+      { error: { message: "Rate limit exceeded. Max 60 requests per minute.", type: "rate_limit_error", code: "rate_limit" } },
+      {
+        status: 429,
+        headers: {
+          "X-RateLimit-Limit": String(rateLimit.limit),
+          "X-RateLimit-Remaining": "0",
+          "X-RateLimit-Reset": String(rateLimit.resetAt),
+          "Retry-After": "60",
+        },
+      }
     );
   }
 
@@ -130,6 +148,9 @@ export async function POST(request: NextRequest) {
         "Content-Type": "text/event-stream",
         "Cache-Control": "no-cache",
         Connection: "keep-alive",
+        "X-RateLimit-Limit": String(rateLimit.limit),
+        "X-RateLimit-Remaining": String(rateLimit.remaining),
+        "X-RateLimit-Reset": String(rateLimit.resetAt),
       },
     });
   }
@@ -147,7 +168,13 @@ export async function POST(request: NextRequest) {
   await logUsage(keyRecord.id, keyRecord.user_id, requestedModel, inputTokens, outputTokens, latencyMs, 200);
   await recordKeyUsageDirect(keyRecord.id);
 
-  return NextResponse.json(groqData);
+  return NextResponse.json(groqData, {
+    headers: {
+      "X-RateLimit-Limit": String(rateLimit.limit),
+      "X-RateLimit-Remaining": String(rateLimit.remaining),
+      "X-RateLimit-Reset": String(rateLimit.resetAt),
+    },
+  });
 }
 
 async function logUsage(
