@@ -1,14 +1,19 @@
+# DISABLED: repo is legacy/archived; see polaris-independent-audit-2026-07-01.md
+# The automatic push-to-main -> Cloudflare Pages publish has been removed so
+# archiving this dead repo does not leave a live publish pipeline. Kept as
+# workflow_dispatch-only for history/clarity; the `on: push` trigger below is
+# intentionally commented out.
 name: Deploy Frontend to Cloudflare Pages
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - 'index.html'
-      - 'app.html'
-      - 'public/**'
-      - '.github/workflows/deploy-frontend.yml'
+  # push:
+  #   branches:
+  #     - main
+  #   paths:
+  #     - 'index.html'
+  #     - 'app.html'
+  #     - 'public/**'
+  #     - '.github/workflows/deploy-frontend.yml'
   workflow_dispatch:
 
 jobs:
